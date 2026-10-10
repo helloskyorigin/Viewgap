@@ -53,6 +53,12 @@ export const SERVER_LIMITS = {
 
   /** Maximum concurrent analysis jobs permitted per client IP (default 2) */
   CHECK_MAX_CONCURRENT_PER_IP: getEnvNumber("CHECK_MAX_CONCURRENT_PER_IP", 2),
+
+  /** Maximum number of pre-scan verify requests permitted per client IP per minute (default 30) */
+  VERIFY_RATE_LIMIT_PER_MINUTE: getEnvNumber("VERIFY_RATE_LIMIT_PER_MINUTE", 30),
+
+  /** Maximum concurrent verify requests permitted per client IP (default 4) */
+  VERIFY_MAX_CONCURRENT_PER_IP: getEnvNumber("VERIFY_MAX_CONCURRENT_PER_IP", 4),
 } as const;
 
 export type ServerLimits = typeof SERVER_LIMITS;

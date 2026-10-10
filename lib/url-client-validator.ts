@@ -18,13 +18,28 @@ export interface ClientUrlValidationResult {
  */
 export function isPrivateIpAddress(ip: string): boolean {
   let cleanIp = ip.trim().toLowerCase();
+  if (cleanIp.startsWith("[") && cleanIp.endsWith("]")) {
+    cleanIp = cleanIp.slice(1, -1);
+  }
   if (cleanIp.startsWith("::ffff:")) {
-    cleanIp = cleanIp.substring(7);
+    const mapped = cleanIp.substring(7);
+    // WHATWG URL parser normalizes ::ffff:127.0.0.1 to ::ffff:7f00:1 (hex hextets)
+    const hexMatch = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(mapped);
+    if (hexMatch) {
+      const high = parseInt(hexMatch[1], 16);
+      const low = parseInt(hexMatch[2], 16);
+      cleanIp = `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`;
+    } else {
+      cleanIp = mapped;
+    }
   }
 
   // IPv4 checks
   if (/^(\d{1,3}\.){3}\d{1,3}$/.test(cleanIp)) {
     const parts = cleanIp.split(".").map((num) => parseInt(num, 10));
+    if (parts.some((p) => Number.isNaN(p) || p < 0 || p > 255)) {
+      return true;
+    }
     const [a, b] = parts;
 
     // 0.0.0.0/8 (Current network)
@@ -53,14 +68,25 @@ export function isPrivateIpAddress(ip: string): boolean {
   }
 
   // IPv6 checks
-  if (cleanIp === "::" || cleanIp === "::1" || cleanIp === "0:0:0:0:0:0:0:1") {
-    return true; // Loopback
+  if (
+    cleanIp === "::" ||
+    cleanIp === "::1" ||
+    cleanIp === "0:0:0:0:0:0:0:1" ||
+    cleanIp === "0:0:0:0:0:0:0:0"
+  ) {
+    return true; // Unspecified or Loopback
   }
-  if (cleanIp.startsWith("fe80:") || cleanIp.startsWith("fe80::")) {
-    return true; // Link-local
+  // Link-local fe80::/10 (fe80..febf)
+  if (/^fe[89ab][0-9a-f]*:/i.test(cleanIp)) {
+    return true;
   }
-  if (cleanIp.startsWith("fc00:") || cleanIp.startsWith("fd00:")) {
-    return true; // Unique local
+  // Unique local fc00::/7 (fc00..fdff)
+  if (/^f[cd][0-9a-f]{2}:/i.test(cleanIp)) {
+    return true;
+  }
+  // Multicast ff00::/8
+  if (cleanIp.startsWith("ff")) {
+    return true;
   }
 
   return false;

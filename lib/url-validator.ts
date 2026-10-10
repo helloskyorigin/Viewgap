@@ -63,26 +63,44 @@ export function isPrivateIp(ip: string): boolean {
 
 /**
  * Validates a URL against Server-Side Request Forgery (SSRF) vulnerabilities.
- * Checks reserved hostnames, private IP literals, and performs DNS resolution to verify target IPs.
+ * Checks protocol, reserved hostnames, private IP literals, and performs DNS resolution to verify target IPs.
  */
 export async function checkSsrf(
   urlStr: string
 ): Promise<{ isSafe: boolean; isDnsFailure?: boolean; reason?: string }> {
   try {
     const parsed = new URL(urlStr);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return {
+        isSafe: false,
+        reason: `Unsupported URL protocol '${parsed.protocol}' is prohibited`,
+      };
+    }
+
     const hostname = parsed.hostname.toLowerCase();
+    const unbracketedHost =
+      hostname.startsWith("[") && hostname.endsWith("]")
+        ? hostname.slice(1, -1)
+        : hostname;
+
+    if (!unbracketedHost) {
+      return {
+        isSafe: false,
+        reason: "Missing hostname in URL",
+      };
+    }
 
     // Check blocked domain suffixes / internal hostnames
     if (
-      hostname === "localhost" ||
-      hostname.endsWith(".localhost") ||
-      hostname.endsWith(".local") ||
-      hostname.endsWith(".internal") ||
-      hostname.endsWith(".lan") ||
-      hostname.endsWith(".home") ||
-      hostname.endsWith(".invalid") ||
-      hostname.endsWith(".test") ||
-      hostname.endsWith(".example")
+      unbracketedHost === "localhost" ||
+      unbracketedHost.endsWith(".localhost") ||
+      unbracketedHost.endsWith(".local") ||
+      unbracketedHost.endsWith(".internal") ||
+      unbracketedHost.endsWith(".lan") ||
+      unbracketedHost.endsWith(".home") ||
+      unbracketedHost.endsWith(".invalid") ||
+      unbracketedHost.endsWith(".test") ||
+      unbracketedHost.endsWith(".example")
     ) {
       return {
         isSafe: false,
@@ -90,19 +108,29 @@ export async function checkSsrf(
       };
     }
 
-    // If hostname is a direct IP address
-    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname.includes(":")) {
-      if (isPrivateIp(hostname)) {
+    // If hostname is a direct IPv4 or IPv6 address literal
+    const isIpLiteral =
+      /^(\d{1,3}\.){3}\d{1,3}$/.test(unbracketedHost) || unbracketedHost.includes(":");
+    if (isIpLiteral) {
+      if (isPrivateIp(unbracketedHost)) {
         return {
           isSafe: false,
           reason: `Access to private IP address '${hostname}' is prohibited`,
         };
       }
+      return { isSafe: true };
     }
 
     // DNS Resolution check to prevent DNS rebinding / internal resolution & verify domain existence
     try {
-      const addresses = await dns.promises.lookup(hostname, { all: true });
+      const addresses = await dns.promises.lookup(unbracketedHost, { all: true });
+      if (!addresses || addresses.length === 0) {
+        return {
+          isSafe: false,
+          isDnsFailure: true,
+          reason: `Domain '${hostname}' resolved to no addresses. Please verify the website URL.`,
+        };
+      }
       for (const record of addresses) {
         if (isPrivateIp(record.address)) {
           return {
@@ -112,20 +140,11 @@ export async function checkSsrf(
         }
       }
     } catch (dnsErr: any) {
-      if (
-        dnsErr &&
-        (dnsErr.code === "ENOTFOUND" ||
-          dnsErr.code === "EAI_AGAIN" ||
-          dnsErr.code === "ENAME" ||
-          dnsErr.code === "ENODATA")
-      ) {
-        return {
-          isSafe: false,
-          isDnsFailure: true,
-          reason: `Domain '${hostname}' does not exist or DNS lookup failed. Please verify the website URL.`,
-        };
-      }
-      console.warn(`DNS lookup warning for ${hostname}:`, dnsErr);
+      return {
+        isSafe: false,
+        isDnsFailure: true,
+        reason: `Domain '${hostname}' does not exist or DNS lookup failed. Please verify the website URL.`,
+      };
     }
 
     return { isSafe: true };

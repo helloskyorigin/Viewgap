@@ -5,6 +5,12 @@ import { extractWebsiteSnapshot } from "@/lib/content-extractor";
 import { analyzeWebsite } from "@/services/ai/analyzeWebsite";
 import { validateAndScoreAnalysis } from "@/services/validation/analysisValidator";
 import { getCachedFetch, setCachedFetch } from "@/lib/fetch-cache";
+import {
+  getClientIp,
+  checkAndAcquireRateLimit,
+  releaseConcurrencySlot,
+} from "@/server/security/rateLimiter";
+import { SERVER_LIMITS } from "@/server/config/limits";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +36,29 @@ export async function GET() {
  * Validates, normalizes, checks SSRF security rules, fetches website homepage, performs content extraction, runs AI analysis, and executes deterministic scoring & evidence validation.
  */
 export async function POST(req: NextRequest) {
+  // 0. Rate Limiting & Concurrency Protection (Enforced before expensive processing)
+  const clientIp = getClientIp(req);
+  const limitCheck = checkAndAcquireRateLimit(clientIp, {
+    scope: "check",
+    maxPerMinute: SERVER_LIMITS.CHECK_RATE_LIMIT_PER_MINUTE,
+    maxConcurrent: SERVER_LIMITS.CHECK_MAX_CONCURRENT_PER_IP,
+  });
+
+  if (!limitCheck.allowed) {
+    const headers: Record<string, string> = {};
+    if (limitCheck.retryAfterSeconds) {
+      headers["Retry-After"] = String(limitCheck.retryAfterSeconds);
+    }
+    return NextResponse.json(
+      {
+        success: false,
+        error: limitCheck.error || "RATE_LIMITED",
+        message: limitCheck.message || "Too many checks are currently running. Please try again shortly.",
+      },
+      { status: 429, headers }
+    );
+  }
+
   try {
     let body: { url?: unknown };
     try {
@@ -117,9 +146,13 @@ export async function POST(req: NextRequest) {
     // 6. Phase 4: Evidence Validation & Deterministic Scoring
     const finalValidatedAnalysis = validateAndScoreAnalysis(rawAiAnalysis, snapshot);
 
+    // Omit raw HTML string from public API payload to prevent massive payloads,
+    // memory pressure, and sensitive DOM leakage over the wire
+    const { html: _omittedHtml, ...safeFetchMetadata } = fetchResult;
+
     return NextResponse.json(
       {
-        ...fetchResult,
+        ...safeFetchMetadata,
         snapshot,
         aiAnalysis: rawAiAnalysis,
         analysis: finalValidatedAnalysis,
@@ -158,5 +191,7 @@ export async function POST(req: NextRequest) {
       },
       { status: 500 }
     );
+  } finally {
+    releaseConcurrencySlot(clientIp, "check");
   }
 }

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npx tsx __tests__/phase4-scoring-validation.test.ts",
+    "test": "npx tsx __tests__/phase4-scoring-validation.test.ts && npx tsx __tests__/rate-limiter.test.ts && npx tsx __tests__/fetching-extraction.test.ts",
     "clean": "next clean"
   },
   "dependencies": {
