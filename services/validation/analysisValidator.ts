@@ -1,14 +1,20 @@
-import { WebsiteSnapshot } from "@/lib/content-extractor";
+import { WebsiteSnapshot, isNavigationOrUtilityCtaLabel } from "@/lib/content-extractor";
 import { WebsiteAnalysis } from "@/services/ai/analysisSchema";
 import { FinalValidatedAnalysis, ValidatedDecisionStatus, ValidatedEvidenceRef } from "@/types/validatedAnalysis";
 import { SCORING_VERSION } from "@/services/scoring/scoringConfig";
 import { normalizeSignalScore } from "@/services/scoring/normalizeSignalScore";
 import { calculateOverallScore } from "@/services/scoring/calculateOverallScore";
-import { validateEvidenceList } from "./evidenceValidator";
+import {
+  validateEvidenceList,
+  hasExplicitAudienceEvidence,
+  hasExplicitProductCategoryEvidence,
+  evaluateEvidenceRelevanceForDimension,
+} from "./evidenceValidator";
 import {
   validatePriorityFix,
   validateOtherImprovements,
   sanitizeVisitorThought,
+  containsUnverifiedFabricatedClaim,
 } from "./recommendationValidator";
 
 /**
@@ -74,12 +80,89 @@ export function validateAndScoreAnalysis(
     what_should_i_do_next: validateFSItem(fs.what_should_i_do_next),
   };
 
+  // Enforce Audience evidence relevance on firstSeconds.who_is_it_for
+  const hasExplicitAud = hasExplicitAudienceEvidence(
+    [
+      ...firstSeconds.who_is_it_for.evidence,
+      ...validateEvidenceList(aiAnalysis?.signals?.audience?.evidence_refs, snapshot, true),
+    ],
+    snapshot
+  );
+  if (!hasExplicitAud) {
+    firstSeconds.who_is_it_for.evidence = [];
+    firstSeconds.who_is_it_for.evidence_available = false;
+    if (
+      firstSeconds.who_is_it_for.status === "clear" ||
+      firstSeconds.who_is_it_for.status === "understandable"
+    ) {
+      firstSeconds.who_is_it_for.status = "partly_clear";
+    }
+  }
+
+  // Enforce Product Category evidence relevance on firstSeconds.what_is_this
+  if (
+    firstSeconds.what_is_this.evidence.length > 0 &&
+    !hasExplicitProductCategoryEvidence(firstSeconds.what_is_this.evidence, snapshot)
+  ) {
+    // Keep only if headline itself was matched, otherwise mark relevance weak
+    firstSeconds.what_is_this.evidence = firstSeconds.what_is_this.evidence.map((ev) => ({
+      ...ev,
+      relevance: "weak" as const,
+    }));
+  }
+
+  // Enforce Primary CTA consistency on firstSeconds.what_should_i_do_next
+  const heroPrimaryCtaText = snapshot.hero?.primaryCta?.text?.trim();
+  if (heroPrimaryCtaText && !isNavigationOrUtilityCtaLabel(heroPrimaryCtaText)) {
+    firstSeconds.what_should_i_do_next.evidence =
+      firstSeconds.what_should_i_do_next.evidence.filter(
+        (ev) => !isNavigationOrUtilityCtaLabel(ev.text)
+      );
+    if (firstSeconds.what_should_i_do_next.evidence.length === 0) {
+      firstSeconds.what_should_i_do_next.evidence = [
+        {
+          source: "cta",
+          text: heroPrimaryCtaText,
+          status: "verified",
+          matchType: "exact",
+          relevance: "strong",
+        },
+      ];
+      firstSeconds.what_should_i_do_next.evidence_available = true;
+    }
+  }
+
   // 2. Validate Evidence & Normalize Scores for All 5 Signals
   const rawSignals = aiAnalysis?.signals || {};
 
   const processSignal = (sigKey: keyof typeof rawSignals, defaultStatus: string) => {
     const rawSig = rawSignals[sigKey] || {};
-    const verifiedEv = validateEvidenceList(rawSig.evidence_refs, snapshot, true);
+    let verifiedEv = validateEvidenceList(rawSig.evidence_refs, snapshot, true);
+
+    if (sigKey === "action" && heroPrimaryCtaText && !isNavigationOrUtilityCtaLabel(heroPrimaryCtaText)) {
+      verifiedEv = verifiedEv.filter((ev) => !isNavigationOrUtilityCtaLabel(ev.text));
+      if (verifiedEv.length === 0) {
+        verifiedEv = [
+          {
+            source: "cta",
+            text: heroPrimaryCtaText,
+            status: "verified",
+            matchType: "exact",
+            relevance: "strong",
+          },
+        ];
+      }
+    }
+
+    const dimensionSupport = evaluateEvidenceRelevanceForDimension(
+      sigKey,
+      verifiedEv,
+      snapshot
+    );
+
+    if (sigKey === "audience" && dimensionSupport === "unsupported") {
+      verifiedEv = [];
+    }
 
     const status = rawSig.status || defaultStatus;
     const initialConfidence = ["high", "medium", "low"].includes(rawSig.confidence)
@@ -90,18 +173,46 @@ export function validateAndScoreAnalysis(
       rawSig.score,
       status,
       verifiedEv,
-      initialConfidence
+      initialConfidence,
+      dimensionSupport
     );
 
     const effectiveConfidence =
       isIncompleteExtraction && verifiedEv.length === 0 ? "low" : finalConfidence;
 
+    let explanation = qualifyDefinitiveNegativeText(
+      rawSig.explanation || "Diagnostic signal evaluation based on accessible homepage content."
+    );
+
+    if (containsUnverifiedFabricatedClaim(explanation, snapshot)) {
+      explanation = `Diagnostic ${sigKey.replace("_", " ")} evaluation based on accessible homepage content for ${brandName}.`;
+    }
+
+    if (sigKey === "audience" && dimensionSupport === "unsupported") {
+      const claimsClearAudience =
+        /\b(clearly specified|clearly stated|explicitly stated|clearly identifies|target audience is clear)\b/i.test(
+          explanation
+        );
+      if (claimsClearAudience || finalScore < 70) {
+        explanation = `Target audience is not explicitly stated in the accessible homepage content for ${brandName}; visitors must infer whether it applies to them.`;
+      }
+    }
+
+    if (
+      sigKey === "action" &&
+      heroPrimaryCtaText &&
+      /\b["'“”]?(?:faq|frequently asked questions|pricing|about|contact|blog|login|sign in)["'””]?\b/i.test(
+        explanation
+      ) &&
+      !explanation.toLowerCase().includes(heroPrimaryCtaText.toLowerCase())
+    ) {
+      explanation = `The primary call-to-action (“${heroPrimaryCtaText}”) is present in the extracted homepage hero content.`;
+    }
+
     return {
       score: finalScore,
       status: finalStatus,
-      explanation: qualifyDefinitiveNegativeText(
-        rawSig.explanation || "Diagnostic signal evaluation based on accessible homepage content."
-      ),
+      explanation,
       confidence: effectiveConfidence,
       evidence_available: verifiedEv.length > 0,
       evidence: verifiedEv,
@@ -165,7 +276,7 @@ export function validateAndScoreAnalysis(
       );
 
     if (claimsNoneExist || claimsUnqualifiedStrong || !hasNuance) {
-      processedSignals.trust.explanation = `While initial credibility elements are present in the accessible homepage content (such as “${primaryTrustSnippet}”), overall trust strength scores ${processedSignals.trust.score}/100 because broader proof points—such as detailed customer testimonials or case studies—were not identified above the fold.`;
+      processedSignals.trust.explanation = `While initial credibility elements are present in the accessible homepage content (such as “${primaryTrustSnippet}”), overall trust strength scores ${processedSignals.trust.score}/100 because broader proof points—such as detailed customer testimonials or case studies—were not identified in the accessible homepage content.`;
     }
   } else if (processedSignals.trust.score < 50 && !primaryTrustSnippet) {
     // Case 2: Low Trust score (<50) WITHOUT verified trust evidence
@@ -256,8 +367,12 @@ export function validateAndScoreAnalysis(
 
   const rawWm: any = aiAnalysis?.website_message || {};
   const wmEv = validateEvidenceList(rawWm.evidence_refs, snapshot, true);
-  const wmSummary = rawWm.summary
-    ? qualifyDefinitiveNegativeText(rawWm.summary)
+  const rawWmSummary =
+    rawWm.summary && !containsUnverifiedFabricatedClaim(rawWm.summary, snapshot)
+      ? qualifyDefinitiveNegativeText(rawWm.summary)
+      : "";
+  const wmSummary = rawWmSummary
+    ? rawWmSummary
     : isIncompleteExtraction
     ? `Limited text was identified in the accessible homepage HTML for ${brandName}; this assessment reflects only the initial static markup available during scanning.`
     : `This website communicates its core product offering for ${brandName}.`;
@@ -455,14 +570,23 @@ export function validateAndScoreAnalysis(
   risks = risks.slice(0, 4);
 
   // 5. Sanitize Verdict & Visitor Thought
+  const rawVerdict =
+    aiAnalysis?.verdict?.text &&
+    !containsUnverifiedFabricatedClaim(aiAnalysis.verdict.text, snapshot)
+      ? aiAnalysis.verdict.text
+      : "";
   const verdictText = qualifyDefinitiveNegativeText(
-    aiAnalysis?.verdict?.text ||
+    rawVerdict ||
       (overallScore >= 80
         ? `${brandName} communicates its core value proposition and next step clearly to first-time visitors.`
         : `Visitors grasp ${brandName}'s general topic, but key first-impression signals need clearer grounding.`)
   );
 
-  const visitorThoughtText = sanitizeVisitorThought(aiAnalysis?.visitor_thought?.text, brandName);
+  const visitorThoughtText = sanitizeVisitorThought(
+    aiAnalysis?.visitor_thought?.text,
+    brandName,
+    snapshot
+  );
   const visitorThoughtConfidence = isIncompleteExtraction
     ? "low"
     : ["high", "medium", "low"].includes(aiAnalysis?.visitor_thought?.confidence)

@@ -1,5 +1,6 @@
 import { FinalValidatedAnalysis } from "@/types/validatedAnalysis";
-import { WebsiteSnapshot } from "@/lib/content-extractor";
+import { SupportingContext } from "@/types/supportingContext";
+import { WebsiteSnapshot, isNavigationOrUtilityCtaLabel } from "@/lib/content-extractor";
 import { AnalysisData } from "@/components/ResultsScreen";
 
 /**
@@ -9,7 +10,8 @@ import { AnalysisData } from "@/components/ResultsScreen";
 export function mapBackendToFrontend(
   backendAnalysis: FinalValidatedAnalysis,
   rawUrl: string,
-  snapshot?: WebsiteSnapshot
+  snapshot?: WebsiteSnapshot,
+  supportingContextOverride?: SupportingContext
 ): AnalysisData {
   // Normalize Domain for Display
   let cleanDomain = rawUrl.trim();
@@ -190,18 +192,23 @@ export function mapBackendToFrontend(
   const whatIsThisEv =
     backendAnalysis.first_seconds.what_is_this.evidence[0]?.text ||
     backendAnalysis.signals.first_impression.evidence[0]?.text;
-  if (whatIsThisEv) {
+  if (
+    whatIsThisEv &&
+    (backendAnalysis.signals.first_impression.score >= 70 ||
+      backendAnalysis.first_seconds.what_is_this.status === "clear" ||
+      backendAnalysis.first_seconds.what_is_this.status === "understandable")
+  ) {
     clearFindings.push(`Product category: “${whatIsThisEv}” is identifiable`);
   } else if (
     backendAnalysis.first_seconds.what_is_this.status === "clear" ||
     backendAnalysis.signals.first_impression.score >= 70
   ) {
-    clearFindings.push("Core product category is identifiable above the fold");
+    clearFindings.push("Core product category is identifiable in the homepage content");
   }
   if (backendAnalysis.signals.first_impression.score < 70) {
     missingFindings.push(
       whatIsThisEv
-        ? "Product category wording is present but requires clearer specificity above the fold"
+        ? "Product category wording is present but requires clearer specificity in the hero section"
         : isPartialSnapshot
         ? "Clear product category headline was not detected in the extracted homepage text"
         : "Product category requires extra scanning to identify"
@@ -212,7 +219,12 @@ export function mapBackendToFrontend(
   const whoIsItForEv =
     backendAnalysis.first_seconds.who_is_it_for.evidence[0]?.text ||
     backendAnalysis.signals.audience.evidence[0]?.text;
-  if (whoIsItForEv) {
+  if (
+    whoIsItForEv &&
+    backendAnalysis.signals.audience.score >= 70 &&
+    (backendAnalysis.first_seconds.who_is_it_for.status === "clear" ||
+      backendAnalysis.first_seconds.who_is_it_for.status === "understandable")
+  ) {
     clearFindings.push(`Target audience: “${whoIsItForEv}” is specified`);
   } else if (
     backendAnalysis.first_seconds.who_is_it_for.status === "clear" ||
@@ -222,9 +234,7 @@ export function mapBackendToFrontend(
   }
   if (backendAnalysis.signals.audience.score < 70) {
     missingFindings.push(
-      whoIsItForEv
-        ? "Audience reference is present but could be positioned more prominently in the hero"
-        : isPartialSnapshot
+      isPartialSnapshot
         ? "Explicit target audience qualifier was not detected in the extracted homepage text"
         : "Target audience is not explicitly stated in hero section"
     );
@@ -269,22 +279,28 @@ export function mapBackendToFrontend(
         ? "Initial proof is present, but stronger quantifiable credentials or customer evidence would reinforce trust"
         : isPartialSnapshot
         ? "Customer proof points or credentials were not detected in the extracted homepage text"
-        : "Verifiable proof points, customer logos, or credentials not detected above the fold"
+        : "Verifiable proof points, customer logos, or credentials not detected in the extracted homepage content"
     );
   }
 
   // 5. Primary Call to Action
-  const actionEv =
+  const candidateActionEv =
     snapshot?.hero?.primaryCta?.text ||
+    backendAnalysis.signals.action.evidence.find((e) => !isNavigationOrUtilityCtaLabel(e.text))?.text ||
+    backendAnalysis.first_seconds.what_should_i_do_next.evidence.find((e) => !isNavigationOrUtilityCtaLabel(e.text))?.text ||
     backendAnalysis.signals.action.evidence[0]?.text ||
     backendAnalysis.first_seconds.what_should_i_do_next.evidence[0]?.text;
+  const actionEv =
+    candidateActionEv && !isNavigationOrUtilityCtaLabel(candidateActionEv)
+      ? candidateActionEv
+      : snapshot?.hero?.primaryCta?.text || undefined;
   if (actionEv && backendAnalysis.signals.action.score >= 60) {
-    clearFindings.push(`Primary action: “${actionEv}” is prominent`);
+    clearFindings.push(`Primary action: “${actionEv}” is present in the hero section`);
   }
   if (backendAnalysis.signals.action.score < 65) {
     missingFindings.push(
       actionEv
-        ? `Primary CTA (“${actionEv}”) is visible, but next-step expectations or commitment level could be clearer`
+        ? `Primary CTA (“${actionEv}”) is present, but next-step expectations or commitment level could be clearer`
         : isPartialSnapshot
         ? "Primary call-to-action button was not detected in the extracted homepage text"
         : "Call to action has ambiguity or high friction"
@@ -293,12 +309,12 @@ export function mapBackendToFrontend(
 
   const homepageExcerpt = snapshot?.hero?.headline
     ? `“ ${snapshot.hero.headline}${snapshot.hero.subheadline ? ' — ' + snapshot.hero.subheadline : ''} ”`
-    : `“ We scanned your homepage above the fold structure.”`;
+    : `“ We scanned your accessible homepage structure.”`;
 
   const evidence = {
     locationTag: isPartialSnapshot
       ? "Homepage · Partial text snapshot"
-      : "Homepage · Above the fold",
+      : "Homepage · Extracted content",
     homepageExcerpt,
     clearFindings: clearFindings.length > 0 ? clearFindings : ["Found initial page structure"],
     missingFindings: missingFindings.length > 0 ? missingFindings : ["No major communication blockers identified"],
@@ -466,6 +482,9 @@ export function mapBackendToFrontend(
     };
   });
 
+  const resolvedSupportingContext =
+    supportingContextOverride ?? backendAnalysis.supportingContext;
+
   return {
     domain: cleanDomain,
     score: backendAnalysis.overall_score,
@@ -481,6 +500,9 @@ export function mapBackendToFrontend(
     risks,
     recommendation,
     otherImprovements,
+    ...(resolvedSupportingContext
+      ? { supportingContext: resolvedSupportingContext }
+      : {}),
     isPartialAccess: snapshot?.stats ? snapshot.stats.cleanedTextLength < 200 : false,
     isAccessError: false,
     checkedAt: "Checked just now",

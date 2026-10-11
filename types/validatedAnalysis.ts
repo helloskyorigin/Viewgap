@@ -1,3 +1,5 @@
+import { SupportingContext } from "./supportingContext";
+
 export interface ValidatedEvidenceRef {
   source: string;
   element?: string;
@@ -142,4 +144,6 @@ export interface FinalValidatedAnalysis {
     evidence_available: boolean;
     evidence: ValidatedEvidenceRef[];
   }>;
+
+  supportingContext?: SupportingContext;
 }

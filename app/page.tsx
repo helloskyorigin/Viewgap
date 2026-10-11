@@ -299,7 +299,8 @@ export default function LandingPage() {
         const mapped = mapBackendToFrontend(
           data.analysis,
           normalizedTargetUrl,
-          data.snapshot
+          data.snapshot,
+          data.supportingContext
         );
         setAnalysisData(mapped);
       } else {

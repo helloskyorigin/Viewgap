@@ -1,6 +1,8 @@
 import { STATUS_SCORE_RANGES, scoreToDeterministicStatus } from "./scoringConfig";
 import { ValidatedEvidenceRef, ConfidenceLevel } from "@/types/validatedAnalysis";
 
+export type DimensionEvidenceSupport = "supported" | "weak" | "unsupported";
+
 export interface NormalizedSignalResult {
   finalScore: number;
   finalStatus: string;
@@ -9,13 +11,14 @@ export interface NormalizedSignalResult {
 
 /**
  * Normalizes an initial AI signal score and status deterministically
- * based on score ranges, evidence verification status, and sanity rules.
+ * based on score ranges, evidence verification status, dimension-specific support, and sanity rules.
  */
 export function normalizeSignalScore(
   rawScore: unknown,
   status: string,
   verifiedEvidence: ValidatedEvidenceRef[],
-  initialConfidence: ConfidenceLevel = "medium"
+  initialConfidence: ConfidenceLevel = "medium",
+  dimensionSupport: DimensionEvidenceSupport = "supported"
 ): NormalizedSignalResult {
   const normStatus = (status || "").toLowerCase().trim();
   const rangeConfig = STATUS_SCORE_RANGES[normStatus] || STATUS_SCORE_RANGES["partly_clear"];
@@ -39,15 +42,31 @@ export function normalizeSignalScore(
   if (
     (normStatus === "clear" || normStatus === "understandable") &&
     numericScore < rangeConfig.min &&
-    verifiedCount > 0
+    verifiedCount > 0 &&
+    dimensionSupport === "supported"
   ) {
     numericScore = rangeConfig.min;
   }
 
-  // 4. Evidence grounding adjustment
+  // 4. Evidence grounding & dimension relevance adjustment
   let finalConfidence = initialConfidence;
 
-  if (verifiedCount === 0) {
+  if (dimensionSupport === "unsupported") {
+    // Dimension lacks explicit supporting evidence in the verified quotes or snapshot
+    if (finalConfidence === "high") {
+      finalConfidence = "medium";
+    }
+    if (numericScore > 65) {
+      numericScore = 62;
+    }
+  } else if (dimensionSupport === "weak") {
+    if (finalConfidence === "high") {
+      finalConfidence = "medium";
+    }
+    if (numericScore > 78) {
+      numericScore = 75;
+    }
+  } else if (verifiedCount === 0) {
     // Zero verified evidence: cap confidence to low or medium, and penalize high scores
     if (finalConfidence === "high") {
       finalConfidence = "medium";

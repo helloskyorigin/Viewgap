@@ -14,6 +14,29 @@ function getEnvNumber(key: string, defaultValue: number): number {
   return Number.isNaN(parsed) || parsed <= 0 ? defaultValue : parsed;
 }
 
+function getEnvBoolean(key: string, defaultValue: boolean): boolean {
+  if (typeof process === "undefined" || !process.env) return defaultValue;
+  const val = process.env[key];
+  if (!val || typeof val !== "string") return defaultValue;
+  const normalized = val.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  return defaultValue;
+}
+
+/**
+ * Evaluates at runtime whether Multi-Page Supporting Context Analysis is enabled.
+ * Defaults strictly to `false` (OFF). Only an explicit value of `"true"` (or `override === true`
+ * in isolated test environments) enables the feature; any missing, empty, or invalid value leaves it disabled.
+ */
+export function isSupportingPagesEnabled(override?: boolean): boolean {
+  if (typeof override === "boolean") return override;
+  if (typeof process === "undefined" || !process.env) return false;
+  const raw = process.env.ENABLE_SUPPORTING_PAGES_ANALYSIS;
+  if (typeof raw !== "string") return false;
+  return raw.trim().toLowerCase() === "true";
+}
+
 export const SERVER_LIMITS = {
   /** Maximum time allowed for initial website HTTP fetch (default 10s) */
   WEBSITE_FETCH_TIMEOUT_MS: getEnvNumber("WEBSITE_FETCH_TIMEOUT_MS", 10000),
@@ -80,6 +103,15 @@ export const SERVER_LIMITS = {
 
   /** Maximum concurrent supporting-page fetch requests per check (default 3) */
   SUPPORTING_PAGES_CONCURRENCY: getEnvNumber("SUPPORTING_PAGES_CONCURRENCY", 3),
+
+  /** Feature flag default state for Multi-Page Supporting Context Analysis (default false / OFF) */
+  ENABLE_SUPPORTING_PAGES_ANALYSIS: getEnvBoolean("ENABLE_SUPPORTING_PAGES_ANALYSIS", false),
+
+  /** Maximum timeout for the single combined supporting-context AI request (default 12s) */
+  SUPPORTING_CONTEXT_AI_TIMEOUT_MS: getEnvNumber("SUPPORTING_CONTEXT_AI_TIMEOUT_MS", 12000),
+
+  /** Maximum character budget for the combined supporting-context AI prompt payload (default 4,500 chars) */
+  SUPPORTING_CONTEXT_MAX_INPUT_CHARS: getEnvNumber("SUPPORTING_CONTEXT_MAX_INPUT_CHARS", 4500),
 } as const;
 
 export type ServerLimits = typeof SERVER_LIMITS;

@@ -19,7 +19,7 @@ export interface SignalComparisonRow {
   afterScore: number | null;
   delta: number | null;
   deltaText: string | null;
-  status: "Improved" | "Declined" | "Unchanged" | "Not recorded in prior check";
+  status: "Scored higher" | "Scored lower" | "Score unchanged" | "Not recorded in previous check.";
 }
 
 export interface ComparisonEvaluation {
@@ -37,7 +37,7 @@ export interface ComparisonEvaluation {
     afterScore: number;
     delta: number;
     deltaText: string;
-    status: "Improved" | "Declined" | "Unchanged";
+    status: "Scored higher" | "Scored lower" | "Score unchanged";
   } | null;
   hasHistoricalSignalScores: boolean;
   signals: SignalComparisonRow[];
@@ -57,7 +57,7 @@ export const CANONICAL_COMPARE_SIGNALS: ReadonlyArray<{
 ];
 
 export const METHODOLOGY_VARIABILITY_NOTE =
-  "Scores reflect AI assessments of accessible homepage content and may vary between scans.";
+  "Scores are AI-assisted assessments of accessible website content and may vary between scans. A score change does not necessarily mean visitor behavior has changed.";
 
 /**
  * Validates that a value is a finite numeric score within [0, 100].
@@ -311,8 +311,8 @@ export function evaluateComparisonEligibility(params: {
   const afterScore = Math.round(currentScore);
   const overallDelta = afterScore - beforeScore;
 
-  const overallStatus: "Improved" | "Declined" | "Unchanged" =
-    overallDelta > 0 ? "Improved" : overallDelta < 0 ? "Declined" : "Unchanged";
+  const overallStatus: "Scored higher" | "Scored lower" | "Score unchanged" =
+    overallDelta > 0 ? "Scored higher" : overallDelta < 0 ? "Scored lower" : "Score unchanged";
 
   const absDelta = Math.abs(overallDelta);
   const pointWord = absDelta === 1 ? "point" : "points";
@@ -325,10 +325,10 @@ export function evaluateComparisonEligibility(params: {
 
   const interpretationSummary =
     overallDelta > 0
-      ? `StrangerLens's latest assessment scored this homepage ${overallDelta} ${pointWord} higher.`
+      ? `Your latest assessment scored ${overallDelta} ${pointWord} higher.`
       : overallDelta < 0
-      ? `StrangerLens's latest assessment scored this homepage ${absDelta} ${pointWord} lower.`
-      : `StrangerLens's latest assessment scored this homepage the same as the previous scan (${afterScore}/100).`;
+      ? `Your latest assessment scored ${absDelta} ${pointWord} lower.`
+      : `Your latest assessment scored the same as the previous check (${afterScore}/100).`;
 
   const sanitizedPrevSignals = sanitizeStoredSignals(previousRecord.signals);
   let hasHistoricalSignalScores = false;
@@ -348,8 +348,8 @@ export function evaluateComparisonEligibility(params: {
     if (beforeSigScore !== null && afterSigScore !== null) {
       hasHistoricalSignalScores = true;
       const sigDelta = afterSigScore - beforeSigScore;
-      const sigStatus: "Improved" | "Declined" | "Unchanged" =
-        sigDelta > 0 ? "Improved" : sigDelta < 0 ? "Declined" : "Unchanged";
+      const sigStatus: "Scored higher" | "Scored lower" | "Score unchanged" =
+        sigDelta > 0 ? "Scored higher" : sigDelta < 0 ? "Scored lower" : "Score unchanged";
       const sigDeltaText =
         sigDelta > 0 ? `+${sigDelta}` : sigDelta < 0 ? `${sigDelta}` : "0";
 
@@ -371,7 +371,7 @@ export function evaluateComparisonEligibility(params: {
       afterScore: afterSigScore,
       delta: null,
       deltaText: null,
-      status: "Not recorded in prior check",
+      status: "Not recorded in previous check.",
     };
   });
 

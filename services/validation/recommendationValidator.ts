@@ -48,9 +48,9 @@ export function containsUnverifiedFabricatedClaim(
     .join(" ")
     .toLowerCase();
 
-  // 1. Check any numbers in candidateText that are tied to metrics, percentages, multipliers, or social proof
+  // 1. Check any numbers in candidateText that are tied to metrics, percentages, multipliers, datasets, or social proof
   const metricNumberPatterns: RegExp[] = [
-    /\b(\d[\d,.]*[kmb]?)\+?\s*(?:users|customers|teams|companies|clients|developers|businesses|creators|organizations|downloads|reviews|stars|countries|enterprises|leaders|brands)\b/gi,
+    /\b(\d[\d,.]*[kmb]?)\+?\s*(?:users|customers|teams|companies|clients|developers|businesses|creators|organizations|downloads|reviews|stars|countries|enterprises|leaders|brands|profiles|records|charts|analyses|datasets|data\s+points|scans|reports|websites|accounts|members|subscribers|patients|students|professionals|experts|scientists)\b/gi,
     /\b(\d+(?:\.\d+)?)%\b/gi,
     /\b(\d+(?:\.\d+)?)x\b/gi,
     /\$(\d[\d,.]*[kmb]?)\b/gi,
@@ -72,7 +72,19 @@ export function containsUnverifiedFabricatedClaim(
     }
   }
 
-  // 2. Check ratings, awards, security certifications, and trial/guarantee promises
+  // 2. Check written quantities (e.g., "thousands of customers", "millions of profiles", "hundreds of teams")
+  const writtenQuantityRegex =
+    /\b(dozens|hundreds|thousands|tens\s+of\s+thousands|hundreds\s+of\s+thousands|millions|billions|trillions|countless)\s+of\b/gi;
+  let wMatch: RegExpExecArray | null;
+  while ((wMatch = writtenQuantityRegex.exec(text)) !== null) {
+    const phrase = wMatch[0].toLowerCase().replace(/\s+/g, " ").trim();
+    const qtyWord = (wMatch[1] || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (!searchablePool.includes(phrase) && (!qtyWord || !searchablePool.includes(qtyWord))) {
+      return true;
+    }
+  }
+
+  // 3. Check ratings, awards, security certifications, scientific validation, accuracy, superlatives, and trial/guarantee promises
   const claimChecks: Array<{ pattern: RegExp; poolCheck: RegExp }> = [
     {
       pattern: /\b(?:4\.\d\/5|5-star|#1\s+rated|award-winning|g2\s+leader)\b/i,
@@ -86,6 +98,14 @@ export function containsUnverifiedFabricatedClaim(
       pattern: /\b(?:no credit card required|instant setup|100%\s+guaranteed|money-back guarantee|risk-free trial|free forever)\b/i,
       poolCheck: /\b(?:no credit card|instant setup|100%\s+guaranteed|money-back|risk-free|free forever)\b/i,
     },
+    {
+      pattern: /\b(?:exact\s+mathematical|mathematically\s+(?:proven|verified|exact)|scientifically\s+(?:proven|validated|verified)|clinically\s+(?:proven|validated)|peer-reviewed|independently\s+verified|verified\s+by\s+experts|100%\s+accurate|guaranteed\s+accuracy|proven\s+to\s+increase)\b/i,
+      poolCheck: /\b(?:exact\s+mathematical|mathematically\s+proven|scientifically\s+proven|clinically\s+proven|peer-reviewed|100%\s+accurate)\b/i,
+    },
+    {
+      pattern: /\b(?:world's\s+(?:largest|first|most|best|only|leading)|largest\s+(?:global\s+)?database|global\s+astronomical\s+profiles|official\s+partner\s+of|industry-leading|market-leading)\b/i,
+      poolCheck: /\b(?:world's\s+(?:largest|first|most|best|only|leading)|largest\s+(?:global\s+)?database|global\s+astronomical\s+profiles|official\s+partner|industry-leading|market-leading)\b/i,
+    },
   ];
 
   for (const check of claimChecks) {
@@ -94,9 +114,14 @@ export function containsUnverifiedFabricatedClaim(
     }
   }
 
-  // 3. Check for fabricated testimonial attributions (e.g., "... - Sarah, CEO")
+  // Never allow suggestions to claim independent verification even if numbers exist on the homepage
+  if (/\b(?:independently\s+verified|verified\s+fact|proven\s+fact)\b/i.test(text)) {
+    return true;
+  }
+
+  // 4. Check for fabricated testimonial attributions (e.g., "... - Sarah, CEO")
   const fakeTestimonialAttribution =
-    /[-–—]\s*[A-Z][a-zA-Z\s,.'"]*(?:CEO|Founder|CTO|VP|Director|Manager|Head|Customer|Client|Engineer)\b/;
+    /\s+[-–—]\s*[A-Z][a-zA-Z\s,.'"]*\b(?:CEO|Founder|Co-Founder|CTO|VP|Director|Manager|Head|Customer|Client|Engineer)\b/;
   if (fakeTestimonialAttribution.test(text)) {
     const hasMatchingTestimonial = (snapshot.trustSignals?.testimonials || []).some(
       (t) =>
@@ -109,6 +134,64 @@ export function containsUnverifiedFabricatedClaim(
   }
 
   return false;
+}
+
+/**
+ * Attempts to remove unsupported quantitative, scientific, or verification clauses
+ * from a suggested copy string while preserving legitimate source-supported copy.
+ * Returns null if the suggestion cannot be safely sanitized.
+ */
+export function sanitizeSuggestedCopy(
+  candidateText: string | undefined,
+  snapshot: WebsiteSnapshot
+): string | null {
+  if (!candidateText || !candidateText.trim()) return null;
+
+  const searchablePool = extractSearchableTextsFromSnapshot(snapshot)
+    .join(" ")
+    .toLowerCase();
+
+  let cleaned = candidateText
+    .trim()
+    .replace(/\b(?:independently\s+verified|verified\s+fact|proven\s+fact)\s*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!searchablePool.includes("exact mathematical")) {
+    cleaned = cleaned.replace(/\bexact\s+mathematical\s+/gi, "");
+  }
+  if (!searchablePool.includes("scientifically proven")) {
+    cleaned = cleaned.replace(/\bscientifically\s+(?:proven|validated|verified)\s+/gi, "");
+  }
+
+  if (!containsUnverifiedFabricatedClaim(cleaned, snapshot)) {
+    return cleaned.length >= 6 ? cleaned : null;
+  }
+
+  // Try stripping trailing unsupported comparison or scale clauses (e.g. "compared to thousands of global astronomical profiles")
+  const clauseStripped = cleaned
+    .replace(
+      /\s*(?:,\s*)?(?:compared\s+to|across|against|backed\s+by|trusted\s+by|used\s+by|from\s+a\s+database\s+of|among)\s+(?:the\s+)?(?:dozens|hundreds|thousands|tens\s+of\s+thousands|hundreds\s+of\s+thousands|millions|billions|trillions|\d[\d,.]*[kmb]?\+?)[^.!?]*/gi,
+      ""
+    )
+    .replace(
+      /\s*\([^)]*(?:no credit card|instant setup|soc\s*2|iso\s*27001|guaranteed|free forever|\d+%)[^)]*\)/gi,
+      ""
+    )
+    .replace(/\s+([.!?])$/, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const words = clauseStripped.split(/\s+/).filter(Boolean);
+  if (
+    clauseStripped.length >= 18 &&
+    words.length >= 4 &&
+    !containsUnverifiedFabricatedClaim(clauseStripped, snapshot)
+  ) {
+    return /[.!?→]$/.test(clauseStripped) ? clauseStripped : `${clauseStripped}.`;
+  }
+
+  return null;
 }
 
 function buildFallbackPriorityFixForWeakness(
@@ -258,7 +341,10 @@ export function validatePriorityFix(
 
   // Sanitize clearer_direction against fabricated statistics, testimonials, certifications, or guarantees
   let clearerDirection = rawClearerDirection.trim();
-  if (containsUnverifiedFabricatedClaim(clearerDirection, snapshot)) {
+  const sanitizedPrimaryCopy = sanitizeSuggestedCopy(clearerDirection, snapshot);
+  if (sanitizedPrimaryCopy) {
+    clearerDirection = sanitizedPrimaryCopy;
+  } else {
     const isTrustFocused =
       weakestSignalKey === "trust" ||
       /\b(trust|proof|testimonial|logo|credential|social proof|case study)\b/i.test(rawTitle);
@@ -381,13 +467,10 @@ export function validateOtherImprovements(
     }
 
     // Never invent fallback copyable_suggestion templates with fake claims,
-    // and strip any AI-provided copyable_suggestion that contains unverified statistics/guarantees.
+    // and strip or sanitize any AI-provided copyable_suggestion that contains unverified statistics/guarantees.
     if (copyableSuggestion) {
-      if (containsUnverifiedFabricatedClaim(copyableSuggestion, snapshot)) {
-        copyableSuggestion = undefined;
-      } else {
-        copyableSuggestion = copyableSuggestion.trim();
-      }
+      const sanitizedSuggestion = sanitizeSuggestedCopy(copyableSuggestion, snapshot);
+      copyableSuggestion = sanitizedSuggestion || undefined;
     }
 
     validList.push({
@@ -405,29 +488,135 @@ export function validateOtherImprovements(
 }
 
 /**
- * Validates Visitor Thought to ensure it represents a neutral interpretation rather than a fake user quote.
+ * Deterministically validates whether a candidate visitor impression is complete,
+ * grammatically readable, and free from placeholder fragments or truncation.
+ */
+export function isValidVisitorImpression(text: string | undefined): boolean {
+  if (!text || typeof text !== "string") return false;
+  const cleaned = text
+    .replace(/^[“"'\s]+|[”"'\s]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned || cleaned.length < 22) return false;
+
+  // Reject broken markdown fragments or trailing asterisks (e.g., "A first*")
+  if (/\*+\s*$/.test(cleaned) || /_[a-z0-9]*$/i.test(cleaned)) {
+    return false;
+  }
+
+  // Reject repeated template prefixes (e.g., "A first-time visitor would think: A first*")
+  if (
+    /a first-time visitor would (?:probably )?think:?\s*a first/i.test(cleaned) ||
+    /^(?:a first-time visitor would (?:probably )?think:?)\s*$/i.test(cleaned)
+  ) {
+    return false;
+  }
+
+  // Reject raw HTML/DOM element prefixes or awkward meta-commentary fragments (e.g., "raises a clear question right away: H1: ...")
+  if (
+    /\bH[1-6]\s*:/i.test(cleaned) ||
+    /\braises a clear question right away\b/i.test(cleaned) ||
+    /\b(?:hero_headline|subheadline|primary_cta|evidence_refs)\s*:/i.test(cleaned)
+  ) {
+    return false;
+  }
+
+  // Reject placeholder strings
+  if (
+    /^(?:todo|tbd|placeholder|n\/a|none|null|undefined|string|visitor thought|first impression)\b/i.test(
+      cleaned
+    )
+  ) {
+    return false;
+  }
+
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length < 5) return false;
+
+  // Reject sentences ending abruptly with a dangling article, preposition, conjunction, modal, or incomplete token
+  if (
+    /\b(?:a|an|the|first|this|that|these|those|to|for|with|of|in|on|at|by|from|about|into|through|during|before|after|and|or|but|if|because|while|when|where|how|what|who|which|is|are|was|were|be|been|would|could|should|will|can|may|might|must|has|have|had|do|does|did)[-*:,\s]*$/i.test(
+      cleaned
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Validates Visitor Thought to ensure it represents a complete, readable,
+ * grounded first-time visitor interpretation rather than a broken fragment or fake user quote.
  */
 export function sanitizeVisitorThought(
   thoughtText: string | undefined,
-  brandName: string
+  brandName: string,
+  snapshot?: WebsiteSnapshot
 ): string {
-  if (!thoughtText || thoughtText.trim().length === 0) {
-    return `A first-time visitor would scan ${brandName}'s homepage to understand its core product offering before taking action.`;
+  const safeBrand = brandName && brandName.trim() ? brandName.trim() : "this website";
+
+  const buildGroundedFallback = (): string => {
+    const headline = snapshot?.hero?.headline?.trim();
+    const primaryCta = snapshot?.hero?.primaryCta?.text?.trim();
+    const subheadline = snapshot?.hero?.subheadline?.trim();
+
+    if (headline && primaryCta) {
+      return `A first-time visitor scanning ${safeBrand} sees “${headline.slice(0, 100)}” and the “${primaryCta}” action, ${
+        subheadline
+          ? "with supporting context on what the page offers."
+          : "and evaluates what happens after clicking."
+      }`;
+    }
+    if (headline) {
+      return `A first-time visitor scanning ${safeBrand} sees “${headline.slice(0, 110)}” and looks for clearer details on who it is built for and what happens next.`;
+    }
+    if (snapshot && (snapshot.stats?.cleanedTextLength ?? 0) === 0 && !snapshot.meta?.title) {
+      return `A first-time visitor would scan ${safeBrand}'s homepage to understand its core product offering before taking action.`;
+    }
+    return `A first-time visitor would scan ${safeBrand}'s homepage to understand its core product offering before taking action.`;
+  };
+
+  if (!thoughtText || typeof thoughtText !== "string" || thoughtText.trim().length === 0) {
+    return buildGroundedFallback();
   }
 
-  let sanitized = thoughtText.trim();
+  let raw = thoughtText.trim();
 
-  // Strip fake testimonial quotes or attribution (e.g., '- Sarah, CEO at TechCorp' or '— John Doe')
-  const attributionRegex = /[-–—]\s*[A-Z][a-zA-Z\s,.'"]+(?:CEO|Founder|Manager|Director|VP|Head|Customer|Client|Engineer|User)?.*$/i;
-  sanitized = sanitized.replace(attributionRegex, "").trim();
+  // Detect and strip fake testimonial attribution at the end of a quote (e.g., '- Sarah, CEO at TechCorp')
+  // IMPORTANT: Require whitespace before the dash and a mandatory role/title noun so hyphenated words like 'first-time' are NEVER truncated.
+  const testimonialAttributionRegex =
+    /\s+[-–—]\s*[A-Z][a-zA-Z\s,.']*\b(?:CEO|Founder|Co-Founder|CTO|COO|CFO|VP|President|Director|Manager|Head|Lead|Customer|Client|Engineer|Developer|Designer|Marketer|Owner|Partner|User)\b[^.!?]*$/;
 
-  // Strip wrapping quotation marks if present
-  sanitized = sanitized.replace(/^["'“](.*)["'”]$/, "$1").trim();
-
-  // Ensure phrase starts with first-time visitor perspective if not already
-  if (!sanitized.toLowerCase().includes("visitor") && !sanitized.toLowerCase().includes("first-time")) {
-    sanitized = `A first-time visitor would think: ${sanitized}`;
+  const hadFakeAttribution = testimonialAttributionRegex.test(raw);
+  if (hadFakeAttribution) {
+    raw = raw.replace(testimonialAttributionRegex, "").trim();
   }
 
-  return sanitized;
+  // Strip wrapping quotation marks and stray markdown emphasis symbols
+  raw = raw
+    .replace(/^[“"'\s]+|[”"'\s]+$/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Strip duplicated or static template prefix ("A first-time visitor would think: ...")
+  raw = raw
+    .replace(/^(?:a first-time visitor would (?:probably )?think:\s*)+/i, "")
+    .replace(/^[“"'\s]+|[”"'\s]+$/g, "")
+    .trim();
+
+  // Reject fake customer endorsement quotes (e.g. "FastFlow is amazing!") or truncated/broken fragments (e.g. "A first*")
+  const isFakeEndorsement =
+    hadFakeAttribution ||
+    /\b(?:i've been using|i have been using|we've been using|best tool i've ever|changed my life)\b/i.test(
+      raw
+    );
+
+  if (isFakeEndorsement || !isValidVisitorImpression(raw)) {
+    return buildGroundedFallback();
+  }
+
+  return /[.!?]$/.test(raw) ? raw : `${raw}.`;
 }

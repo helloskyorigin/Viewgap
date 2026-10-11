@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateUrl, checkSsrf } from "@/lib/url-validator";
 import { fetchWebsiteHomepage } from "@/lib/website-fetcher";
 import { extractWebsiteSnapshot } from "@/lib/content-extractor";
-import { discoverAndFetchSupportingPages } from "@/lib/supporting-page-fetcher";
 import { analyzeWebsite } from "@/services/ai/analyzeWebsite";
 import { validateAndScoreAnalysis } from "@/services/validation/analysisValidator";
+import { generateSupportingPageContext } from "@/services/ai/supportingContextAnalyzer";
 import { getCachedFetch, setCachedFetch } from "@/lib/fetch-cache";
 import {
   getClientIp,
   checkAndAcquireRateLimit,
   releaseConcurrencySlot,
 } from "@/server/security/rateLimiter";
-import { SERVER_LIMITS } from "@/server/config/limits";
+import { isSupportingPagesEnabled, SERVER_LIMITS } from "@/server/config/limits";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +22,11 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return NextResponse.json({
     status: "online",
-    service: "StrangerLens Full Backend Pipeline (Validation, Homepage + Supporting-Page Fetching, Extraction, AI & Scoring)",
-    phase: "Phase 1, Phase 2, Phase 3, Phase 4 & Multi-Page Phase 1 - Backend",
+    service: "StrangerLens Full Backend Pipeline (Validation, Fetching, Extraction, AI & Scoring)",
+    phase: "Phase 1, Phase 2, Phase 3, Phase 4 & Multi-Page Phase 2 - Backend",
+    supportingPagesEnabled: isSupportingPagesEnabled(),
     endpoints: {
-      "POST /api/check": "Validates URL, checks SSRF safety, normalizes URL, fetches primary homepage, discovers & safely fetches up to 3 relevant supporting pages, extracts WebsiteSnapshots, runs AI Analysis on the primary homepage, and executes Evidence Validation & Deterministic Scoring.",
+      "POST /api/check": "Validates URL, checks SSRF safety, normalizes URL, fetches primary homepage, extracts WebsiteSnapshot, runs AI Analysis and Evidence Validation & Deterministic Scoring on the homepage, and optionally generates supporting-page context when enabled.",
     },
   });
 }
@@ -150,40 +151,51 @@ export async function POST(req: NextRequest) {
         baseUrl: fetchResult.finalUrl,
       });
 
-      // 5. Multi-Page Phase 1 (Smart Supporting-Page Discovery & Safe Fetching)
-      //    + Phase 3 (AI Analysis Engine on Primary Homepage)
-      //    Supporting-page discovery/fetching is strictly non-blocking and never alters
-      //    the primary homepage first-impression score in Phase 1.
-      const [supportingPagesBundle, rawAiAnalysis] = await Promise.all([
-        discoverAndFetchSupportingPages(fetchResult.html, fetchResult.finalUrl, {
-          signal: pipelineController.signal,
-        }),
-        analyzeWebsite(snapshot),
-      ]);
+      // 5. Phase 3: AI Analysis Engine (Primary Homepage ONLY)
+      const rawAiAnalysis = await analyzeWebsite(snapshot);
 
-      // 6. Phase 4: Evidence Validation & Deterministic Scoring (Primary Homepage)
+      // 6. Phase 4: Evidence Validation & Deterministic Scoring (Primary Homepage ONLY)
       const finalValidatedAnalysis = validateAndScoreAnalysis(rawAiAnalysis, snapshot);
+
+      // 7. Multi-Page Phase 2: Optional Supporting-Page Context Integration
+      //    Strictly isolated from homepage scoring and disabled by default (ENABLE_SUPPORTING_PAGES_ANALYSIS=false).
+      //    Any failure inside supporting-page discovery, fetching, or synthesis never fails the homepage report.
+      let optionalSupportingResult: Awaited<
+        ReturnType<typeof generateSupportingPageContext>
+      > = {};
+
+      if (isSupportingPagesEnabled() && !pipelineController.signal.aborted) {
+        optionalSupportingResult = await generateSupportingPageContext(
+          snapshot,
+          fetchResult.finalUrl,
+          fetchResult.html,
+          { signal: pipelineController.signal }
+        );
+      }
 
       // Omit raw HTML string from public API payload to prevent massive payloads,
       // memory pressure, and sensitive DOM leakage over the wire
       const { html: _omittedHtml, ...safeFetchMetadata } = fetchResult;
 
+      const analysisPayload = optionalSupportingResult.supportingContext
+        ? {
+            ...finalValidatedAnalysis,
+            supportingContext: optionalSupportingResult.supportingContext,
+          }
+        : finalValidatedAnalysis;
+
       return NextResponse.json(
         {
           ...safeFetchMetadata,
           snapshot,
-          supportingPages: supportingPagesBundle.pages,
-          multiPage: {
-            primaryPageUrl: fetchResult.finalUrl,
-            discoveredCount: supportingPagesBundle.discoveredCount,
-            attemptedCount: supportingPagesBundle.attemptedCount,
-            fetchedCount: supportingPagesBundle.fetchedCount,
-            totalTimingMs: supportingPagesBundle.totalTimingMs,
-            candidates: supportingPagesBundle.candidates,
-            attempts: supportingPagesBundle.attempts,
-          },
           aiAnalysis: rawAiAnalysis,
-          analysis: finalValidatedAnalysis,
+          analysis: analysisPayload,
+          ...(optionalSupportingResult.supportingContext
+            ? { supportingContext: optionalSupportingResult.supportingContext }
+            : {}),
+          ...(optionalSupportingResult.supportingPagesBundle
+            ? { supportingPages: optionalSupportingResult.supportingPagesBundle.pages }
+            : {}),
         },
         { status: 200 }
       );

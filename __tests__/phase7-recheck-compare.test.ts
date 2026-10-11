@@ -218,10 +218,10 @@ describe("Phase 7 — Recheck & Compare + Complete 15-Section Results QA", () =>
     assert.equal(evalResult.overall?.afterScore, 73);
     assert.equal(evalResult.overall?.delta, 8);
     assert.equal(evalResult.overall?.deltaText, "+8 points");
-    assert.equal(evalResult.overall?.status, "Improved");
+    assert.equal(evalResult.overall?.status, "Scored higher");
     assert.equal(
       evalResult.interpretationSummary,
-      "StrangerLens's latest assessment scored this homepage 8 points higher."
+      "Your latest assessment scored 8 points higher."
     );
     assert.equal(evalResult.methodologyNote, METHODOLOGY_VARIABILITY_NOTE);
     assert.equal(evalResult.hasHistoricalSignalScores, true);
@@ -241,10 +241,7 @@ describe("Phase 7 — Recheck & Compare + Complete 15-Section Results QA", () =>
     assert.ok(html.includes("BEFORE → AFTER"));
     assert.ok(html.includes("+8 points"));
     assert.ok(html.includes("VIEW COMPARISON"));
-    assert.ok(
-      html.includes("StrangerLens&#x27;s latest assessment scored this homepage 8 points higher.") ||
-        html.includes("StrangerLens's latest assessment scored this homepage 8 points higher.")
-    );
+    assert.ok(html.includes("Your latest assessment scored 8 points higher."));
     assert.ok(html.includes(METHODOLOGY_VARIABILITY_NOTE));
     assert.ok(!/conversion improved by/i.test(html));
     assert.ok(!/revenue increased/i.test(html));
@@ -335,14 +332,14 @@ describe("Phase 7 — Recheck & Compare + Complete 15-Section Results QA", () =>
     assert.equal(evalResult.isEligible, true);
     assert.equal(evalResult.overall?.delta, 0);
     assert.equal(evalResult.overall?.deltaText, "0 points");
-    assert.equal(evalResult.overall?.status, "Unchanged");
+    assert.equal(evalResult.overall?.status, "Score unchanged");
     assert.equal(
       evalResult.interpretationSummary,
-      "StrangerLens's latest assessment scored this homepage the same as the previous scan (73/100)."
+      "Your latest assessment scored the same as the previous check (73/100)."
     );
   });
 
-  test("H. Declined score calculates negative delta and Declined status accurately", () => {
+  test("H. Declined score calculates negative delta and Scored lower status accurately", () => {
     const evalResult = evaluateComparisonEligibility({
       currentDomainInput: "acme.io",
       currentScore: 68,
@@ -359,10 +356,10 @@ describe("Phase 7 — Recheck & Compare + Complete 15-Section Results QA", () =>
     assert.equal(evalResult.overall?.afterScore, 68);
     assert.equal(evalResult.overall?.delta, -8);
     assert.equal(evalResult.overall?.deltaText, "-8 points");
-    assert.equal(evalResult.overall?.status, "Declined");
+    assert.equal(evalResult.overall?.status, "Scored lower");
     assert.equal(
       evalResult.interpretationSummary,
-      "StrangerLens's latest assessment scored this homepage 8 points lower."
+      "Your latest assessment scored 8 points lower."
     );
   });
 
@@ -387,7 +384,7 @@ describe("Phase 7 — Recheck & Compare + Complete 15-Section Results QA", () =>
     for (const sig of evalResult.signals) {
       assert.equal(sig.beforeScore, null);
       assert.equal(sig.delta, null);
-      assert.equal(sig.status, "Not recorded in prior check");
+      assert.equal(sig.status, "Not recorded in previous check.");
     }
 
     const html = renderToStaticMarkup(
@@ -405,7 +402,7 @@ describe("Phase 7 — Recheck & Compare + Complete 15-Section Results QA", () =>
     assert.ok(
       html.includes("Previous scan stored overall score only · No fabricated signal history")
     );
-    assert.ok(html.includes("Not recorded in prior check"));
+    assert.ok(html.includes("Not recorded in previous check."));
   });
 
   test("J. History storage sync prevents self-comparison on rerenders and preserves prior report on recheck", () => {

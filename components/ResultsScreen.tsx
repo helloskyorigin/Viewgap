@@ -23,6 +23,7 @@ import {
   BarChart2,
   AlertCircle,
   Clock,
+  ExternalLink,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -33,6 +34,7 @@ import {
   METHODOLOGY_VARIABILITY_NOTE,
 } from "@/lib/recheck-compare";
 import { SIGNAL_WEIGHTS } from "@/services/scoring/scoringConfig";
+import { type SupportingContext } from "@/types/supportingContext";
 
 export interface AnalysisData {
   domain: string;
@@ -94,6 +96,7 @@ export interface AnalysisData {
     icon: string;
     color: string;
   }>;
+  supportingContext?: SupportingContext;
   isPartialAccess?: boolean;
   isAccessError?: boolean;
   checkedAt?: string;
@@ -199,12 +202,20 @@ export default function ResultsScreen({
       visitorThought:
         customData?.visitorThought ??
         "No simulated visitor thought available for this scan.",
-      evidence: customData?.evidence ?? {
-        locationTag: "Homepage · Above the fold",
-        homepageExcerpt: "No homepage excerpt extracted.",
-        clearFindings: [],
-        missingFindings: [],
-      },
+      evidence: customData?.evidence
+        ? {
+            ...customData.evidence,
+            locationTag:
+              customData.evidence.locationTag === "Homepage · Above the fold"
+                ? "Homepage · Extracted content"
+                : customData.evidence.locationTag,
+          }
+        : {
+            locationTag: "Homepage · Extracted content",
+            homepageExcerpt: "No homepage excerpt extracted.",
+            clearFindings: [],
+            missingFindings: [],
+          },
       signals: customData?.signals ?? [],
       websiteMessage: customData?.websiteMessage,
       risks: customData?.risks ?? [],
@@ -217,6 +228,7 @@ export default function ResultsScreen({
         strongerDirection: "State the specific outcome your target audience achieves.",
       },
       otherImprovements: customData?.otherImprovements ?? [],
+      supportingContext: customData?.supportingContext,
       isPartialAccess: customData?.isPartialAccess ?? false,
       isAccessError: customData?.isAccessError ?? false,
       checkedAt: customData?.checkedAt ?? "Checked just now",
@@ -476,6 +488,8 @@ export default function ResultsScreen({
         lower === "no homepage excerpt extracted" ||
         lower === "we scanned your homepage above the fold structure." ||
         lower === "we scanned your homepage above the fold structure" ||
+        lower === "we scanned your accessible homepage structure." ||
+        lower === "we scanned your accessible homepage structure" ||
         lower === "current headline excerpt unavailable" ||
         lower === "none" ||
         lower === "n/a" ||
@@ -909,6 +923,7 @@ export default function ResultsScreen({
       return (
         !lower ||
         lower.includes("we scanned your homepage above the fold structure") ||
+        lower.includes("we scanned your accessible homepage structure") ||
         lower.includes("no headline extracted")
       );
     };
@@ -1401,6 +1416,424 @@ export default function ResultsScreen({
     previousCheckRecord,
     previousRecord,
   ]);
+
+  // Multi-Page Phase 3: Defensively validate and format optional Supporting Pages Context
+  const supportingPagesInsights = useMemo(() => {
+    const rawCtx = data.supportingContext;
+    if (!rawCtx || typeof rawCtx !== "object") return null;
+    if (rawCtx.status !== "available" && rawCtx.status !== "partial") {
+      return null;
+    }
+    if (!Array.isArray(rawCtx.pagesAnalyzed) || rawCtx.pagesAnalyzed.length === 0) {
+      return null;
+    }
+
+    const baseHost = (data.domain || cleanDomain)
+      .toLowerCase()
+      .replace(/^https?:\/\//i, "")
+      .replace(/^www\./i, "")
+      .split("/")[0]
+      .split("?")[0]
+      .split("#")[0];
+
+    const normalizeSafePageUrl = (
+      rawUrl: unknown
+    ): {
+      safeHref: string;
+      displayUrl: string;
+      urlKey: string;
+      pathname: string;
+    } | null => {
+      if (typeof rawUrl !== "string" || !rawUrl.trim()) return null;
+      const trimmed = rawUrl.trim();
+      if (!/^https?:\/\//i.test(trimmed)) return null;
+      try {
+        const parsed = new URL(trimmed);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          return null;
+        }
+        if (parsed.username || parsed.password) return null;
+        const candidateHost = parsed.hostname.toLowerCase().replace(/^www\./i, "");
+        if (!candidateHost || (baseHost && candidateHost !== baseHost)) {
+          return null;
+        }
+        // Strip query parameters and hash fragments to prevent leaking sensitive query params
+        parsed.search = "";
+        parsed.hash = "";
+        let normPath = parsed.pathname
+          .replace(/\/{2,}/g, "/")
+          .replace(/\/index\.(html?|php)$/i, "");
+        if (normPath.length > 1 && normPath.endsWith("/")) {
+          normPath = normPath.slice(0, -1);
+        }
+        if (!normPath || normPath === "/") {
+          return null; // Never treat homepage root as a supporting page
+        }
+        parsed.pathname = normPath;
+        return {
+          safeHref: parsed.href,
+          displayUrl: `${candidateHost}${normPath}`,
+          urlKey: `${candidateHost}${normPath.toLowerCase()}`,
+          pathname: normPath,
+        };
+      } catch {
+        return null;
+      }
+    };
+
+    const formatCategoryLabel = (rawCategory: unknown): string => {
+      const cat =
+        typeof rawCategory === "string"
+          ? rawCategory.trim().toLowerCase()
+          : "other";
+      const map: Record<string, string> = {
+        pricing: "Pricing",
+        features: "Features",
+        product: "Product",
+        how_it_works: "How It Works",
+        solutions: "Solutions",
+        use_cases: "Use Cases",
+        customers: "Customers",
+        security: "Security",
+        about: "About",
+        docs: "Documentation",
+        other: "Supporting Page",
+      };
+      return (
+        map[cat] ||
+        cat
+          .replace(/[_-]+/g, " ")
+          .replace(/\b\w/g, (l) => l.toUpperCase())
+      );
+    };
+
+    const isSafePlainText = (val: unknown, maxLen = 420): val is string => {
+      if (typeof val !== "string") return false;
+      const t = val.trim();
+      if (!t || t.length < 3 || t.length > maxLen) return false;
+      // Reject raw HTML tags, stack traces, or credential/JSON leaks
+      if (
+        /<\s*(script|html|body|iframe|style|div|section)\b/i.test(t) ||
+        t.includes("\n    at ") ||
+        t.includes("API_KEY") ||
+        t.startsWith("{")
+      ) {
+        return false;
+      }
+      return true;
+    };
+
+    // 1. Validate Pages Reviewed (Max 3 unique same-domain supporting pages)
+    const pagesReviewed: Array<{
+      safeHref: string;
+      displayUrl: string;
+      urlKey: string;
+      pathname: string;
+      categoryLabel: string;
+      title?: string;
+    }> = [];
+    const pageByUrlKey = new Map<
+      string,
+      {
+        safeHref: string;
+        displayUrl: string;
+        categoryLabel: string;
+        pathname: string;
+      }
+    >();
+
+    for (const item of rawCtx.pagesAnalyzed) {
+      if (pagesReviewed.length >= 3) break;
+      if (!item || typeof item !== "object") continue;
+      const norm = normalizeSafePageUrl(item.url);
+      if (!norm || pageByUrlKey.has(norm.urlKey)) continue;
+
+      const categoryLabel = formatCategoryLabel(item.category);
+      const cleanTitle = isSafePlainText(item.title, 160)
+        ? item.title.trim()
+        : undefined;
+
+      const entry = {
+        ...norm,
+        categoryLabel,
+        ...(cleanTitle ? { title: cleanTitle } : {}),
+      };
+      pagesReviewed.push(entry);
+      pageByUrlKey.set(norm.urlKey, {
+        safeHref: norm.safeHref,
+        displayUrl: norm.displayUrl,
+        categoryLabel,
+        pathname: norm.pathname,
+      });
+    }
+
+    if (pagesReviewed.length === 0) {
+      return null;
+    }
+
+    // Helper to validate SourceEvidence strictly against pagesReviewed
+    const validateUiEvidence = (
+      rawEvList: unknown,
+      isTrustSection = false
+    ): Array<{
+      safeSourceUrl: string;
+      displaySourceUrl: string;
+      sourceCategoryLabel: string;
+      excerpt: string;
+      interpretation?: string;
+      claimBadgeLabel?: string;
+      isPublishedClaim: boolean;
+    }> => {
+      if (!Array.isArray(rawEvList)) return [];
+      const validList: Array<{
+        safeSourceUrl: string;
+        displaySourceUrl: string;
+        sourceCategoryLabel: string;
+        excerpt: string;
+        interpretation?: string;
+        claimBadgeLabel?: string;
+        isPublishedClaim: boolean;
+      }> = [];
+      const seen = new Set<string>();
+
+      for (const ev of rawEvList) {
+        if (!ev || typeof ev !== "object") continue;
+        const rawSource = (ev as any).sourceUrl;
+        const rawExcerpt = (ev as any).excerpt;
+        const rawInterp = (ev as any).interpretation;
+        const rawBasis = (ev as any).claimBasis;
+
+        const normSource = normalizeSafePageUrl(rawSource);
+        if (!normSource) continue;
+        const matchedPage = pageByUrlKey.get(normSource.urlKey);
+        if (!matchedPage) continue; // Must match an actually reviewed supporting page
+
+        if (!isSafePlainText(rawExcerpt, 360)) continue;
+        const excerpt = rawExcerpt.trim();
+        if (excerpt.length < 4) continue;
+
+        const dedupeKey = `${normSource.urlKey}|${excerpt.toLowerCase()}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+
+        const hasClaimPattern =
+          rawBasis === "website_published_claim" ||
+          /\b(trusted by|customers|users|uptime|soc\s?2|iso\s?27001|gdpr|hipaa|certified|award|guaranteed|saved|\d+%|\$\d+|\d+\+)/i.test(
+            excerpt
+          );
+
+        let interpretation = isSafePlainText(rawInterp, 260)
+          ? rawInterp.trim()
+          : undefined;
+
+        if (interpretation && isTrustSection) {
+          interpretation = interpretation
+            .replace(
+              /\b(independently verified|verified fact|proven fact|conclusively proves|proves that|guarantees that)\b/gi,
+              "published on the website as"
+            );
+        }
+
+        validList.push({
+          safeSourceUrl: matchedPage.safeHref,
+          displaySourceUrl: matchedPage.displayUrl,
+          sourceCategoryLabel: matchedPage.categoryLabel,
+          excerpt,
+          ...(interpretation ? { interpretation } : {}),
+          ...(isTrustSection
+            ? {
+                claimBadgeLabel: hasClaimPattern
+                  ? "Website-published claim"
+                  : "Observed on page",
+              }
+            : {}),
+          isPublishedClaim: hasClaimPattern,
+        });
+      }
+
+      return validList.slice(0, 4);
+    };
+
+    // 2. Validate Message Consistency
+    let messageConsistency: {
+      statusLabel: string;
+      statusTone: "emerald" | "blue" | "amber" | "slate";
+      assessment: string;
+      evidence: ReturnType<typeof validateUiEvidence>;
+    } | null = null;
+
+    if (
+      rawCtx.messageConsistency &&
+      typeof rawCtx.messageConsistency === "object" &&
+      isSafePlainText(rawCtx.messageConsistency.assessment, 450)
+    ) {
+      const ev = validateUiEvidence(rawCtx.messageConsistency.evidence, false);
+      const rawStatus = rawCtx.messageConsistency.status;
+      if (ev.length > 0 || rawStatus === "insufficient_evidence") {
+        let statusLabel = "Supports homepage message";
+        let statusTone: "emerald" | "blue" | "amber" | "slate" = "blue";
+        if (rawStatus === "consistent") {
+          statusLabel = "Consistent with homepage";
+          statusTone = "emerald";
+        } else if (rawStatus === "clarifies_homepage") {
+          statusLabel = "Clarifies homepage promise";
+          statusTone = "blue";
+        } else if (rawStatus === "divergent") {
+          statusLabel = "Meaningful difference noted";
+          statusTone = "amber";
+        } else if (rawStatus === "insufficient_evidence") {
+          statusLabel = "Limited text extracted";
+          statusTone = "slate";
+        }
+        messageConsistency = {
+          statusLabel,
+          statusTone,
+          assessment: rawCtx.messageConsistency.assessment.trim(),
+          evidence: ev,
+        };
+      }
+    }
+
+    // 3. Validate Additional Trust Context
+    let trustContext: {
+      assessment: string;
+      evidence: ReturnType<typeof validateUiEvidence>;
+      hasPublishedClaims: boolean;
+    } | null = null;
+
+    if (
+      rawCtx.trustContext &&
+      typeof rawCtx.trustContext === "object" &&
+      isSafePlainText(rawCtx.trustContext.assessment, 450)
+    ) {
+      const ev = validateUiEvidence(rawCtx.trustContext.evidence, true);
+      const rawStatus = rawCtx.trustContext.status;
+      if (ev.length > 0 || rawStatus === "insufficient_evidence") {
+        const hasPublishedClaims = ev.some((e) => e.isPublishedClaim);
+        let safeAssessment = rawCtx.trustContext.assessment
+          .trim()
+          .replace(
+            /\b(independently verified|verified fact|proven fact|conclusively proves|proves that|guarantees that)\b/gi,
+            "published on the website as"
+          );
+        if (
+          hasPublishedClaims &&
+          !/not independently verified/i.test(safeAssessment)
+        ) {
+          safeAssessment = `${safeAssessment.replace(/\.?\s*$/, "")} (website-published claim, not independently verified).`;
+        }
+        trustContext = {
+          assessment: safeAssessment,
+          evidence: ev,
+          hasPublishedClaims,
+        };
+      }
+    }
+
+    // 4. Validate Next-Step (CTA Destination) Context
+    let ctaDestination: {
+      inspectable: boolean;
+      ctaText?: string;
+      safeDestinationUrl?: string;
+      displayDestinationUrl?: string;
+      purposeClear?: boolean;
+      alignsWithCtaWording?: boolean;
+      nextActionUnderstandable?: boolean;
+      assessment: string;
+      evidence: ReturnType<typeof validateUiEvidence>;
+    } | null = null;
+
+    if (
+      rawCtx.ctaDestination &&
+      typeof rawCtx.ctaDestination === "object" &&
+      isSafePlainText(rawCtx.ctaDestination.assessment, 450)
+    ) {
+      const ctaText = isSafePlainText(rawCtx.ctaDestination.ctaText, 90)
+        ? rawCtx.ctaDestination.ctaText.trim()
+        : undefined;
+
+      if (rawCtx.ctaDestination.inspectable === true) {
+        const normDest = normalizeSafePageUrl(rawCtx.ctaDestination.destinationUrl);
+        const matchedDestPage = normDest
+          ? pageByUrlKey.get(normDest.urlKey)
+          : undefined;
+        const ev = validateUiEvidence(rawCtx.ctaDestination.evidence, false);
+
+        if (matchedDestPage && ev.length > 0) {
+          ctaDestination = {
+            inspectable: true,
+            ctaText,
+            safeDestinationUrl: matchedDestPage.safeHref,
+            displayDestinationUrl: matchedDestPage.displayUrl,
+            purposeClear:
+              typeof rawCtx.ctaDestination.purposeClear === "boolean"
+                ? rawCtx.ctaDestination.purposeClear
+                : undefined,
+            alignsWithCtaWording:
+              typeof rawCtx.ctaDestination.alignsWithCtaWording === "boolean"
+                ? rawCtx.ctaDestination.alignsWithCtaWording
+                : undefined,
+            nextActionUnderstandable:
+              typeof rawCtx.ctaDestination.nextActionUnderstandable === "boolean"
+                ? rawCtx.ctaDestination.nextActionUnderstandable
+                : undefined,
+            assessment: rawCtx.ctaDestination.assessment.trim(),
+            evidence: ev,
+          };
+        }
+      } else if (rawCtx.ctaDestination.inspectable === false) {
+        ctaDestination = {
+          inspectable: false,
+          ctaText,
+          assessment: rawCtx.ctaDestination.assessment.trim(),
+          evidence: [],
+        };
+      }
+    }
+
+    // 5. Meaningful Insights Gate: Do not render an empty section when no grounded insights exist
+    const hasGroundedInsight =
+      Boolean(messageConsistency && messageConsistency.evidence.length > 0) ||
+      Boolean(trustContext && trustContext.evidence.length > 0) ||
+      Boolean(
+        ctaDestination &&
+          ctaDestination.inspectable &&
+          ctaDestination.evidence.length > 0
+      );
+
+    if (!hasGroundedInsight) {
+      return null;
+    }
+
+    // 6. Validate Analysis Limitations (only genuine limitations, no generic boilerplate or stack traces)
+    const limitations: string[] = [];
+    if (Array.isArray(rawCtx.limitations)) {
+      for (const lim of rawCtx.limitations) {
+        if (!isSafePlainText(lim, 320)) continue;
+        const cleanedLim = lim.trim();
+        // Skip generic non-limitation disclaimer strings that duplicate the Trust Context badge
+        if (
+          /supporting-page credibility items reflect website-published statements/i.test(
+            cleanedLim
+          )
+        ) {
+          continue;
+        }
+        if (!limitations.includes(cleanedLim)) {
+          limitations.push(cleanedLim);
+        }
+      }
+    }
+
+    return {
+      status: rawCtx.status,
+      pagesReviewed,
+      messageConsistency,
+      trustContext,
+      ctaDestination,
+      limitations: limitations.slice(0, 4),
+    };
+  }, [cleanDomain, data.domain, data.supportingContext]);
 
   // Keyboard accessibility: Close tooltips and modals on Escape
   useEffect(() => {
@@ -2471,7 +2904,7 @@ export default function ResultsScreen({
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                     {visitorUnderstandingAndEvidence.primaryRecQuote
                       ? "CURRENT WORDING TIED TO THIS ISSUE"
-                      : "EXTRACTED ABOVE-THE-FOLD TEXT"}
+                      : "EXTRACTED HOMEPAGE TEXT"}
                   </span>
                   {visitorUnderstandingAndEvidence.primaryRecQuote ||
                   visitorUnderstandingAndEvidence.verifiedExcerptText ? (
@@ -2483,7 +2916,7 @@ export default function ResultsScreen({
                     </p>
                   ) : (
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      No distinct above-the-fold headline text was verified in the initial HTML for {data.domain}.
+                      No distinct homepage headline text was verified in the initial HTML for {data.domain}.
                     </p>
                   )}
                 </div>
@@ -3206,7 +3639,7 @@ export default function ResultsScreen({
               </p>
             </div>
             <span className="text-[11px] font-medium text-slate-400 self-start sm:self-end shrink-0">
-              Evaluated from initial above-the-fold view
+              Based on accessible homepage content
             </span>
           </div>
 
@@ -3316,7 +3749,7 @@ export default function ResultsScreen({
               </blockquote>
               <div className="mt-4 pt-3.5 border-t border-blue-200/60 flex flex-wrap items-center justify-between gap-2 text-xs text-[#526078]">
                 <span>
-                  Grounded in {data.domain}&apos;s initial above-the-fold copy and {data.score}/100 clarity score
+                  Grounded in {data.domain}&apos;s accessible homepage content and {data.score}/100 clarity score
                 </span>
                 <span className="font-semibold text-slate-700 tabular-nums">
                   {overviewStats.clearQuestionsCount} of 5 core questions answered immediately
@@ -3426,7 +3859,7 @@ export default function ResultsScreen({
                       No distinct hero headline quote could be extracted from the initial HTML on {data.domain}.
                     </p>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      The evaluation reflects the overall above-the-fold page structure and visible elements returned during fetching.
+                      The evaluation reflects the accessible homepage structure and extracted elements returned during fetching.
                     </p>
                   </div>
                 )}
@@ -3480,7 +3913,7 @@ export default function ResultsScreen({
                     </ul>
                   ) : (
                     <div className="bg-white/80 border border-emerald-100 rounded-xl p-4 text-xs text-slate-600 leading-relaxed">
-                      No clear above-the-fold comprehension signals were verified from the initial homepage text.
+                      No clear homepage comprehension signals were verified from the extracted homepage text.
                     </div>
                   )}
                 </div>
@@ -3515,7 +3948,7 @@ export default function ResultsScreen({
                     </ul>
                   ) : (
                     <div className="bg-white/80 border border-rose-100 rounded-xl p-4 text-xs text-slate-600 leading-relaxed">
-                      No major missing or unclear above-the-fold elements were identified during this check.
+                      No major missing or unclear homepage elements were identified during this check.
                     </div>
                   )}
                 </div>
@@ -3523,6 +3956,387 @@ export default function ResultsScreen({
             </div>
           </div>
         </section>
+
+        {/* OPTIONAL SUPPORTING PAGES INSIGHTS (Rendered ONLY when validated supporting-page context is available) */}
+        {supportingPagesInsights && (
+          <section
+            id="supporting-pages-insights-section"
+            aria-labelledby="supporting-pages-insights-heading"
+            className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24 space-y-6"
+          >
+            {/* Section Header & Score Isolation Notice */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-5 border-b border-slate-100">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <span className="text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#246bfd] border border-blue-100">
+                    SUPPORTING PAGES INSIGHTS
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full tabular-nums">
+                    {supportingPagesInsights.pagesReviewed.length}{" "}
+                    {supportingPagesInsights.pagesReviewed.length === 1
+                      ? "page reviewed"
+                      : "pages reviewed"}
+                  </span>
+                </div>
+                <h2
+                  id="supporting-pages-insights-heading"
+                  className="text-lg sm:text-xl md:text-2xl font-extrabold text-[#101828] tracking-tight"
+                >
+                  Supporting Pages Insights
+                </h2>
+                <p className="text-xs sm:text-sm text-[#526078] mt-1 font-normal">
+                  Additional context from relevant pages linked to your homepage.
+                </p>
+              </div>
+
+              {/* Required Homepage Score Isolation Clarification */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs text-slate-600 leading-relaxed lg:max-w-md shrink-0">
+                Supporting-page findings provide additional context and do not affect your homepage first-impression score.
+              </div>
+            </div>
+
+            {/* A. PAGES REVIEWED */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                  PAGES REVIEWED
+                </h3>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Same-domain pages fetched &amp; verified
+                </span>
+              </div>
+
+              <div
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+                role="list"
+                aria-label="Analyzed supporting pages"
+              >
+                {supportingPagesInsights.pagesReviewed.map((page) => (
+                  <div
+                    key={page.urlKey}
+                    role="listitem"
+                    className="bg-[#f8fafc] border border-slate-200/80 rounded-xl p-3.5 flex flex-col justify-between gap-1.5 min-w-0"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-[#101828] tracking-tight">
+                        {page.categoryLabel}
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200/80 px-2 py-0.5 rounded shrink-0">
+                        {page.pathname}
+                      </span>
+                    </div>
+                    <a
+                      href={page.safeHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Open analyzed ${page.categoryLabel} page (${page.displayUrl}) in a new tab`}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#246bfd] hover:text-blue-700 hover:underline break-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246bfd] rounded"
+                    >
+                      <span className="break-all">{page.displayUrl}</span>
+                      <ExternalLink
+                        className="w-3 h-3 shrink-0"
+                        aria-hidden="true"
+                      />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* B, C, D. INSIGHT AREAS GRID (Message Consistency, Additional Trust Context, Next-Step Context) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 items-stretch">
+              {/* B. MESSAGE CONSISTENCY */}
+              {supportingPagesInsights.messageConsistency && (
+                <div className="bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-4 min-w-0">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-200/70">
+                      <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#101828]">
+                        MESSAGE CONSISTENCY
+                      </h3>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          supportingPagesInsights.messageConsistency.statusTone ===
+                          "emerald"
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            : supportingPagesInsights.messageConsistency
+                                .statusTone === "amber"
+                            ? "bg-amber-50 text-amber-900 border-amber-200"
+                            : supportingPagesInsights.messageConsistency
+                                .statusTone === "blue"
+                            ? "bg-blue-50 text-blue-800 border-blue-200"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        {supportingPagesInsights.messageConsistency.statusLabel}
+                      </span>
+                    </div>
+
+                    <p className="text-xs sm:text-[13px] text-slate-700 leading-relaxed break-words">
+                      {supportingPagesInsights.messageConsistency.assessment}
+                    </p>
+
+                    {supportingPagesInsights.messageConsistency.evidence.length >
+                      0 && (
+                      <div className="space-y-2.5 pt-1">
+                        {supportingPagesInsights.messageConsistency.evidence.map(
+                          (ev, idx) => (
+                            <div
+                              key={idx}
+                              className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-1.5"
+                            >
+                              <p className="text-xs text-[#101828] font-medium italic leading-relaxed break-words">
+                                &ldquo;{ev.excerpt}&rdquo;
+                              </p>
+                              {ev.interpretation && (
+                                <p className="text-[11px] text-slate-600 leading-relaxed break-words">
+                                  {ev.interpretation}
+                                </p>
+                              )}
+                              <div className="pt-1 flex items-center justify-between gap-2 text-[11px]">
+                                <span className="text-slate-400 font-medium">
+                                  Source ({ev.sourceCategoryLabel}):
+                                </span>
+                                <a
+                                  href={ev.safeSourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  aria-label={`View source page ${ev.displaySourceUrl} in a new tab`}
+                                  className="inline-flex items-center gap-1 font-medium text-[#246bfd] hover:underline break-all"
+                                >
+                                  <span className="break-all">
+                                    {ev.displaySourceUrl}
+                                  </span>
+                                  <ExternalLink
+                                    className="w-2.5 h-2.5 shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                </a>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* C. ADDITIONAL TRUST CONTEXT */}
+              {supportingPagesInsights.trustContext && (
+                <div className="bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-4 min-w-0">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-200/70">
+                      <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#101828]">
+                        ADDITIONAL TRUST CONTEXT
+                      </h3>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                        Website-published claims
+                      </span>
+                    </div>
+
+                    <p className="text-xs sm:text-[13px] text-slate-700 leading-relaxed break-words">
+                      {supportingPagesInsights.trustContext.assessment}
+                    </p>
+
+                    {supportingPagesInsights.trustContext.evidence.length > 0 && (
+                      <div className="space-y-2.5 pt-1">
+                        {supportingPagesInsights.trustContext.evidence.map(
+                          (ev, idx) => (
+                            <div
+                              key={idx}
+                              className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-1.5"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                                    ev.isPublishedClaim
+                                      ? "bg-amber-50 text-amber-900 border-amber-200/80"
+                                      : "bg-slate-50 text-slate-700 border-slate-200/80"
+                                  }`}
+                                >
+                                  {ev.claimBadgeLabel ||
+                                    "Website-published claim"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-[#101828] font-medium italic leading-relaxed break-words">
+                                &ldquo;{ev.excerpt}&rdquo;
+                              </p>
+                              {ev.interpretation && (
+                                <p className="text-[11px] text-slate-600 leading-relaxed break-words">
+                                  {ev.interpretation}
+                                </p>
+                              )}
+                              <div className="pt-1 flex items-center justify-between gap-2 text-[11px]">
+                                <span className="text-slate-400 font-medium">
+                                  Source ({ev.sourceCategoryLabel}):
+                                </span>
+                                <a
+                                  href={ev.safeSourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  aria-label={`View source page ${ev.displaySourceUrl} in a new tab`}
+                                  className="inline-flex items-center gap-1 font-medium text-[#246bfd] hover:underline break-all"
+                                >
+                                  <span className="break-all">
+                                    {ev.displaySourceUrl}
+                                  </span>
+                                  <ExternalLink
+                                    className="w-2.5 h-2.5 shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                </a>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 pt-2 border-t border-slate-200/70 leading-relaxed">
+                    Testimonials, metrics, and credentials on supporting pages are website-published claims and are not independently verified by StrangerLens.
+                  </p>
+                </div>
+              )}
+
+              {/* D. NEXT-STEP CONTEXT */}
+              {supportingPagesInsights.ctaDestination && (
+                <div className="bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-4 min-w-0">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-200/70">
+                      <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#101828]">
+                        NEXT-STEP CONTEXT
+                      </h3>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          supportingPagesInsights.ctaDestination.inspectable
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        {supportingPagesInsights.ctaDestination.inspectable
+                          ? "Destination inspected"
+                          : "Destination not followed"}
+                      </span>
+                    </div>
+
+                    {supportingPagesInsights.ctaDestination.ctaText && (
+                      <div className="flex items-center justify-between gap-2 bg-white border border-slate-200/80 rounded-lg px-3 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Primary CTA
+                        </span>
+                        <span className="text-xs font-bold text-[#101828] break-words">
+                          &ldquo;
+                          {supportingPagesInsights.ctaDestination.ctaText}
+                          &rdquo;
+                        </span>
+                      </div>
+                    )}
+
+                    <p className="text-xs sm:text-[13px] text-slate-700 leading-relaxed break-words">
+                      {supportingPagesInsights.ctaDestination.assessment}
+                    </p>
+
+                    {supportingPagesInsights.ctaDestination.inspectable && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {typeof supportingPagesInsights.ctaDestination
+                          .purposeClear === "boolean" && (
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-white border border-slate-200/80 text-slate-700">
+                            Purpose:{" "}
+                            {supportingPagesInsights.ctaDestination.purposeClear
+                              ? "Clear"
+                              : "Unclear"}
+                          </span>
+                        )}
+                        {typeof supportingPagesInsights.ctaDestination
+                          .alignsWithCtaWording === "boolean" && (
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-white border border-slate-200/80 text-slate-700">
+                            CTA alignment:{" "}
+                            {supportingPagesInsights.ctaDestination
+                              .alignsWithCtaWording
+                              ? "Aligned"
+                              : "Unclear"}
+                          </span>
+                        )}
+                        {typeof supportingPagesInsights.ctaDestination
+                          .nextActionUnderstandable === "boolean" && (
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-white border border-slate-200/80 text-slate-700">
+                            Next action:{" "}
+                            {supportingPagesInsights.ctaDestination
+                              .nextActionUnderstandable
+                              ? "Understandable"
+                              : "Unclear"}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {supportingPagesInsights.ctaDestination.evidence.length >
+                      0 && (
+                      <div className="space-y-2.5 pt-1">
+                        {supportingPagesInsights.ctaDestination.evidence.map(
+                          (ev, idx) => (
+                            <div
+                              key={idx}
+                              className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-1.5"
+                            >
+                              <p className="text-xs text-[#101828] font-medium italic leading-relaxed break-words">
+                                &ldquo;{ev.excerpt}&rdquo;
+                              </p>
+                              <div className="pt-1 flex items-center justify-between gap-2 text-[11px]">
+                                <span className="text-slate-400 font-medium">
+                                  Destination ({ev.sourceCategoryLabel}):
+                                </span>
+                                <a
+                                  href={ev.safeSourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  aria-label={`View CTA destination page ${ev.displaySourceUrl} in a new tab`}
+                                  className="inline-flex items-center gap-1 font-medium text-[#246bfd] hover:underline break-all"
+                                >
+                                  <span className="break-all">
+                                    {ev.displaySourceUrl}
+                                  </span>
+                                  <ExternalLink
+                                    className="w-2.5 h-2.5 shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                </a>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* E. ANALYSIS LIMITATIONS (Rendered ONLY when meaningful limitations exist) */}
+            {supportingPagesInsights.limitations.length > 0 && (
+              <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-4 space-y-2">
+                <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
+                  ANALYSIS LIMITATIONS
+                </h3>
+                <ul
+                  className="space-y-1.5 text-xs text-slate-600 leading-relaxed"
+                  aria-label="Supporting-page analysis limitations"
+                >
+                  {supportingPagesInsights.limitations.map((lim, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0 mt-1.5"
+                        aria-hidden="true"
+                      />
+                      <span className="break-words">{lim}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* 13. FIVE DETAILED SIGNALS */}
         <section
@@ -3703,7 +4517,7 @@ export default function ResultsScreen({
                           </div>
                         ) : (
                           <p className="text-xs text-slate-600 leading-relaxed">
-                            Evaluated from visible above-the-fold copy and page structure on {data.domain}.
+                            Based on accessible homepage content and page structure on {data.domain}.
                           </p>
                         )}
                       </div>
@@ -3894,7 +4708,7 @@ export default function ResultsScreen({
                 No major communication risks identified on {data.domain}
               </p>
               <p className="text-xs text-[#526078] max-w-xl mx-auto leading-relaxed">
-                Your above-the-fold homepage copy did not trigger any high or medium severity comprehension risk flags during this check.
+                Your accessible homepage content did not trigger any high or medium severity comprehension risk flags during this check.
               </p>
             </div>
           )}
@@ -3979,23 +4793,33 @@ export default function ResultsScreen({
                         {comparisonEvaluation.domain}
                       </strong>
                     </span>
+                    {comparisonEvaluation.previousDate && (
+                      <span className="text-xs text-slate-500">
+                        · Previous scan:{" "}
+                        {new Date(comparisonEvaluation.previousDate).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                    )}
                   </div>
                   <span
                     className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
-                      comparisonEvaluation.overall.status === "Improved"
+                      comparisonEvaluation.overall.status === "Scored higher"
                         ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : comparisonEvaluation.overall.status === "Declined"
+                        : comparisonEvaluation.overall.status === "Scored lower"
                         ? "bg-rose-50 text-rose-800 border-rose-200"
                         : "bg-slate-100 text-slate-700 border-slate-200"
                     }`}
                   >
-                    {comparisonEvaluation.overall.status === "Improved" && (
+                    {comparisonEvaluation.overall.status === "Scored higher" && (
                       <Check className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
                     )}
-                    {comparisonEvaluation.overall.status === "Declined" && (
+                    {comparisonEvaluation.overall.status === "Scored lower" && (
                       <ArrowDown className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
                     )}
-                    {comparisonEvaluation.overall.status === "Unchanged" && (
+                    {comparisonEvaluation.overall.status === "Score unchanged" && (
                       <MinusCircle className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
                     )}
                     <span>{comparisonEvaluation.overall.status}</span>
@@ -4126,9 +4950,9 @@ export default function ResultsScreen({
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
                           <span
                             className={`text-[10px] font-bold uppercase tracking-wider ${
-                              sig.status === "Improved"
+                              sig.status === "Scored higher"
                                 ? "text-emerald-700"
-                                : sig.status === "Declined"
+                                : sig.status === "Scored lower"
                                 ? "text-rose-700"
                                 : "text-slate-500"
                             }`}
@@ -4329,7 +5153,7 @@ export default function ResultsScreen({
                               </div>
                             ) : (
                               <span className="text-slate-500">
-                                Current: {sig.afterScore ?? "—"}/100 (prior not recorded)
+                                Current: {sig.afterScore ?? "—"}/100 (Not recorded in previous check.)
                               </span>
                             )}
                           </div>
