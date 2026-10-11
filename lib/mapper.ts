@@ -34,8 +34,20 @@ export function mapBackendToFrontend(
     const s = status.toLowerCase();
     if (s === "clear") return "Clear";
     if (s === "understandable") return "Understandable";
-    if (s === "partly_clear" || s === "partly") return "Partly clear";
+    if (s === "partly_clear" || s === "partly" || s === "could_be_stronger") return "Partly clear";
     return "Unclear";
+  };
+
+  const formatSignalBadgeText = (status: string, score: number): string => {
+    const s = (status || "").toLowerCase().trim();
+    if (score >= 80 || s === "clear") return "Clear";
+    if (score >= 65) {
+      return s === "could_be_stronger" ? "Could be stronger" : "Understandable";
+    }
+    if (score >= 45) {
+      return s === "needs_work" ? "Needs work" : "Partly clear";
+    }
+    return s === "needs_work" ? "Needs work" : "Unclear";
   };
 
   const scoreToStatus = (score: number): "Needs improvement" | "Good" | "Needs work" | "Excellent" => {
@@ -48,33 +60,74 @@ export function mapBackendToFrontend(
   const brandName = snapshot?.navigation?.brandName || cleanDomain.split(".")[0];
   const capitalizedBrand = brandName.charAt(0).toUpperCase() + brandName.slice(1);
 
-  // Build quick signals directly coherent with normalized signal scores
+  // Build quick signals directly coherent with normalized signal scores (3-tier: >=70 clear, 50-69 amber, <50 coral)
   const getSignalStatusType = (score: number): "clear" | "amber" | "coral" => {
     if (score >= 70) return "clear";
     if (score >= 50) return "amber";
     return "coral";
   };
 
+  const fiScore = backendAnalysis.signals.first_impression.score;
+  const audScore = backendAnalysis.signals.audience.score;
+  const valScore = backendAnalysis.signals.value.score;
+  const trScore = backendAnalysis.signals.trust.score;
+  const actScore = backendAnalysis.signals.action.score;
+
   const quickSignals = [
     {
-      label: `Product category is ${backendAnalysis.signals.first_impression.score >= 70 ? "clear" : "unclear"}`,
-      type: getSignalStatusType(backendAnalysis.signals.first_impression.score),
+      label:
+        fiScore >= 80
+          ? "Product category is clear"
+          : fiScore >= 70
+          ? "Product category is understandable"
+          : fiScore >= 50
+          ? "Product category is partly clear"
+          : "Product category is unclear",
+      type: getSignalStatusType(fiScore),
     },
     {
-      label: `Target audience is ${backendAnalysis.signals.audience.score >= 70 ? "visible" : "unclear"}`,
-      type: getSignalStatusType(backendAnalysis.signals.audience.score),
+      label:
+        audScore >= 80
+          ? "Target audience is clear"
+          : audScore >= 70
+          ? "Target audience is visible"
+          : audScore >= 50
+          ? "Target audience is partly clear"
+          : "Target audience is unclear",
+      type: getSignalStatusType(audScore),
     },
     {
-      label: `Main benefit is ${backendAnalysis.signals.value.score >= 70 ? "obvious" : "unclear"}`,
-      type: getSignalStatusType(backendAnalysis.signals.value.score),
+      label:
+        valScore >= 80
+          ? "Main benefit is obvious"
+          : valScore >= 70
+          ? "Main benefit is understandable"
+          : valScore >= 50
+          ? "Main benefit could be clearer"
+          : "Main benefit is unclear",
+      type: getSignalStatusType(valScore),
     },
     {
-      label: `Trust signals ${backendAnalysis.signals.trust.score >= 70 ? "are visible" : "are weak"}`,
-      type: getSignalStatusType(backendAnalysis.signals.trust.score),
+      label:
+        trScore >= 80
+          ? "Trust signals are strong"
+          : trScore >= 70
+          ? "Trust signals are visible"
+          : trScore >= 50
+          ? "Trust signals could be stronger"
+          : "Trust signals are weak",
+      type: getSignalStatusType(trScore),
     },
     {
-      label: `Next step is ${backendAnalysis.signals.action.score >= 70 ? "clear" : "needs work"}`,
-      type: getSignalStatusType(backendAnalysis.signals.action.score),
+      label:
+        actScore >= 80
+          ? "Next step is clear"
+          : actScore >= 70
+          ? "Next step is understandable"
+          : actScore >= 50
+          ? "Next step could be clearer"
+          : "Next step needs work",
+      type: getSignalStatusType(actScore),
     },
   ];
 
@@ -127,74 +180,115 @@ export function mapBackendToFrontend(
     },
   ];
 
-  // Extract clear & missing findings grounded in verified evidence
+  const isPartialSnapshot = snapshot?.stats ? snapshot.stats.cleanedTextLength < 200 : false;
+
+  // Extract clear & missing findings grounded in verified evidence without cross-section contradictions
   const clearFindings: string[] = [];
   const missingFindings: string[] = [];
 
-  // What is this (Product category)
-  const whatIsThisEv = backendAnalysis.first_seconds.what_is_this.evidence[0]?.text;
-  if (
+  // 1. What is this (Product category / First Impression)
+  const whatIsThisEv =
+    backendAnalysis.first_seconds.what_is_this.evidence[0]?.text ||
+    backendAnalysis.signals.first_impression.evidence[0]?.text;
+  if (whatIsThisEv) {
+    clearFindings.push(`Product category: “${whatIsThisEv}” is identifiable`);
+  } else if (
     backendAnalysis.first_seconds.what_is_this.status === "clear" ||
     backendAnalysis.signals.first_impression.score >= 70
   ) {
-    if (whatIsThisEv) {
-      clearFindings.push(`Product category: “${whatIsThisEv}” is identifiable`);
-    } else {
-      clearFindings.push("Core product category is identifiable above the fold");
-    }
-  } else {
-    missingFindings.push("Product category requires extra scanning to identify");
+    clearFindings.push("Core product category is identifiable above the fold");
+  }
+  if (backendAnalysis.signals.first_impression.score < 70) {
+    missingFindings.push(
+      whatIsThisEv
+        ? "Product category wording is present but requires clearer specificity above the fold"
+        : isPartialSnapshot
+        ? "Clear product category headline was not detected in the extracted homepage text"
+        : "Product category requires extra scanning to identify"
+    );
   }
 
-  // Who is it for (Audience)
-  const whoIsItForEv = backendAnalysis.first_seconds.who_is_it_for.evidence[0]?.text;
-  if (
+  // 2. Who is it for (Audience)
+  const whoIsItForEv =
+    backendAnalysis.first_seconds.who_is_it_for.evidence[0]?.text ||
+    backendAnalysis.signals.audience.evidence[0]?.text;
+  if (whoIsItForEv) {
+    clearFindings.push(`Target audience: “${whoIsItForEv}” is specified`);
+  } else if (
     backendAnalysis.first_seconds.who_is_it_for.status === "clear" ||
     backendAnalysis.signals.audience.score >= 70
   ) {
-    if (whoIsItForEv) {
-      clearFindings.push(`Target audience: “${whoIsItForEv}” is specified`);
-    } else {
-      clearFindings.push("Target audience or customer role is visible");
-    }
-  } else {
-    missingFindings.push("Target audience is not explicitly stated in hero section");
+    clearFindings.push("Target audience or customer role is visible");
+  }
+  if (backendAnalysis.signals.audience.score < 70) {
+    missingFindings.push(
+      whoIsItForEv
+        ? "Audience reference is present but could be positioned more prominently in the hero"
+        : isPartialSnapshot
+        ? "Explicit target audience qualifier was not detected in the extracted homepage text"
+        : "Target audience is not explicitly stated in hero section"
+    );
   }
 
-  // What will I get (Value / Benefit)
-  const valueEv = backendAnalysis.first_seconds.what_will_i_get.evidence[0]?.text;
-  if (
+  // 3. What will I get (Value / Benefit)
+  const valueEv =
+    backendAnalysis.first_seconds.what_will_i_get.evidence[0]?.text ||
+    backendAnalysis.signals.value.evidence[0]?.text;
+  if (valueEv) {
+    clearFindings.push(`Primary outcome: “${valueEv}” is stated`);
+  } else if (
     backendAnalysis.first_seconds.what_will_i_get.status === "clear" ||
     backendAnalysis.signals.value.score >= 70
   ) {
-    if (valueEv) {
-      clearFindings.push(`Primary outcome: “${valueEv}” is stated`);
-    } else {
-      clearFindings.push("Core benefit message is communicated in hero");
-    }
-  } else {
-    missingFindings.push("Specific visitor outcome or benefit is not concrete");
+    clearFindings.push("Core benefit message is communicated in hero");
+  }
+  if (backendAnalysis.signals.value.score < 70) {
+    missingFindings.push(
+      valueEv
+        ? "Value statement is present but could express a more concrete, measurable visitor outcome"
+        : isPartialSnapshot
+        ? "Concrete visitor outcome was not detected in the extracted homepage text"
+        : "Specific visitor outcome or benefit is not concrete"
+    );
   }
 
-  // Trust / Social Proof
+  // 4. Trust / Social Proof
   const trustEv =
     backendAnalysis.signals.trust.evidence[0]?.text ||
-    backendAnalysis.first_seconds.why_should_i_care.evidence[0]?.text;
-  if (backendAnalysis.signals.trust.score >= 70) {
-    if (trustEv) {
-      clearFindings.push(`Proof element: “${trustEv}” is visible`);
-    } else {
-      clearFindings.push("Trust signals or credentials found on page");
-    }
-  } else {
-    missingFindings.push("Verifiable proof points, customer logos, or credentials absent above fold");
+    backendAnalysis.first_seconds.why_should_i_care.evidence[0]?.text ||
+    snapshot?.trustSignals?.socialProofHeadings?.[0] ||
+    snapshot?.trustSignals?.statsAndMetrics?.[0];
+  if (trustEv) {
+    clearFindings.push(`Proof element: “${trustEv}” is visible`);
+  } else if (backendAnalysis.signals.trust.score >= 70) {
+    clearFindings.push("Trust signals or credentials found on page");
+  }
+  if (backendAnalysis.signals.trust.score < 70) {
+    missingFindings.push(
+      trustEv
+        ? "Initial proof is present, but stronger quantifiable credentials or customer evidence would reinforce trust"
+        : isPartialSnapshot
+        ? "Customer proof points or credentials were not detected in the extracted homepage text"
+        : "Verifiable proof points, customer logos, or credentials not detected above the fold"
+    );
   }
 
-  // Primary Call to Action
-  if (backendAnalysis.signals.action.score >= 70 && snapshot?.hero?.primaryCta?.text) {
-    clearFindings.push(`Primary action: “${snapshot.hero.primaryCta.text}” is prominent`);
-  } else if (backendAnalysis.signals.action.score < 60) {
-    missingFindings.push("Call to action has ambiguity or high friction");
+  // 5. Primary Call to Action
+  const actionEv =
+    snapshot?.hero?.primaryCta?.text ||
+    backendAnalysis.signals.action.evidence[0]?.text ||
+    backendAnalysis.first_seconds.what_should_i_do_next.evidence[0]?.text;
+  if (actionEv && backendAnalysis.signals.action.score >= 60) {
+    clearFindings.push(`Primary action: “${actionEv}” is prominent`);
+  }
+  if (backendAnalysis.signals.action.score < 65) {
+    missingFindings.push(
+      actionEv
+        ? `Primary CTA (“${actionEv}”) is visible, but next-step expectations or commitment level could be clearer`
+        : isPartialSnapshot
+        ? "Primary call-to-action button was not detected in the extracted homepage text"
+        : "Call to action has ambiguity or high friction"
+    );
   }
 
   const homepageExcerpt = snapshot?.hero?.headline
@@ -202,7 +296,9 @@ export function mapBackendToFrontend(
     : `“ We scanned your homepage above the fold structure.”`;
 
   const evidence = {
-    locationTag: "Homepage · Above the fold",
+    locationTag: isPartialSnapshot
+      ? "Homepage · Partial text snapshot"
+      : "Homepage · Above the fold",
     homepageExcerpt,
     clearFindings: clearFindings.length > 0 ? clearFindings : ["Found initial page structure"],
     missingFindings: missingFindings.length > 0 ? missingFindings : ["No major communication blockers identified"],
@@ -214,8 +310,11 @@ export function mapBackendToFrontend(
       id: "first-impression",
       title: "First impression",
       score: backendAnalysis.signals.first_impression.score,
-      badgeText: backendAnalysis.signals.first_impression.status,
-      badgeType: statusToType(backendAnalysis.signals.first_impression.status),
+      badgeText: formatSignalBadgeText(
+        backendAnalysis.signals.first_impression.status,
+        backendAnalysis.signals.first_impression.score
+      ),
+      badgeType: getSignalStatusType(backendAnalysis.signals.first_impression.score),
       description: backendAnalysis.signals.first_impression.explanation,
       icon: "eye",
     },
@@ -223,8 +322,11 @@ export function mapBackendToFrontend(
       id: "audience",
       title: "Audience",
       score: backendAnalysis.signals.audience.score,
-      badgeText: backendAnalysis.signals.audience.status,
-      badgeType: statusToType(backendAnalysis.signals.audience.status),
+      badgeText: formatSignalBadgeText(
+        backendAnalysis.signals.audience.status,
+        backendAnalysis.signals.audience.score
+      ),
+      badgeType: getSignalStatusType(backendAnalysis.signals.audience.score),
       description: backendAnalysis.signals.audience.explanation,
       icon: "users",
     },
@@ -232,8 +334,11 @@ export function mapBackendToFrontend(
       id: "value",
       title: "Value",
       score: backendAnalysis.signals.value.score,
-      badgeText: backendAnalysis.signals.value.status,
-      badgeType: statusToType(backendAnalysis.signals.value.status),
+      badgeText: formatSignalBadgeText(
+        backendAnalysis.signals.value.status,
+        backendAnalysis.signals.value.score
+      ),
+      badgeType: getSignalStatusType(backendAnalysis.signals.value.score),
       description: backendAnalysis.signals.value.explanation,
       icon: "sparkles",
     },
@@ -241,8 +346,11 @@ export function mapBackendToFrontend(
       id: "trust",
       title: "Trust",
       score: backendAnalysis.signals.trust.score,
-      badgeText: backendAnalysis.signals.trust.status,
-      badgeType: statusToType(backendAnalysis.signals.trust.status),
+      badgeText: formatSignalBadgeText(
+        backendAnalysis.signals.trust.status,
+        backendAnalysis.signals.trust.score
+      ),
+      badgeType: getSignalStatusType(backendAnalysis.signals.trust.score),
       description: backendAnalysis.signals.trust.explanation,
       icon: "shield",
     },
@@ -250,8 +358,11 @@ export function mapBackendToFrontend(
       id: "action",
       title: "Action",
       score: backendAnalysis.signals.action.score,
-      badgeText: backendAnalysis.signals.action.status,
-      badgeType: statusToType(backendAnalysis.signals.action.status),
+      badgeText: formatSignalBadgeText(
+        backendAnalysis.signals.action.status,
+        backendAnalysis.signals.action.score
+      ),
+      badgeType: getSignalStatusType(backendAnalysis.signals.action.score),
       description: backendAnalysis.signals.action.explanation,
       icon: "arrow",
     },
@@ -348,8 +459,8 @@ export function mapBackendToFrontend(
           : category === "audience"
           ? `“ Built specifically for ${capitalizedBrand} users looking to achieve results faster.”`
           : category === "action"
-          ? `Get started with ${capitalizedBrand} → (Instant setup · No credit card required)`
-          : `“ The fastest way to achieve your goals with ${capitalizedBrand}.”`),
+          ? `Explore ${capitalizedBrand} →`
+          : `“ The clearer way to achieve your goals with ${capitalizedBrand}.”`),
       icon,
       color,
     };

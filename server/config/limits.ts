@@ -59,6 +59,27 @@ export const SERVER_LIMITS = {
 
   /** Maximum concurrent verify requests permitted per client IP (default 4) */
   VERIFY_MAX_CONCURRENT_PER_IP: getEnvNumber("VERIFY_MAX_CONCURRENT_PER_IP", 4),
+
+  /** Maximum number of supporting pages discovered and fetched per website check (default 3) */
+  SUPPORTING_PAGES_MAX_COUNT: getEnvNumber("SUPPORTING_PAGES_MAX_COUNT", 3),
+
+  /** Maximum time allowed per individual supporting-page HTTP fetch (default 5s) */
+  SUPPORTING_PAGE_FETCH_TIMEOUT_MS: getEnvNumber("SUPPORTING_PAGE_FETCH_TIMEOUT_MS", 5000),
+
+  /** Maximum total wall-clock time allowed for all supporting-page fetches combined (default 8s) */
+  SUPPORTING_PAGES_TOTAL_TIMEOUT_MS: getEnvNumber("SUPPORTING_PAGES_TOTAL_TIMEOUT_MS", 8000),
+
+  /** Maximum response body size streamed per supporting page (default 2MB) */
+  SUPPORTING_PAGE_MAX_RESPONSE_BYTES: getEnvNumber("SUPPORTING_PAGE_MAX_RESPONSE_BYTES", 2000000),
+
+  /** Maximum HTTP redirects followed per supporting page (default 3) */
+  SUPPORTING_PAGE_MAX_REDIRECTS: getEnvNumber("SUPPORTING_PAGE_MAX_REDIRECTS", 3),
+
+  /** Maximum characters of HTML passed to Cheerio DOM extraction for a supporting page (default 120,000) */
+  SUPPORTING_PAGE_MAX_HTML_CHARS: getEnvNumber("SUPPORTING_PAGE_MAX_HTML_CHARS", 120000),
+
+  /** Maximum concurrent supporting-page fetch requests per check (default 3) */
+  SUPPORTING_PAGES_CONCURRENCY: getEnvNumber("SUPPORTING_PAGES_CONCURRENCY", 3),
 } as const;
 
 export type ServerLimits = typeof SERVER_LIMITS;

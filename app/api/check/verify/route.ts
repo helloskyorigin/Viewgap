@@ -107,7 +107,8 @@ export async function POST(req: NextRequest) {
       let httpStatus = 502;
       if (fetchResult.error === "INVALID_URL") httpStatus = 400;
       if (fetchResult.error === "SSRF_BLOCKED") httpStatus = 422;
-      if (fetchResult.error === "FETCH_TIMEOUT") httpStatus = 504;
+      if (fetchResult.error === "FETCH_TIMEOUT" || fetchResult.error === "WEBSITE_FETCH_TIMEOUT") httpStatus = 504;
+      if (fetchResult.error === "WEBSITE_RESPONSE_TOO_LARGE") httpStatus = 413;
 
       return NextResponse.json(
         {
@@ -138,16 +139,13 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
   } catch (error: unknown) {
-    console.error("Error in /api/check/verify endpoint:", error);
+    console.error("Error in /api/check/verify endpoint:", error instanceof Error ? error.message : "Unknown error");
     return NextResponse.json(
       {
         success: false,
         reachable: false,
         error: "FETCH_FAILED",
-        message:
-          error instanceof Error
-            ? `Failed to verify website reachability: ${error.message}`
-            : "Unable to verify website reachability. Please try again.",
+        message: "Unable to verify website reachability. Please try again.",
       },
       { status: 500 }
     );

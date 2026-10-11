@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateUrl, checkSsrf } from "@/lib/url-validator";
 import { fetchWebsiteHomepage } from "@/lib/website-fetcher";
 import { extractWebsiteSnapshot } from "@/lib/content-extractor";
+import { discoverAndFetchSupportingPages } from "@/lib/supporting-page-fetcher";
 import { analyzeWebsite } from "@/services/ai/analyzeWebsite";
 import { validateAndScoreAnalysis } from "@/services/validation/analysisValidator";
 import { getCachedFetch, setCachedFetch } from "@/lib/fetch-cache";
@@ -21,10 +22,10 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return NextResponse.json({
     status: "online",
-    service: "Percept Full Backend Pipeline (Validation, Fetching, Extraction, AI & Scoring)",
-    phase: "Phase 1, Phase 2, Phase 3 & Phase 4 - Backend",
+    service: "StrangerLens Full Backend Pipeline (Validation, Homepage + Supporting-Page Fetching, Extraction, AI & Scoring)",
+    phase: "Phase 1, Phase 2, Phase 3, Phase 4 & Multi-Page Phase 1 - Backend",
     endpoints: {
-      "POST /api/check": "Validates URL, checks SSRF safety, normalizes URL, fetches homepage, extracts WebsiteSnapshot, runs Phase 3 AI Analysis, and executes Phase 4 Evidence Validation & Deterministic Scoring.",
+      "POST /api/check": "Validates URL, checks SSRF safety, normalizes URL, fetches primary homepage, discovers & safely fetches up to 3 relevant supporting pages, extracts WebsiteSnapshots, runs AI Analysis on the primary homepage, and executes Evidence Validation & Deterministic Scoring.",
     },
   });
 }
@@ -108,59 +109,89 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Fetch Website Homepage (Use pre-scan cache if available)
-    let fetchResult = getCachedFetch(validation.normalizedUrl);
-
-    if (!fetchResult) {
-      fetchResult = await fetchWebsiteHomepage(
-        rawUrl,
-        validation.normalizedUrl,
-        {
-          timeoutMs: 10000,
-          maxRedirects: 5,
-          maxSizeBytes: 5 * 1024 * 1024,
-        }
-      );
-
-      if (fetchResult.success) {
-        setCachedFetch(validation.normalizedUrl, fetchResult);
-      }
-    }
-
-    if (!fetchResult.success) {
-      let httpStatus = 502;
-      if (fetchResult.error === "INVALID_URL") httpStatus = 400;
-      if (fetchResult.error === "SSRF_BLOCKED") httpStatus = 422;
-      if (fetchResult.error === "FETCH_TIMEOUT") httpStatus = 504;
-
-      return NextResponse.json(fetchResult, { status: httpStatus });
-    }
-
-    // 4. Phase 2: Deterministic Content Extraction
-    const snapshot = extractWebsiteSnapshot(fetchResult.html, {
-      baseUrl: fetchResult.finalUrl,
-    });
-
-    // 5. Phase 3: AI Analysis Engine
-    const rawAiAnalysis = await analyzeWebsite(snapshot);
-
-    // 6. Phase 4: Evidence Validation & Deterministic Scoring
-    const finalValidatedAnalysis = validateAndScoreAnalysis(rawAiAnalysis, snapshot);
-
-    // Omit raw HTML string from public API payload to prevent massive payloads,
-    // memory pressure, and sensitive DOM leakage over the wire
-    const { html: _omittedHtml, ...safeFetchMetadata } = fetchResult;
-
-    return NextResponse.json(
-      {
-        ...safeFetchMetadata,
-        snapshot,
-        aiAnalysis: rawAiAnalysis,
-        analysis: finalValidatedAnalysis,
-      },
-      { status: 200 }
+    const pipelineController = new AbortController();
+    const pipelineTimer = setTimeout(
+      () => pipelineController.abort(),
+      SERVER_LIMITS.ANALYSIS_TOTAL_TIMEOUT_MS
     );
+
+    try {
+      let fetchResult = getCachedFetch(validation.normalizedUrl);
+
+      if (!fetchResult) {
+        fetchResult = await fetchWebsiteHomepage(
+          rawUrl,
+          validation.normalizedUrl,
+          {
+            timeoutMs: SERVER_LIMITS.WEBSITE_FETCH_TIMEOUT_MS,
+            maxRedirects: SERVER_LIMITS.WEBSITE_MAX_REDIRECTS,
+            maxSizeBytes: SERVER_LIMITS.WEBSITE_MAX_RESPONSE_BYTES,
+            signal: pipelineController.signal,
+          }
+        );
+
+        if (fetchResult.success) {
+          setCachedFetch(validation.normalizedUrl, fetchResult);
+        }
+      }
+
+      if (!fetchResult.success) {
+        let httpStatus = 502;
+        if (fetchResult.error === "INVALID_URL") httpStatus = 400;
+        if (fetchResult.error === "SSRF_BLOCKED") httpStatus = 422;
+        if (fetchResult.error === "FETCH_TIMEOUT" || fetchResult.error === "WEBSITE_FETCH_TIMEOUT") httpStatus = 504;
+        if (fetchResult.error === "WEBSITE_RESPONSE_TOO_LARGE") httpStatus = 413;
+
+        return NextResponse.json(fetchResult, { status: httpStatus });
+      }
+
+      // 4. Phase 2: Deterministic Content Extraction (Primary Homepage)
+      const snapshot = extractWebsiteSnapshot(fetchResult.html, {
+        baseUrl: fetchResult.finalUrl,
+      });
+
+      // 5. Multi-Page Phase 1 (Smart Supporting-Page Discovery & Safe Fetching)
+      //    + Phase 3 (AI Analysis Engine on Primary Homepage)
+      //    Supporting-page discovery/fetching is strictly non-blocking and never alters
+      //    the primary homepage first-impression score in Phase 1.
+      const [supportingPagesBundle, rawAiAnalysis] = await Promise.all([
+        discoverAndFetchSupportingPages(fetchResult.html, fetchResult.finalUrl, {
+          signal: pipelineController.signal,
+        }),
+        analyzeWebsite(snapshot),
+      ]);
+
+      // 6. Phase 4: Evidence Validation & Deterministic Scoring (Primary Homepage)
+      const finalValidatedAnalysis = validateAndScoreAnalysis(rawAiAnalysis, snapshot);
+
+      // Omit raw HTML string from public API payload to prevent massive payloads,
+      // memory pressure, and sensitive DOM leakage over the wire
+      const { html: _omittedHtml, ...safeFetchMetadata } = fetchResult;
+
+      return NextResponse.json(
+        {
+          ...safeFetchMetadata,
+          snapshot,
+          supportingPages: supportingPagesBundle.pages,
+          multiPage: {
+            primaryPageUrl: fetchResult.finalUrl,
+            discoveredCount: supportingPagesBundle.discoveredCount,
+            attemptedCount: supportingPagesBundle.attemptedCount,
+            fetchedCount: supportingPagesBundle.fetchedCount,
+            totalTimingMs: supportingPagesBundle.totalTimingMs,
+            candidates: supportingPagesBundle.candidates,
+            attempts: supportingPagesBundle.attempts,
+          },
+          aiAnalysis: rawAiAnalysis,
+          analysis: finalValidatedAnalysis,
+        },
+        { status: 200 }
+      );
+    } finally {
+      clearTimeout(pipelineTimer);
+    }
   } catch (error: unknown) {
-    console.error("Error in /api/check endpoint:", error);
+    console.error("Error in /api/check endpoint:", error instanceof Error ? error.message : "Unknown error");
 
     const err = error as any;
     const isAiConfigError =
@@ -184,10 +215,7 @@ export async function POST(req: NextRequest) {
       {
         success: false,
         error: "FETCH_FAILED",
-        message:
-          error instanceof Error
-            ? error.message
-            : "An unexpected server error occurred while processing the URL check",
+        message: "An unexpected server error occurred while processing the website check. Please try again.",
       },
       { status: 500 }
     );

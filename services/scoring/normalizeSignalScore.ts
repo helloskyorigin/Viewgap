@@ -32,15 +32,19 @@ export function normalizeSignalScore(
   numericScore = Math.max(0, Math.min(100, Math.round(numericScore)));
 
   // 3. Resolve contradictions between initial status & score
+  const verifiedCount = verifiedEvidence.filter((e) => e.status === "verified").length;
   if ((normStatus === "unclear" || normStatus === "needs_work") && numericScore > rangeConfig.max) {
     numericScore = rangeConfig.max;
   }
-  if ((normStatus === "clear" || normStatus === "understandable") && numericScore < rangeConfig.min) {
+  if (
+    (normStatus === "clear" || normStatus === "understandable") &&
+    numericScore < rangeConfig.min &&
+    verifiedCount > 0
+  ) {
     numericScore = rangeConfig.min;
   }
 
   // 4. Evidence grounding adjustment
-  const verifiedCount = verifiedEvidence.filter((e) => e.status === "verified").length;
   let finalConfidence = initialConfidence;
 
   if (verifiedCount === 0) {

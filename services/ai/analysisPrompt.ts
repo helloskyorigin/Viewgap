@@ -1,60 +1,67 @@
 import { WebsiteSnapshot } from "@/lib/content-extractor";
+import { SERVER_LIMITS } from "@/server/config/limits";
 
 export const ANALYSIS_VERSION = "1.0";
 
 /**
- * Serializes WebsiteSnapshot into a clean, token-efficient JSON format for LLM context.
+ * Serializes WebsiteSnapshot into a clean, token-efficient JSON format for LLM context,
+ * bounded by SERVER_LIMITS.AI_MAX_INPUT_TOKENS (~4 chars/token).
  */
 export function formatSnapshotForAi(snapshot: WebsiteSnapshot): string {
   const compactPayload = {
     meta: {
-      title: snapshot.meta.title,
-      description: snapshot.meta.description,
+      title: snapshot.meta.title.slice(0, 300),
+      description: snapshot.meta.description.slice(0, 500),
     },
     navigation: {
-      brandName: snapshot.navigation.brandName,
-      navLinks: snapshot.navigation.primaryNavLinks.slice(0, 10).map((l) => l.text),
+      brandName: snapshot.navigation.brandName?.slice(0, 120),
+      navLinks: snapshot.navigation.primaryNavLinks.slice(0, 10).map((l) => l.text.slice(0, 80)),
     },
     hero: {
-      headline: snapshot.hero.headline,
-      subheadline: snapshot.hero.subheadline,
-      primaryCta: snapshot.hero.primaryCta ? snapshot.hero.primaryCta.text : undefined,
-      secondaryCta: snapshot.hero.secondaryCta ? snapshot.hero.secondaryCta.text : undefined,
+      headline: snapshot.hero.headline.slice(0, 400),
+      subheadline: snapshot.hero.subheadline.slice(0, 600),
+      primaryCta: snapshot.hero.primaryCta ? snapshot.hero.primaryCta.text.slice(0, 100) : undefined,
+      secondaryCta: snapshot.hero.secondaryCta ? snapshot.hero.secondaryCta.text.slice(0, 100) : undefined,
     },
     ctas: snapshot.ctas.slice(0, 15).map((c) => ({
-      text: c.text,
+      text: c.text.slice(0, 100),
       type: c.type,
       location: c.location,
     })),
     valueProps: {
-      topHeadings: snapshot.valueProps.headings.slice(0, 10).map((h) => `H${h.level}: ${h.text}`),
-      featureCards: snapshot.valueProps.featureCards.slice(0, 8),
+      topHeadings: snapshot.valueProps.headings.slice(0, 10).map((h) => `H${h.level}: ${h.text.slice(0, 200)}`),
+      featureCards: snapshot.valueProps.featureCards.slice(0, 8).map((fc) => ({
+        title: fc.title.slice(0, 150),
+        description: fc.description.slice(0, 300),
+      })),
       pricingSignals: snapshot.valueProps.pricingSignals,
     },
     trustSignals: {
-      socialProofHeadings: snapshot.trustSignals.socialProofHeadings,
-      statsAndMetrics: snapshot.trustSignals.statsAndMetrics,
-      testimonials: snapshot.trustSignals.testimonials.map((t) => ({
-        quote: t.quote,
-        author: t.author,
+      socialProofHeadings: snapshot.trustSignals.socialProofHeadings.slice(0, 8).map((s) => s.slice(0, 200)),
+      statsAndMetrics: snapshot.trustSignals.statsAndMetrics.slice(0, 8).map((s) => s.slice(0, 120)),
+      testimonials: snapshot.trustSignals.testimonials.slice(0, 5).map((t) => ({
+        quote: t.quote.slice(0, 400),
+        author: t.author?.slice(0, 100),
       })),
-      badgesAndCertifications: snapshot.trustSignals.badgesAndCertifications,
-      customerLogosAlt: snapshot.trustSignals.customerLogosAlt,
+      badgesAndCertifications: snapshot.trustSignals.badgesAndCertifications.slice(0, 10),
+      customerLogosAlt: snapshot.trustSignals.customerLogosAlt.slice(0, 15).map((c) => c.slice(0, 80)),
     },
     sections: snapshot.bodySections.slice(0, 8).map((s) => ({
       type: s.typeHint,
-      heading: s.heading,
-      textSummary: s.textSummary,
-      bullets: s.bulletPoints,
+      heading: s.heading?.slice(0, 200),
+      textSummary: s.textSummary.slice(0, 350),
+      bullets: s.bulletPoints.slice(0, 6).map((b) => b.slice(0, 150)),
     })),
-    forms: snapshot.forms.map((f) => ({
+    forms: snapshot.forms.slice(0, 5).map((f) => ({
       type: f.typeHint,
       fieldsCount: f.fields.length,
-      submitLabel: f.submitLabel,
+      submitLabel: f.submitLabel?.slice(0, 100),
     })),
   };
 
-  return JSON.stringify(compactPayload, null, 2);
+  const serialized = JSON.stringify(compactPayload, null, 2);
+  const maxChars = SERVER_LIMITS.AI_MAX_INPUT_TOKENS * 4;
+  return serialized.length > maxChars ? serialized.slice(0, maxChars) : serialized;
 }
 
 export const SYSTEM_PROMPT = `You are Percept, the definitive website first-impression diagnostic engine.

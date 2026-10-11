@@ -59,7 +59,21 @@ export function validateSingleEvidence(
 
   // 2. Check for Normalized Match
   const normAiText = normalizeTextForMatching(rawAiText);
-  if (!normAiText) {
+  if (!normAiText || normAiText.length < 2) {
+    return {
+      source: ref.source || "website",
+      element: ref.element,
+      text: rawAiText,
+      reason: ref.reason,
+      relevance: "weak",
+      status: "rejected",
+    };
+  }
+
+  // Reject AI meta-commentary paraphrases that were not exact matches in step 1
+  const diagnosticParaphrasePattern =
+    /\b(your homepage|the homepage|your website|the website|claims to|fails to|does not state|does not clearly|currently lacks|visitors see|without explaining|without stating)\b/i;
+  if (diagnosticParaphrasePattern.test(rawAiText)) {
     return {
       source: ref.source || "website",
       element: ref.element,
@@ -77,7 +91,15 @@ export function validateSingleEvidence(
     const normSrc = normalizeTextForMatching(src);
     if (!normSrc) continue;
 
-    if (normSrc.includes(normAiText) || normAiText.includes(normSrc)) {
+    // A valid quote must either be contained inside a source text fragment,
+    // or a substantial source fragment (>=25 chars) must account for >=80% of the candidate quote.
+    const isDirectSubstring = normSrc.includes(normAiText);
+    const isSubstantialCover =
+      normSrc.length >= 25 &&
+      normAiText.includes(normSrc) &&
+      normSrc.length >= Math.ceil(normAiText.length * 0.8);
+
+    if (isDirectSubstring || isSubstantialCover) {
       // Check numeric integrity: if AI added a digit that does not exist in source text, REJECT as semantic fabrication
       const srcDigits: string[] = src.match(/\d+(?:\.\d+)?/g) || [];
       const hasAddedDigit = aiDigits.some((d) => !srcDigits.includes(d));

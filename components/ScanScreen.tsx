@@ -127,14 +127,14 @@ export default function ScanScreen({
           <button
             type="button"
             onClick={onBackToLanding}
-            className="flex items-center gap-2.5 group cursor-pointer bg-transparent border-0 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] rounded-lg"
-            aria-label="Return to Percept home"
+            className="flex items-center gap-2 sm:gap-2.5 group cursor-pointer bg-transparent border-0 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] rounded-lg"
+            aria-label="Return to StrangerLens home"
           >
             <div className="w-8 h-8 rounded-xl bg-slate-950 text-white flex items-center justify-center font-bold text-sm tracking-tighter shadow-xs transition-transform duration-200 group-hover:scale-[1.03]">
-              P
+              S
             </div>
-            <span className="text-xl font-bold tracking-tight text-slate-950">
-              Percept
+            <span className="text-lg sm:text-xl font-bold tracking-tight text-slate-950 whitespace-nowrap">
+              StrangerLens
             </span>
           </button>
 

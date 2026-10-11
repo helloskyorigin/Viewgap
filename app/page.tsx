@@ -26,94 +26,97 @@ import {
   EASE_OUT_EXPO,
 } from "@/components/motion/Reveal";
 
-// PRICING CONFIG (One-time purchase model per V1 spec — single arrow handled by icon)
+// PRICING CONFIG (Preserves existing layout; paid checkout marked honestly as Coming soon)
 const PRICING_PLANS = [
   {
     id: "free",
-    name: "Free Preview",
+    name: "Free Review",
     price: 0,
-    period: "forever",
-    tagline: "For a quick stranger impression check",
+    period: "free",
+    tagline: "For an instant AI first-impression check",
     features: [
-      "Overall score",
+      "Overall clarity score",
       "Five signal scores",
-      "Three key observations",
-      "Biggest problem",
-      "One recommended fix",
+      "Key homepage observations",
+      "Biggest issue & evidence",
+      "Priority fix recommendations",
     ],
-    cta: "Try for free",
+    cta: "Analyze My Website Free",
     popular: false,
+    comingSoon: false,
   },
   {
     id: "one_report",
     name: "One Full Report",
     price: 5,
     period: "one-time",
-    tagline: "For a single deep website diagnosis",
+    tagline: "Planned one-time deep diagnosis pack",
     features: [
-      "Everything in Free",
-      "Detailed reasoning",
-      "Full relevant evidence",
-      "Risk analysis",
-      "Complete recommendations",
-      "Full report/export",
+      "Everything in Free Review",
+      "Detailed signal reasoning",
+      "Full extracted evidence",
+      "Communication risk analysis",
+      "Copy-ready improvements",
+      "Downloadable report summary",
     ],
-    cta: "Get full report",
+    cta: "Coming soon",
     popular: true,
+    comingSoon: true,
   },
   {
     id: "three_reports",
     name: "3 Full Reports",
     price: 10,
     period: "one-time",
-    tagline: "For checking multiple websites or versions",
+    tagline: "Planned pack for multiple websites or iterations",
     features: [
       "Three complete reports",
       "Full report capabilities for each",
       "Useful for checking multiple sites",
-      "No expiry",
+      "No subscription required",
     ],
-    cta: "Get 3 reports",
+    cta: "Coming soon",
     popular: false,
+    comingSoon: true,
   },
 ];
 
 // REQUIRED FAQ ITEMS
 const FAQ_ITEMS = [
   {
-    question: "What does Percept analyse?",
+    question: "What does StrangerLens analyse?",
     answer:
-      "Percept analyses your homepage from the perspective of an unbiased first-time visitor. It evaluates message clarity, target audience alignment, value proposition, trust signals, and primary call-to-action friction.",
+      "StrangerLens performs an AI-powered first-impression assessment of your accessible homepage content. It evaluates five signals — First Impression, Audience, Value, Trust, and Action — to help you see what may be clear or unclear to a first-time visitor.",
   },
   {
-    question: "Does Percept work with any website?",
+    question: "Does StrangerLens work with any website?",
     answer:
-      "Yes. Percept works with any publicly reachable web page, including SaaS landing pages, consumer apps, B2B software, marketplaces, and agency portfolios.",
+      "StrangerLens works with publicly reachable homepages whose text and structure are accessible in the initial HTML response, including SaaS products, developer tools, B2B services, and landing pages.",
   },
   {
     question: "Is the analysis based on real website content?",
     answer:
-      "Yes. Percept extracts live text, headings, CTAs, and trust signals directly from your homepage URL to ground every finding in real evidence.",
+      "Yes. StrangerLens fetches your live public homepage HTML and extracts accessible text, headings, calls to action, and credibility signals to ground its findings in extracted page content.",
   },
   {
-    question: "Is Percept a security scanner?",
+    question: "Is StrangerLens a security, SEO, or performance scanner?",
     answer:
-      "No. Percept is a communication and conversion intelligence tool focused entirely on messaging, positioning, trust, and visitor comprehension. It does not perform vulnerability scanning or penetration testing.",
+      "No. StrangerLens is an AI homepage communication analyzer focused on messaging clarity, audience understanding, value communication, trust signals, and next-step clarity. It is not a security scanner, technical SEO audit, PageSpeed benchmark, accessibility compliance audit, or live human usability test.",
   },
   {
-    question: "What is included in the free preview?",
+    question: "What is included in the free analysis?",
     answer:
-      "The free preview includes your overall value clarity score, the five signal scores, key observations, and your single highest-priority recommendation.",
+      "You can run an AI-powered first-impression review for free without creating an account, including your overall score, all five signal evaluations, extracted homepage evidence, and prioritized improvement suggestions.",
   },
   {
-    question: "What does the full report cost?",
+    question: "What do paid reports cost?",
     answer:
-      "Full reports are available as a simple one-time purchase: $5 for a single comprehensive report or $10 for a pack of 3 reports, with no subscriptions or recurring fees.",
+      "One-time report packs ($5 for a single report or $10 for 3 reports, with no subscription) are planned and currently marked as coming soon. You can analyze your homepage for free right now.",
   },
   {
     question: "Do I need to create an account?",
     answer:
-      "No account is required to run a free preview check. You can test any public URL instantly.",
+      "No account or signup is required. Enter any public website URL to run an analysis.",
   },
 ];
 
@@ -151,6 +154,10 @@ export default function LandingPage() {
   const scrollToInput = () => {
     if (activeInfoModal) setActiveInfoModal(null);
     if (mobileMenuOpen) setMobileMenuOpen(false);
+    const wasNotOnLanding = currentView !== "landing";
+    if (wasNotOnLanding) {
+      setCurrentView("landing");
+    }
     setTimeout(() => {
       if (inputRef.current) {
         inputRef.current.scrollIntoView({
@@ -159,7 +166,7 @@ export default function LandingPage() {
         });
         inputRef.current.focus();
       }
-    }, 60);
+    }, wasNotOnLanding ? 180 : 60);
   };
 
   const handleSectionNavigate = (
@@ -331,9 +338,10 @@ export default function LandingPage() {
               transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
               className="w-full bg-white/90 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50 transition-colors"
             >
-              <div className="max-w-[1180px] mx-auto px-4 sm:px-6 md:px-8 h-[64px] sm:h-[72px] flex items-center justify-between gap-4">
+              <div className="max-w-[1180px] mx-auto px-4 sm:px-6 md:px-8 h-[64px] sm:h-[72px] flex items-center justify-between gap-2 sm:gap-4">
                 <a
                   href="#"
+                  aria-label="StrangerLens home"
                   onClick={(e) => {
                     e.preventDefault();
                     if (mobileMenuOpen) setMobileMenuOpen(false);
@@ -342,13 +350,13 @@ export default function LandingPage() {
                       behavior: shouldReduceMotion ? "auto" : "smooth",
                     });
                   }}
-                  className="flex items-center gap-2.5 shrink-0 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] rounded-lg"
+                  className="flex items-center gap-2 sm:gap-2.5 shrink-0 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] rounded-lg"
                 >
                   <div className="w-8 h-8 rounded-xl bg-slate-950 text-white flex items-center justify-center font-bold text-sm tracking-tighter shadow-xs transition-transform duration-200 group-hover:scale-[1.04]">
-                    P
+                    S
                   </div>
-                  <span className="text-xl font-bold tracking-tight text-slate-950">
-                    Percept
+                  <span className="text-lg sm:text-xl font-bold tracking-tight text-slate-950 whitespace-nowrap">
+                    StrangerLens
                   </span>
                 </a>
 
@@ -526,11 +534,11 @@ export default function LandingPage() {
                     }}
                     className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold tracking-wider text-[#246BFD] uppercase bg-[#EAF2FF] mb-4 sm:mb-5 border border-blue-100"
                   >
-                    WEBSITE INTELLIGENCE FOR BUILDERS
+                    AI WEBSITE FIRST-IMPRESSION ANALYZER
                   </motion.div>
 
                   {/* 2. Staggered Hero Headline Lines */}
-                  <h1 className="text-[34px] min-[375px]:text-4xl sm:text-5xl lg:text-[60px] font-extrabold text-[#101828] tracking-tight leading-[1.08] mb-4 sm:mb-5 [text-wrap:balance]">
+                  <h1 className="text-[32px] min-[375px]:text-4xl sm:text-5xl lg:text-[54px] font-extrabold text-[#101828] tracking-tight leading-[1.09] mb-4 sm:mb-5 [text-wrap:balance]">
                     <motion.span
                       initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -541,31 +549,20 @@ export default function LandingPage() {
                       }}
                       className="block"
                     >
-                      Your website
+                      Does Your Website
                     </motion.span>
                     <motion.span
                       initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{
-                        duration: 0.52,
-                        delay: 0.19,
+                        duration: 0.54,
+                        delay: 0.2,
                         ease: EASE_OUT_EXPO,
                       }}
                       className="block"
                     >
-                      tells a story.
-                    </motion.span>
-                    <motion.span
-                      initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        duration: 0.56,
-                        delay: 0.28,
-                        ease: EASE_OUT_EXPO,
-                      }}
-                      className="block text-[#246BFD]"
-                    >
-                      Is it the right one?
+                      Make Sense to a{" "}
+                      <span className="text-[#246BFD]">Stranger?</span>
                     </motion.span>
                   </h1>
 
@@ -575,15 +572,15 @@ export default function LandingPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{
                       duration: 0.52,
-                      delay: 0.35,
+                      delay: 0.3,
                       ease: EASE_OUT_EXPO,
                     }}
                     className="text-[15px] sm:text-lg text-[#526078] leading-relaxed mb-6 sm:mb-7 max-w-lg font-normal"
                   >
-                    Understand what your website communicates, where visitors may lose trust, and what you should improve first.
+                    Get an AI-powered first-impression review of your homepage. Discover what{"'"}s unclear, what may make visitors hesitate, and exactly what to improve.
                   </motion.p>
 
-                  {/* 4. URL Input Pill with Spring-like Entrance & Focus Transition */}
+                  {/* 4. URL Input Pill & Primary Hero CTA */}
                   <motion.form
                     onSubmit={handleAnalyze}
                     initial={
@@ -594,13 +591,13 @@ export default function LandingPage() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{
                       duration: 0.55,
-                      delay: 0.42,
+                      delay: 0.38,
                       ease: EASE_OUT_EXPO,
                     }}
                     className="w-full max-w-lg"
                   >
                     <div
-                      className={`relative flex items-center bg-white rounded-full border transition-all duration-200 p-1.5 pl-4 sm:pl-5 min-h-[54px] sm:min-h-[60px] ${
+                      className={`relative flex flex-col sm:flex-row items-stretch sm:items-center bg-white rounded-3xl sm:rounded-full border transition-all duration-200 p-2 sm:p-1.5 sm:pl-5 ${
                         errorMessage || urlValidation.status === "invalid"
                           ? "border-rose-400 ring-4 ring-rose-100/80 shadow-sm"
                           : urlValidation.status === "valid"
@@ -610,48 +607,46 @@ export default function LandingPage() {
                           : "border-[#DCE6F7] hover:border-blue-300/90 shadow-[0_8px_26px_-6px_rgba(36,107,253,0.10)]"
                       }`}
                     >
-                      <Link2
-                        className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 mr-2.5 sm:mr-3 transition-colors duration-200 ${
-                          isInputFocused ? "text-[#246BFD]" : "text-slate-400"
-                        }`}
-                      />
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        disabled={isVerifying}
-                        value={url}
-                        onFocus={() => setIsInputFocused(true)}
-                        onBlur={() => setIsInputFocused(false)}
-                        onChange={(e) => {
-                          setUrl(e.target.value);
-                          if (errorMessage) setErrorMessage(null);
-                        }}
-                        placeholder="https://yourwebsite.com"
-                        className="w-full min-w-0 bg-transparent text-slate-900 placeholder:text-slate-400 text-sm sm:text-base outline-none font-normal pr-2 disabled:opacity-75"
-                        aria-label="Website URL"
-                      />
+                      <div className="flex items-center flex-1 min-w-0 px-2.5 sm:px-0 min-h-[44px] sm:min-h-[46px]">
+                        <Link2
+                          className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 mr-2.5 sm:mr-3 transition-colors duration-200 ${
+                            isInputFocused ? "text-[#246BFD]" : "text-slate-400"
+                          }`}
+                        />
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          disabled={isVerifying}
+                          value={url}
+                          onFocus={() => setIsInputFocused(true)}
+                          onBlur={() => setIsInputFocused(false)}
+                          onChange={(e) => {
+                            setUrl(e.target.value);
+                            if (errorMessage) setErrorMessage(null);
+                          }}
+                          placeholder="https://yourwebsite.com"
+                          className="w-full min-w-0 bg-transparent text-slate-900 placeholder:text-slate-400 text-sm sm:text-base outline-none font-normal pr-2 disabled:opacity-75"
+                          aria-label="Website URL"
+                        />
+                      </div>
                       <button
                         type="submit"
                         disabled={
-                          isVerifying ||
-                          urlValidation.status === "invalid" ||
-                          !url.trim()
+                          isVerifying || urlValidation.status === "invalid"
                         }
-                        className={`group w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 ${
-                          urlValidation.status === "invalid" || !url.trim()
+                        className={`group mt-1.5 sm:mt-0 w-full sm:w-auto min-h-[44px] sm:min-h-[46px] px-4 sm:px-5 py-2.5 rounded-full font-semibold text-xs sm:text-[13px] flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 ${
+                          urlValidation.status === "invalid"
                             ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
                             : isVerifying
                             ? "bg-[#246BFD] text-white opacity-90 cursor-wait"
-                            : "bg-[#246BFD] hover:bg-blue-600 hover:scale-[1.04] active:scale-[0.96] text-white shadow-sm hover:shadow-md hover:shadow-blue-500/20"
+                            : "bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white shadow-sm hover:shadow-md hover:shadow-blue-500/20"
                         }`}
-                        aria-label="Analyse website"
-                        title="Analyse website"
+                        aria-label="Analyze My Website Free"
                       >
-                        {isVerifying ? (
-                          <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-white" />
-                        ) : (
-                          <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                        {isVerifying && (
+                          <Loader2 className="w-4 h-4 animate-spin text-white shrink-0" />
                         )}
+                        <span>Analyze My Website Free →</span>
                       </button>
                     </div>
 
@@ -670,39 +665,19 @@ export default function LandingPage() {
                     </AnimatePresence>
                   </motion.form>
 
-                  {/* 5. Reassurance Indicators Stagger */}
-                  <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    variants={{
-                      hidden: {},
-                      visible: {
-                        transition: {
-                          staggerChildren: shouldReduceMotion ? 0 : 0.06,
-                          delayChildren: shouldReduceMotion ? 0 : 0.48,
-                        },
-                      },
+                  {/* 5. Concise Truthful Reassurance Line */}
+                  <motion.p
+                    initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.4,
+                      delay: 0.46,
+                      ease: EASE_OUT_EXPO,
                     }}
-                    className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-xs text-[#526078] font-medium"
+                    className="mt-3.5 text-xs sm:text-[13px] text-[#526078] font-medium leading-relaxed"
                   >
-                    {["Free preview", "No signup", "No credit card"].map((label) => (
-                      <motion.span
-                        key={label}
-                        variants={{
-                          hidden: { opacity: 0, y: shouldReduceMotion ? 0 : 8 },
-                          visible: {
-                            opacity: 1,
-                            y: 0,
-                            transition: { duration: 0.4, ease: EASE_OUT_EXPO },
-                          },
-                        }}
-                        className="flex items-center gap-1.5 whitespace-nowrap"
-                      >
-                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span>{label}</span>
-                      </motion.span>
-                    ))}
-                  </motion.div>
+                    No signup required · AI-powered review · Actionable feedback
+                  </motion.p>
                 </div>
 
                 {/* 6. Hero Dashboard Preview (Untruncated Signal Labels & Depth Entrance) */}
@@ -724,15 +699,15 @@ export default function LandingPage() {
                     <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-4">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-bold">
-                          P
+                          S
                         </div>
-                        <span className="font-bold text-slate-900 text-sm">
-                          Percept
+                        <span className="font-bold text-slate-900 text-sm whitespace-nowrap">
+                          StrangerLens
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md font-medium">
-                          example.com
+                          example.com · Illustrative preview
                         </span>
                       </div>
                     </div>
@@ -934,19 +909,19 @@ export default function LandingPage() {
                         </ul>
                       </div>
                       <div className="mt-6 pt-4 border-t border-slate-100 text-xs text-slate-500 font-medium">
-                        Actual 5-second reality
+                        First-time visitor perspective
                       </div>
                     </div>
                   </Reveal>
                 </div>
               </section>
 
-              {/* SECTION: WHAT PERCEPT REVEALS */}
+              {/* SECTION: WHAT STRANGERLENS REVEALS */}
               <section className="py-12 sm:py-14 md:py-20 border-t border-slate-100">
                 <div className="max-w-4xl mx-auto text-center mb-8 sm:mb-10 md:mb-12">
                   <Reveal y={10} blur>
                     <span className="inline-block text-[11px] font-bold tracking-widest text-[#246BFD] uppercase bg-[#EAF2FF] px-3 py-1 rounded-full border border-blue-100">
-                      WHAT PERCEPT REVEALS
+                      WHAT STRANGERLENS REVEALS
                     </span>
                   </Reveal>
                   <Reveal y={14} delay={0.06}>
@@ -956,7 +931,7 @@ export default function LandingPage() {
                   </Reveal>
                   <Reveal y={14} delay={0.12}>
                     <p className="text-[15px] sm:text-lg text-[#526078] max-w-2xl mx-auto leading-relaxed font-normal">
-                      Percept analyses your website through five key signals to understand what a first-time visitor actually sees.
+                      StrangerLens evaluates accessible homepage content across five key signals to show what your website communicates to a first-time visitor.
                     </p>
                   </Reveal>
                 </div>
@@ -968,27 +943,32 @@ export default function LandingPage() {
                   {[
                     {
                       title: "First Impression",
-                      question: "Is it clear and engaging?",
+                      question:
+                        "How clearly the homepage communicates its overall purpose.",
                       icon: Eye,
                     },
                     {
                       title: "Audience",
-                      question: "Is this for me?",
+                      question:
+                        "Whether the intended visitor can recognize who the product is for.",
                       icon: Users,
                     },
                     {
                       title: "Value",
-                      question: "Why should I care?",
+                      question:
+                        "How specifically the homepage explains what visitors may gain.",
                       icon: Sparkles,
                     },
                     {
                       title: "Trust",
-                      question: "Why should I believe it?",
+                      question:
+                        "What credibility evidence is available in the accessible homepage content.",
                       icon: Shield,
                     },
                     {
                       title: "Action",
-                      question: "What is the next step?",
+                      question:
+                        "How clearly the homepage communicates the next step.",
                       icon: ArrowRight,
                     },
                   ].map((card, idx) => {
@@ -1014,13 +994,13 @@ export default function LandingPage() {
                 </StaggerContainer>
               </section>
 
-              {/* SECTION: REAL PRODUCT PREVIEW */}
+              {/* SECTION: EXAMPLE REPORT PREVIEW */}
               <section className="py-12 sm:py-14 md:py-20 border-t border-slate-100">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 items-center">
                   <div className="lg:col-span-5">
                     <Reveal y={10} blur>
                       <span className="inline-block text-[11px] font-bold tracking-widest text-[#246BFD] uppercase bg-[#EAF2FF] px-3 py-1 rounded-full border border-blue-100">
-                        REAL PRODUCT PREVIEW
+                        EXAMPLE REPORT PREVIEW
                       </span>
                     </Reveal>
                     <Reveal y={14} delay={0.06}>
@@ -1030,7 +1010,7 @@ export default function LandingPage() {
                     </Reveal>
                     <Reveal y={14} delay={0.12}>
                       <p className="text-[15px] sm:text-base text-[#526078] leading-relaxed mb-6 font-normal">
-                        Get a clear, evidence-based diagnosis with specific findings and actionable recommendations based on what your website actually shows.
+                        Get an AI-powered, evidence-backed review of your accessible homepage content — showing what is clear, where visitors may hesitate, and what to improve first.
                       </p>
                     </Reveal>
                     <Reveal y={14} delay={0.18}>
@@ -1038,8 +1018,7 @@ export default function LandingPage() {
                         onClick={scrollToInput}
                         className="group rounded-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white font-medium px-6 py-3 inline-flex items-center gap-2 shadow-xs hover:shadow-md hover:shadow-blue-500/15 transition-all duration-200 cursor-pointer text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
                       >
-                        <span>Try it free</span>
-                        <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                        <span>Analyze My Website Free →</span>
                       </button>
                     </Reveal>
                   </div>
@@ -1157,7 +1136,7 @@ export default function LandingPage() {
                   </Reveal>
                   <Reveal y={14} delay={0.12}>
                     <p className="text-[15px] sm:text-lg text-[#526078] max-w-2xl mx-auto leading-relaxed font-normal">
-                      Percept helps you go from confusion to clarity with an understanding of what works, what doesn{"'"}t, and what to improve.
+                      StrangerLens helps founders, developers, and website owners see what their homepage communicates to a first-time visitor and what to improve first.
                     </p>
                   </Reveal>
                 </div>
@@ -1181,17 +1160,17 @@ export default function LandingPage() {
                       {
                         step: "01",
                         title: "Understand",
-                        desc: "See what your website communicates to visitors.",
+                        desc: "See what your accessible homepage content communicates to a first-time visitor.",
                       },
                       {
                         step: "02",
                         title: "Discover",
-                        desc: "Find where clarity, value or trust breaks down.",
+                        desc: "Spot where message clarity, audience fit, value, or trust signals break down.",
                       },
                       {
                         step: "03",
                         title: "Improve",
-                        desc: "Know which change deserves attention first.",
+                        desc: "Review evidence-backed priorities and copy-ready wording to fix first.",
                       },
                     ].map((s, idx) => (
                       <StaggerItem key={idx} y={18}>
@@ -1232,7 +1211,7 @@ export default function LandingPage() {
                   </Reveal>
                   <Reveal y={14} delay={0.12}>
                     <p className="text-[15px] sm:text-lg text-[#526078] max-w-2xl mx-auto leading-relaxed font-normal">
-                      Start with a free preview. Upgrade anytime for a detailed, far deeper analysis and full recommendations.
+                      Run an AI-powered first-impression review for free today. One-time report packs are coming soon.
                     </p>
                   </Reveal>
                 </div>
@@ -1266,7 +1245,7 @@ export default function LandingPage() {
                             }}
                             className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#246BFD] text-white text-[10px] font-bold tracking-wider uppercase px-3 py-0.5 rounded-full shadow-xs whitespace-nowrap"
                           >
-                            Most popular
+                            Coming soon
                           </motion.span>
                         )}
 
@@ -1297,17 +1276,24 @@ export default function LandingPage() {
                           </div>
                         </div>
 
-                        <button
-                          onClick={scrollToInput}
-                          className={`group w-full py-3 px-4 rounded-full text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 ${
-                            plan.popular
-                              ? "bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white shadow-xs hover:shadow-md hover:shadow-blue-500/20"
-                              : "bg-slate-100 hover:bg-slate-200/90 active:scale-[0.98] text-slate-800"
-                          }`}
-                        >
-                          <span>{plan.cta}</span>
-                          <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                        </button>
+                        {plan.comingSoon ? (
+                          <button
+                            type="button"
+                            disabled
+                            aria-disabled="true"
+                            className="w-full py-3 px-4 rounded-full text-sm font-semibold inline-flex items-center justify-center gap-1.5 bg-slate-200/80 text-slate-500 cursor-not-allowed select-none"
+                          >
+                            <span>{plan.cta}</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={scrollToInput}
+                            className="group w-full py-3 px-4 rounded-full text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white shadow-xs hover:shadow-md hover:shadow-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
+                          >
+                            <span>{plan.cta} →</span>
+                          </button>
+                        )}
                       </div>
                     </StaggerItem>
                   ))}
@@ -1395,27 +1381,28 @@ export default function LandingPage() {
                       Your website deserves a second look.
                     </h2>
                     <p className="text-[15px] sm:text-base text-[#526078] max-w-xl mx-auto mb-6 sm:mb-7 font-normal">
-                      Understand what your website communicates before your next visitor does.
+                      See what your homepage communicates to a first-time visitor before your next visitor lands on it.
                     </p>
                     <button
                       onClick={scrollToInput}
                       className="group rounded-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white font-medium px-7 sm:px-8 py-3.5 sm:py-4 inline-flex items-center gap-2 shadow-sm hover:shadow-md hover:shadow-blue-500/20 transition-all duration-200 cursor-pointer text-sm sm:text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
                     >
-                      <span>Analyse your website</span>
-                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                      <span>Analyze My Website Free →</span>
                     </button>
                   </div>
                 </Reveal>
 
                 <Reveal y={10} delay={0.08}>
                   <footer className="pt-6 pb-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#526078]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-bold">
-                        P
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                        S
                       </div>
-                      <span className="font-bold text-slate-900">Percept</span>
+                      <span className="font-bold text-slate-900 whitespace-nowrap">
+                        StrangerLens
+                      </span>
                       <span>
-                        © {new Date().getFullYear()} Percept. All rights reserved.
+                        © {new Date().getFullYear()} StrangerLens. All rights reserved.
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center justify-center gap-6">
@@ -1518,7 +1505,7 @@ export default function LandingPage() {
                     Frequently Asked Questions
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                    Everything you need to know about website intelligence.
+                    Everything you need to know about StrangerLens first-impression reviews.
                   </p>
                 </div>
                 <button
@@ -1602,7 +1589,7 @@ export default function LandingPage() {
                     Simple, Transparent Pricing
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                    Start with a free preview or get full reports.
+                    Run an AI-powered first-impression review for free today. Paid packs are coming soon.
                   </p>
                 </div>
                 <button
@@ -1626,7 +1613,7 @@ export default function LandingPage() {
                   >
                     {plan.popular && (
                       <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#246BFD] text-white text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                        Most popular
+                        Coming soon
                       </span>
                     )}
                     <div>
@@ -1651,17 +1638,24 @@ export default function LandingPage() {
                         ))}
                       </div>
                     </div>
-                    <button
-                      onClick={scrollToInput}
-                      className={`group w-full py-2.5 px-4 rounded-full text-xs font-semibold transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer ${
-                        plan.popular
-                          ? "bg-[#246BFD] hover:bg-blue-600 text-white"
-                          : "bg-slate-100 hover:bg-slate-200 text-slate-800"
-                      }`}
-                    >
-                      <span>{plan.cta}</span>
-                      <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-                    </button>
+                    {plan.comingSoon ? (
+                      <button
+                        type="button"
+                        disabled
+                        aria-disabled="true"
+                        className="w-full py-2.5 px-4 rounded-full text-xs font-semibold inline-flex items-center justify-center gap-1.5 bg-slate-200/80 text-slate-500 cursor-not-allowed select-none"
+                      >
+                        <span>{plan.cta}</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={scrollToInput}
+                        className="group w-full py-2.5 px-4 rounded-full text-xs font-semibold transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer bg-[#246BFD] hover:bg-blue-600 text-white"
+                      >
+                        <span>{plan.cta} →</span>
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

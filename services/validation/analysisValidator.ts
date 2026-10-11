@@ -20,6 +20,27 @@ export function validateAndScoreAnalysis(
   snapshot: WebsiteSnapshot
 ): FinalValidatedAnalysis {
   const brandName = snapshot.navigation.brandName || snapshot.meta.title || "this website";
+  const isIncompleteExtraction =
+    (snapshot.stats?.cleanedTextLength ?? 0) < 200 ||
+    (!snapshot.hero.headline && (snapshot.valueProps?.headings?.length ?? 0) === 0);
+
+  // Qualifies definitive unsupported negative claims into honest observation statements
+  const qualifyDefinitiveNegativeText = (rawText: string): string => {
+    if (!rawText) return rawText;
+    return rawText
+      .replace(
+        /\bthis website has no trust signals\b/gi,
+        "no trust signals were identified in the accessible homepage content"
+      )
+      .replace(
+        /\bno trust signals exist(?: on (?:this|the) (?:website|homepage|page))?\b/gi,
+        "no trust signals were identified in the accessible homepage content"
+      )
+      .replace(
+        /\bthere are no trust signals(?: on (?:this|the) (?:website|homepage|page))?\b/gi,
+        "no trust signals were identified in the accessible homepage content"
+      );
+  };
 
   // 1. Validate First Seconds Evidence
   const validateFSItem = (item: {
@@ -36,7 +57,9 @@ export function validateAndScoreAnalysis(
 
     return {
       status: validStatus,
-      explanation: item?.explanation || "Diagnostic evaluation based on hero scanning.",
+      explanation: qualifyDefinitiveNegativeText(
+        item?.explanation || "Diagnostic evaluation based on accessible homepage content."
+      ),
       evidence_available: verifiedEv.length > 0,
       evidence: verifiedEv,
     };
@@ -63,18 +86,23 @@ export function validateAndScoreAnalysis(
       ? rawSig.confidence
       : "medium";
 
-    const { finalScore, finalConfidence } = normalizeSignalScore(
+    const { finalScore, finalStatus, finalConfidence } = normalizeSignalScore(
       rawSig.score,
       status,
       verifiedEv,
       initialConfidence
     );
 
+    const effectiveConfidence =
+      isIncompleteExtraction && verifiedEv.length === 0 ? "low" : finalConfidence;
+
     return {
       score: finalScore,
-      status,
-      explanation: rawSig.explanation || "Diagnostic signal evaluation.",
-      confidence: finalConfidence,
+      status: finalStatus,
+      explanation: qualifyDefinitiveNegativeText(
+        rawSig.explanation || "Diagnostic signal evaluation based on accessible homepage content."
+      ),
+      confidence: effectiveConfidence,
       evidence_available: verifiedEv.length > 0,
       evidence: verifiedEv,
     };
@@ -87,6 +115,105 @@ export function validateAndScoreAnalysis(
     trust: processSignal("trust", "could_be_stronger"),
     action: processSignal("action", "clear"),
   };
+
+  // Detect any verified credibility evidence in signals or snapshot.trustSignals
+  const snapshotTrustCandidates: string[] = [
+    ...(snapshot.trustSignals?.socialProofHeadings || []),
+    ...(snapshot.trustSignals?.statsAndMetrics || []),
+    ...(snapshot.trustSignals?.badgesAndCertifications || []),
+    ...(snapshot.trustSignals?.testimonials?.map((t) => t.quote) || []),
+    ...(snapshot.trustSignals?.customerLogosAlt || []),
+  ].filter((t) => Boolean(t && t.trim()));
+
+  const verifiedTrustItems: string[] = [
+    ...processedSignals.trust.evidence.map((e) => e.text),
+    ...firstSeconds.why_should_i_care.evidence.map((e) => e.text),
+    ...snapshotTrustCandidates,
+  ].filter((t) => Boolean(t && t.trim()));
+
+  const primaryTrustSnippet = verifiedTrustItems[0] || null;
+
+  // If snapshot or why_should_i_care has verified trust evidence that wasn't attached to signals.trust.evidence, attach it so downstream mappers stay consistent
+  if (primaryTrustSnippet && processedSignals.trust.evidence.length === 0) {
+    processedSignals.trust.evidence = [
+      {
+        source: "trust",
+        text: primaryTrustSnippet,
+        status: "verified",
+        matchType: "exact",
+        relevance: "moderate",
+      },
+    ];
+    processedSignals.trust.evidence_available = true;
+  }
+
+  // Reconcile Trust Signal Explanation when Trust score is low (<70)
+  // Case 1: Low Trust score (<70) WITH some validated positive credibility evidence (TEST A)
+  if (processedSignals.trust.score < 70 && primaryTrustSnippet) {
+    const rawTrustExp = processedSignals.trust.explanation;
+    const hasNuance = /\b(but|however|though|although|while|limited|lacks|missing|weak|only|partly|insufficient)\b/i.test(
+      rawTrustExp
+    );
+    const claimsNoneExist =
+      /\b(no trust signals|no verifiable trust|no proof points|zero trust|no credibility|no customer proof|none found)\b/i.test(
+        rawTrustExp
+      );
+    const claimsUnqualifiedStrong =
+      !hasNuance &&
+      /\b(trust signals are visible|credible proof points found|strong trust|strong social proof|clear proof points)\b/i.test(
+        rawTrustExp
+      );
+
+    if (claimsNoneExist || claimsUnqualifiedStrong || !hasNuance) {
+      processedSignals.trust.explanation = `While initial credibility elements are present in the accessible homepage content (such as “${primaryTrustSnippet}”), overall trust strength scores ${processedSignals.trust.score}/100 because broader proof points—such as detailed customer testimonials or case studies—were not identified above the fold.`;
+    }
+  } else if (processedSignals.trust.score < 50 && !primaryTrustSnippet) {
+    // Case 2: Low Trust score (<50) WITHOUT verified trust evidence
+    const rawTrustExp = processedSignals.trust.explanation;
+    const claimsPositiveProof =
+      /\b(trust signals are visible|credible proof points found|strong trust|strong social proof|clear social proof)\b/i.test(
+        rawTrustExp
+      );
+    if (claimsPositiveProof) {
+      processedSignals.trust.explanation = `Trust signals are limited (${processedSignals.trust.score}/100); no verifiable customer proof points, testimonials, or credentials were identified in the accessible homepage content.`;
+    }
+  }
+
+  // Reconcile First Seconds statuses with normalized signal scores to eliminate cross-section contradictions
+  const reconcileFSWithScore = (
+    fsStatus: ValidatedDecisionStatus,
+    signalScore: number
+  ): ValidatedDecisionStatus => {
+    if (signalScore >= 80) return "clear";
+    if (signalScore >= 70) {
+      return fsStatus === "clear" ? "clear" : "understandable";
+    }
+    if (signalScore >= 45) {
+      return "partly_clear";
+    }
+    return "unclear";
+  };
+
+  firstSeconds.what_is_this.status = reconcileFSWithScore(
+    firstSeconds.what_is_this.status,
+    processedSignals.first_impression.score
+  );
+  firstSeconds.who_is_it_for.status = reconcileFSWithScore(
+    firstSeconds.who_is_it_for.status,
+    processedSignals.audience.score
+  );
+  firstSeconds.what_will_i_get.status = reconcileFSWithScore(
+    firstSeconds.what_will_i_get.status,
+    processedSignals.value.score
+  );
+  firstSeconds.why_should_i_care.status = reconcileFSWithScore(
+    firstSeconds.why_should_i_care.status,
+    processedSignals.trust.score
+  );
+  firstSeconds.what_should_i_do_next.status = reconcileFSWithScore(
+    firstSeconds.what_should_i_do_next.status,
+    processedSignals.action.score
+  );
 
   // 3. Deterministic Overall Score Calculation
   const { overallScore, overallStatus } = calculateOverallScore({
@@ -103,9 +230,24 @@ export function validateAndScoreAnalysis(
     (typeof processedSignals)[keyof typeof processedSignals]
   ]>).sort((a, b) => a[1].score - b[1].score);
   const weakestSignalKey = signalEntries[0] ? signalEntries[0][0] : undefined;
+  const weakestSignalScore = signalEntries[0] ? signalEntries[0][1].score : 100;
+
+  const allSignalScores: Record<string, number> = {
+    first_impression: processedSignals.first_impression.score,
+    audience: processedSignals.audience.score,
+    value: processedSignals.value.score,
+    trust: processedSignals.trust.score,
+    action: processedSignals.action.score,
+  };
 
   // 4. Validate Priority Fix, Risks & Other Improvements
-  const priorityFix = validatePriorityFix(aiAnalysis?.priority_fix, snapshot, weakestSignalKey);
+  const priorityFix = validatePriorityFix(
+    aiAnalysis?.priority_fix,
+    snapshot,
+    weakestSignalKey,
+    weakestSignalScore,
+    allSignalScores
+  );
   const otherImprovements = validateOtherImprovements(
     aiAnalysis?.other_improvements,
     snapshot,
@@ -114,8 +256,16 @@ export function validateAndScoreAnalysis(
 
   const rawWm: any = aiAnalysis?.website_message || {};
   const wmEv = validateEvidenceList(rawWm.evidence_refs, snapshot, true);
-  const wmSummary = rawWm.summary || `This website communicates its core product offering for ${brandName}.`;
-  const wmConfidence = ["high", "medium", "low"].includes(rawWm.confidence) ? rawWm.confidence : "medium";
+  const wmSummary = rawWm.summary
+    ? qualifyDefinitiveNegativeText(rawWm.summary)
+    : isIncompleteExtraction
+    ? `Limited text was identified in the accessible homepage HTML for ${brandName}; this assessment reflects only the initial static markup available during scanning.`
+    : `This website communicates its core product offering for ${brandName}.`;
+  const wmConfidence = isIncompleteExtraction
+    ? "low"
+    : ["high", "medium", "low"].includes(rawWm.confidence)
+    ? rawWm.confidence
+    : "medium";
   const websiteMessage = {
     summary: wmSummary,
     confidence: wmConfidence,
@@ -152,12 +302,25 @@ export function validateAndScoreAnalysis(
         severity = "high";
       }
 
+      let desc = qualifyDefinitiveNegativeText(
+        r.description || "First-time visitors may experience friction understanding this element."
+      );
+      if (
+        cat.includes("trust") &&
+        primaryTrustSnippet &&
+        /\b(no trust signals|no verified customer proof|no proof points|zero trust)\b/i.test(desc)
+      ) {
+        desc = `While ${brandName} includes initial credibility elements (such as “${primaryTrustSnippet}”), overall trust signals score ${processedSignals.trust.score}/100 and lack deeper customer proof or verifiable case studies in the accessible hero content.`;
+      }
+
       return {
         category: cat,
         severity,
         title: r.title || "Communication risk identified",
-        description: r.description || "First-time visitors may experience friction understanding this element.",
-        why_it_matters: r.why_it_matters || "Clear communication reduces visitor bounce rate and increases conversion confidence.",
+        description: desc,
+        why_it_matters:
+          r.why_it_matters ||
+          "Clear communication reduces visitor bounce rate and increases conversion confidence.",
         evidence_available: verifiedEv.length > 0,
         evidence: verifiedEv,
       };
@@ -178,11 +341,14 @@ export function validateAndScoreAnalysis(
     risks.push({
       category: "trust",
       severity: sev,
-      title:
-        sev === "high"
-          ? "Unverifiable trust and missing social proof"
-          : "Trust signals could be substantially stronger",
-      description: `Visitors landing on ${brandName} find no verified customer proof, named testimonials, or methodology credentials above the fold.`,
+      title: primaryTrustSnippet
+        ? "Existing credibility signals need stronger above-the-fold proof"
+        : sev === "high"
+        ? "Limited verifiable trust signals in accessible homepage content"
+        : "Trust signals could be substantially stronger",
+      description: primaryTrustSnippet
+        ? `While ${brandName} includes initial credibility elements (such as “${primaryTrustSnippet}”), overall trust signals score ${processedSignals.trust.score}/100 and lack deeper customer proof or verifiable case studies in the accessible hero content.`
+        : `No verifiable customer proof, named testimonials, or methodology credentials were identified in the accessible homepage content for ${brandName}.`,
       why_it_matters:
         "First-time visitors hesitate to commit time or money without immediate, visible evidence that others trust the product.",
       evidence_available: processedSignals.trust.evidence_available,
@@ -197,7 +363,7 @@ export function validateAndScoreAnalysis(
       category: "audience",
       severity: sev,
       title: "Target audience is not clearly identified",
-      description: `${brandName}'s homepage does not explicitly specify who the product is built for, leaving visitors unsure if it applies to them.`,
+      description: `${brandName}'s accessible homepage content does not explicitly specify who the product is built for, leaving visitors unsure if it applies to them.`,
       why_it_matters:
         "Visitors bounce within seconds if they cannot immediately confirm the product was designed specifically for their role or use case.",
       evidence_available: processedSignals.audience.evidence_available,
@@ -212,7 +378,7 @@ export function validateAndScoreAnalysis(
       category: "value",
       severity: sev,
       title: "Core benefit is overshadowed by features or abstract copy",
-      description: `The primary visitor outcome is not immediately clear from the hero headline, focusing more on description than tangible results.`,
+      description: `The primary visitor outcome is not immediately clear from the accessible hero copy, focusing more on general description than tangible results.`,
       why_it_matters:
         "Visitors evaluate products based on what they will achieve, not just what the tool does.",
       evidence_available: processedSignals.value.evidence_available,
@@ -227,7 +393,7 @@ export function validateAndScoreAnalysis(
       category: "action",
       severity: sev,
       title: "Call-to-action path has high friction or ambiguity",
-      description: `The next step creates uncertainty regarding what happens after clicking, pricing commitment, or required setup.`,
+      description: `The next step in the accessible hero content creates uncertainty regarding what happens after clicking, pricing commitment, or required setup.`,
       why_it_matters:
         "Ambiguous or high-friction CTAs reduce conversion from high-intent first-time visitors.",
       evidence_available: processedSignals.action.evidence_available,
@@ -246,9 +412,9 @@ export function validateAndScoreAnalysis(
       category: "clarity",
       severity: sev,
       title: "Hero message requires secondary scanning to comprehend",
-      description: `The first-impression headline does not clearly communicate the product category within 5 seconds.`,
+      description: `The first-impression headline in the accessible homepage content does not clearly communicate the product category within the first few seconds.`,
       why_it_matters:
-        "Visitors scan headlines rapidly; if comprehension takes more than 5 seconds, drop-off spikes.",
+        "Visitors scan headlines rapidly; if comprehension takes too long, drop-off spikes.",
       evidence_available: processedSignals.first_impression.evidence_available,
       evidence: processedSignals.first_impression.evidence,
     });
@@ -260,27 +426,46 @@ export function validateAndScoreAnalysis(
       category: "clarity",
       severity: overallScore < 60 ? "high" : "medium",
       title: "Hero headline does not immediately convey core value",
-      description: `First-time visitors scanning ${brandName} do not grasp the primary benefit and outcome within the first 5 seconds.`,
+      description: `First-time visitors scanning ${brandName}'s accessible homepage content do not immediately grasp the primary benefit and outcome.`,
       why_it_matters: "Fast comprehension is required to keep cold visitors from bouncing.",
       evidence_available: processedSignals.first_impression.evidence_available,
       evidence: processedSignals.first_impression.evidence,
     });
   }
 
-  // Sort risks: "high" severity first, then "medium", then "low"
+  // Map risk category to corresponding signal score so the lowest-scoring signal's risk is prioritized first (aligning Biggest Issue with #1 Priority Fix)
+  const getCategorySignalScore = (rawCat: string): number => {
+    const cat = (rawCat || "").toLowerCase();
+    if (cat.includes("trust") || cat.includes("credibility")) return processedSignals.trust.score;
+    if (cat.includes("audience")) return processedSignals.audience.score;
+    if (cat.includes("value") || cat.includes("positioning")) return processedSignals.value.score;
+    if (cat.includes("action") || cat.includes("cta")) return processedSignals.action.score;
+    return processedSignals.first_impression.score;
+  };
+
+  // Sort risks: "high" severity first, then "medium", then "low"; tie-break by lowest signal score so risks[0] matches the primary bottleneck
   const severityRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
-  risks.sort((a, b) => (severityRank[a.severity] ?? 1) - (severityRank[b.severity] ?? 1));
+  risks.sort((a, b) => {
+    const sevDiff = (severityRank[a.severity] ?? 1) - (severityRank[b.severity] ?? 1);
+    if (sevDiff !== 0) return sevDiff;
+    return getCategorySignalScore(a.category) - getCategorySignalScore(b.category);
+  });
 
   // Limit to top 4 most critical risks
   risks = risks.slice(0, 4);
 
   // 5. Sanitize Verdict & Visitor Thought
-  const verdictText =
+  const verdictText = qualifyDefinitiveNegativeText(
     aiAnalysis?.verdict?.text ||
-    `Visitors grasp ${brandName}'s main topic, but the core benefit messaging can be strengthened.`;
+      (overallScore >= 80
+        ? `${brandName} communicates its core value proposition and next step clearly to first-time visitors.`
+        : `Visitors grasp ${brandName}'s general topic, but key first-impression signals need clearer grounding.`)
+  );
 
   const visitorThoughtText = sanitizeVisitorThought(aiAnalysis?.visitor_thought?.text, brandName);
-  const visitorThoughtConfidence = ["high", "medium", "low"].includes(aiAnalysis?.visitor_thought?.confidence)
+  const visitorThoughtConfidence = isIncompleteExtraction
+    ? "low"
+    : ["high", "medium", "low"].includes(aiAnalysis?.visitor_thought?.confidence)
     ? aiAnalysis.visitor_thought.confidence
     : "medium";
 

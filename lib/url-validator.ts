@@ -69,11 +69,25 @@ export async function checkSsrf(
   urlStr: string
 ): Promise<{ isSafe: boolean; isDnsFailure?: boolean; reason?: string }> {
   try {
+    if (!urlStr || typeof urlStr !== "string" || urlStr.length > 2048) {
+      return {
+        isSafe: false,
+        reason: "Invalid or excessively long URL",
+      };
+    }
+
     const parsed = new URL(urlStr);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return {
         isSafe: false,
         reason: `Unsupported URL protocol '${parsed.protocol}' is prohibited`,
+      };
+    }
+
+    if (parsed.username || parsed.password) {
+      return {
+        isSafe: false,
+        reason: "URLs containing embedded credentials are prohibited",
       };
     }
 
@@ -90,14 +104,20 @@ export async function checkSsrf(
       };
     }
 
-    // Check blocked domain suffixes / internal hostnames
+    // Check blocked domain suffixes / internal & cloud metadata hostnames
     if (
       unbracketedHost === "localhost" ||
+      unbracketedHost === "metadata" ||
+      unbracketedHost === "metadata.goog" ||
+      unbracketedHost === "metadata.google.internal" ||
+      unbracketedHost === "instance-data" ||
       unbracketedHost.endsWith(".localhost") ||
       unbracketedHost.endsWith(".local") ||
       unbracketedHost.endsWith(".internal") ||
       unbracketedHost.endsWith(".lan") ||
       unbracketedHost.endsWith(".home") ||
+      unbracketedHost.endsWith(".corp") ||
+      unbracketedHost.endsWith(".localdomain") ||
       unbracketedHost.endsWith(".invalid") ||
       unbracketedHost.endsWith(".test") ||
       unbracketedHost.endsWith(".example")

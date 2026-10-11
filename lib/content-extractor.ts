@@ -74,6 +74,7 @@ export interface WebsiteSnapshot {
 
 export interface ExtractOptions {
   baseUrl?: string;
+  maxHtmlChars?: number;
 }
 
 /**
@@ -113,8 +114,12 @@ export function extractWebsiteSnapshot(
   const rawHtmlLength = html.length;
   const baseUrl = options.baseUrl;
 
+  // Enforce hard character bound before DOM parsing to prevent excessive memory consumption
+  const maxHtmlChars = options.maxHtmlChars ?? SERVER_LIMITS.WEBSITE_MAX_HTML_CHARS;
+  const boundedHtml = html.length > maxHtmlChars ? html.slice(0, maxHtmlChars) : html;
+
   // 1. Load Cheerio
-  const $ = cheerio.load(html);
+  const $ = cheerio.load(boundedHtml);
 
   // Measure raw elements before DOM noise stripping
   const totalHeadings = $("h1, h2, h3, h4, h5, h6").length;
