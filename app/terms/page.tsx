@@ -123,10 +123,10 @@ export default function TermsOfServicePage() {
       {/* 6. Refunds & Cancellations */}
       <section className="space-y-3 pt-4 border-t border-slate-100">
         <h2 className="text-lg sm:text-xl font-extrabold text-[#101828] tracking-tight">
-          6. Refunds &amp; Satisfaction Policy
+          6. Refunds &amp; Digital Product Policy
         </h2>
         <p>
-          Because {LEGAL_CONFIG.productName} only offers one-time purchases (never recurring subscriptions), there is nothing to cancel after purchase. Refund eligibility and our 14-day refund request process are detailed in our{" "}
+          Because {LEGAL_CONFIG.productName} only offers one-time digital purchases (never recurring subscriptions), there is no recurring billing to cancel after purchase. Digital report purchases are generally final once delivered, and {LEGAL_CONFIG.productName} does not offer a separate voluntary money-back guarantee. Refunds remain subject to applicable consumer protection laws and Paddle&apos;s Refund Policy, as detailed in our{" "}
           <Link href="/refund-policy" className="font-semibold text-[#246BFD] hover:underline">
             Refund Policy
           </Link>

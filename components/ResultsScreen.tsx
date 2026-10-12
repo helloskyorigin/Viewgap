@@ -110,16 +110,102 @@ interface ResultsScreenProps {
   rawUrl: string;
   analysisData?: Partial<AnalysisData>;
   previousCheckRecord?: Partial<StoredHistoryRecord> | null;
+  isUnlocked?: boolean;
   onBackToLanding: () => void;
   onRunNewCheck: () => void;
   onOpenFaq: () => void;
   onOpenPricing: () => void;
 }
 
+export function buildReportSummaryForExport(
+  data: AnalysisData,
+  isUnlocked = false
+): string {
+  if (!isUnlocked) {
+    const overviewSignalLines = data.signals
+      .map((s) => `- ${s.title}: ${s.score}/100 (${s.badgeText})`)
+      .join("\n");
+
+    const sortedSignals = [...data.signals].sort((a, b) => a.score - b.score);
+    const weakestSignal = sortedSignals[0] || null;
+    const primaryRisk = data.risks && data.risks.length > 0 ? data.risks[0] : null;
+    const biggestIssueSummary = primaryRisk
+      ? `${primaryRisk.title} (${primaryRisk.severity} severity)`
+      : weakestSignal
+      ? `${weakestSignal.title} (${weakestSignal.score}/100 — ${weakestSignal.badgeText})`
+      : "No major communication bottleneck flagged.";
+
+    const cleanStrongerDirection = (data.recommendation?.strongerDirection || "")
+      .replace(/^[“"'\s]+|[”"'\s]+$/g, "")
+      .trim();
+
+    return [
+      `STRANGERLENS FREE PREVIEW SUMMARY — ${data.domain}`,
+      `Overall First-Impression Score: ${data.score}/100 (${data.scoreStatus})`,
+      `Checked: ${data.checkedAt || "Just now"}`,
+      ``,
+      `VERDICT`,
+      `${data.verdict}`,
+      ``,
+      ...(data.websiteMessage?.summary
+        ? [`WHAT YOUR WEBSITE IS ACTUALLY SAYING`, `${data.websiteMessage.summary}`, ``]
+        : []),
+      `FIVE SIGNAL OVERVIEW`,
+      overviewSignalLines,
+      ``,
+      `BIGGEST ISSUE + EVIDENCE`,
+      `${biggestIssueSummary}`,
+      ``,
+      `YOUR #1 PRIORITY FIX: ${data.recommendation.subhead}`,
+      `${cleanStrongerDirection || data.recommendation.explanation}`,
+      ``,
+      `---`,
+      `Free Preview Summary (Sections 01–06). Unlock the Full 15-Section Report ($5) for Priority Fix Plan, Copy-Ready Improvements, Other Recommended Improvements, First Few Seconds Comprehension, First-Time Visitor Impression, Complete Homepage Evidence, Five Detailed Signal Breakdown, Communication Risks, and Recheck & Compare.`,
+    ].join("\n");
+  }
+
+  const detailedSignalLines = data.signals
+    .map((s) => `- ${s.title}: ${s.score}/100 (${s.badgeText}) — ${s.description}`)
+    .join("\n");
+  const riskLines =
+    data.risks && data.risks.length > 0
+      ? data.risks
+          .map((r) => `- [${r.severity.toUpperCase()}] ${r.title}: ${r.description}`)
+          .join("\n")
+      : "- No major communication risks identified.";
+
+  return [
+    `STRANGERLENS FULL FIRST-IMPRESSION REPORT — ${data.domain}`,
+    `Overall First-Impression Score: ${data.score}/100 (${data.scoreStatus})`,
+    `Checked: ${data.checkedAt || "Just now"}`,
+    ``,
+    `VERDICT`,
+    `${data.verdict}`,
+    ``,
+    ...(data.websiteMessage?.summary
+      ? [`WHAT YOUR WEBSITE IS ACTUALLY SAYING`, `${data.websiteMessage.summary}`, ``]
+      : []),
+    `FIRST-TIME VISITOR IMPRESSION`,
+    `${data.visitorThought}`,
+    ``,
+    `FIVE DETAILED SIGNAL BREAKDOWN`,
+    detailedSignalLines,
+    ``,
+    `YOUR #1 PRIORITY FIX: ${data.recommendation.subhead}`,
+    `${data.recommendation.explanation}`,
+    `What you say now: ${data.recommendation.currentDirection}`,
+    `Clearer direction: ${data.recommendation.strongerDirection}`,
+    ``,
+    `COMMUNICATION RISKS`,
+    riskLines,
+  ].join("\n");
+}
+
 export default function ResultsScreen({
   rawUrl,
   analysisData: customData,
   previousCheckRecord,
+  isUnlocked = false,
   onBackToLanding,
   onRunNewCheck,
   onOpenFaq,
@@ -139,8 +225,11 @@ export default function ResultsScreen({
   const [selectedPaywallPlan, setSelectedPaywallPlan] = useState<"single" | "pack">("single");
   const [paywallEmail, setPaywallEmail] = useState<string>("");
   const [paywallEmailError, setPaywallEmailError] = useState<string | null>(null);
-  const [paywallCheckoutState, setPaywallCheckoutState] = useState<"idle" | "processing" | "unlocked">("idle");
+  const [paywallCheckoutState, setPaywallCheckoutState] = useState<
+    "idle" | "processing" | "coming_soon"
+  >("idle");
   const [showCompactPreviewDetails, setShowCompactPreviewDetails] = useState<boolean>(false);
+  const isReportUnlocked = Boolean(isUnlocked);
 
   // Async Button States
   const [shareState, setShareState] = useState<"idle" | "sharing" | "copied">("idle");
@@ -292,9 +381,35 @@ export default function ResultsScreen({
     };
 
     const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
-    const sortedRisks = [...(data.risks ?? [])].sort(
-      (a, b) => (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3)
-    );
+    const signalScoreForRiskCategory = (rawCat?: string): number => {
+      const cat = (rawCat || "").trim().toLowerCase();
+      const targetId =
+        cat.includes("trust") || cat.includes("credibility")
+          ? "trust"
+          : cat.includes("audience")
+          ? "audience"
+          : cat.includes("value") || cat.includes("positioning")
+          ? "value"
+          : cat.includes("action") || cat.includes("cta")
+          ? "action"
+          : "first-impression";
+      const found = data.signals.find((s) => s.id === targetId);
+      return found ? found.score : 70;
+    };
+
+    const sortedRisks = [...(data.risks ?? [])].sort((a, b) => {
+      const scoreA = signalScoreForRiskCategory(a.category);
+      const scoreB = signalScoreForRiskCategory(b.category);
+      // Prioritize risks belonging to non-clear signals (< 70) ahead of already-clear signals (>= 70)
+      const isWeakA = scoreA < 70 ? 0 : 1;
+      const isWeakB = scoreB < 70 ? 0 : 1;
+      if (isWeakA !== isWeakB) return isWeakA - isWeakB;
+
+      const sevDiff = (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3);
+      if (sevDiff !== 0) return sevDiff;
+
+      return scoreA - scoreB;
+    });
     const primaryRisk = sortedRisks[0] || null;
     const secondaryRisks = sortedRisks.slice(1);
 
@@ -1062,29 +1177,43 @@ export default function ResultsScreen({
     const cleanVisitorThought = stripOuterQuotes(data.visitorThought);
 
     // Focused primary issue evidence for Section 05 (so Section 05 focuses on #1 issue
-    // while Section 11 provides the complete homepage evidence overview)
-    const primaryIssueCategory =
-      overviewStats.primaryRisk?.category ||
-      (overviewStats.weakest?.id === "first-impression"
-        ? "clarity"
-        : overviewStats.weakest?.id) ||
-      "clarity";
+    // without ever contradicting the targeted signal or left-column diagnosis)
+    const normalizeIssueCategory = (rawCat?: string): "clarity" | "audience" | "value" | "trust" | "action" => {
+      const c = (rawCat || "").trim().toLowerCase();
+      if (c.includes("trust") || c.includes("credibility")) return "trust";
+      if (c.includes("audience")) return "audience";
+      if (c.includes("value") || c.includes("positioning")) return "value";
+      if (c.includes("action") || c.includes("cta")) return "action";
+      return "clarity";
+    };
 
-    const categoryKeywordMap: Record<string, RegExp> = {
+    const primaryIssueCategory = normalizeIssueCategory(
+      overviewStats.primaryRisk?.category || overviewStats.weakest?.id || "clarity"
+    );
+
+    const categoryKeywordMap: Record<"clarity" | "audience" | "value" | "trust" | "action", RegExp> = {
       clarity: /product category|scanning|headline|clarity/i,
       audience: /audience|role|who/i,
       value: /outcome|benefit|value/i,
       trust: /proof|trust|logo|credential/i,
-      action: /action|cta|friction/i,
+      action: /action|cta|friction|next-step/i,
     };
 
-    const primaryPattern =
-      categoryKeywordMap[primaryIssueCategory] || categoryKeywordMap.clarity;
+    const fallbackGapByCategory: Record<"clarity" | "audience" | "value" | "trust" | "action", string> = {
+      clarity: "Product category wording requires clearer specificity in the hero section",
+      audience: "Target audience or intended user role is not explicitly stated in the hero section",
+      value: "Primary value statement could express a more concrete, measurable visitor outcome",
+      trust: "Verifiable proof points, customer logos, or credentials were not detected in the extracted homepage content",
+      action: "Primary call-to-action path could set clearer expectations for what happens next",
+    };
 
+    const primaryPattern = categoryKeywordMap[primaryIssueCategory];
+
+    // Never fall back to verifiedMissingFindings[0] from an unrelated signal category,
+    // which would contradict the primary issue diagnosis in Section 05.
     const primaryFocusedMissingFinding =
       verifiedMissingFindings.find((item) => primaryPattern.test(item)) ||
-      verifiedMissingFindings[0] ||
-      null;
+      fallbackGapByCategory[primaryIssueCategory];
 
     const rawCurrentRecQuote = stripOuterQuotes(
       data.recommendation?.currentDirection
@@ -1094,6 +1223,14 @@ export default function ResultsScreen({
         !isGenericExcerptPlaceholder(rawCurrentRecQuote) &&
         !/^(none|n\/a|not found|missing)$/i.test(rawCurrentRecQuote)
     );
+
+    const isPrimaryRecQuoteAligned =
+      hasPrimaryRecQuote &&
+      (primaryIssueCategory === "clarity" ||
+        primaryIssueCategory === "value" ||
+        primaryPattern.test(
+          `${data.recommendation?.subhead || ""} ${data.recommendation?.explanation || ""}`
+        ));
 
     return {
       hasVerifiedExcerpt,
@@ -1107,6 +1244,7 @@ export default function ResultsScreen({
       cleanVisitorThought: cleanVisitorThought.length > 0 ? cleanVisitorThought : null,
       primaryFocusedMissingFinding,
       primaryRecQuote: hasPrimaryRecQuote ? rawCurrentRecQuote : null,
+      isPrimaryRecQuoteAligned,
     };
   }, [
     data.evidence,
@@ -1276,17 +1414,20 @@ export default function ResultsScreen({
       : null;
 
     // Resolve the targeted signal for the primary risk so Section 05 header/badges never contradict the issue body
-    const signalIdByRiskCategory: Record<string, string> = {
-      clarity: "first-impression",
-      "first-impression": "first-impression",
-      first_impression: "first-impression",
-      audience: "audience",
-      value: "value",
-      trust: "trust",
-      action: "action",
+    const resolveRiskSignalId = (rawCat?: string): string | undefined => {
+      const c = (rawCat || "").trim().toLowerCase();
+      if (!c) return undefined;
+      if (c.includes("trust") || c.includes("credibility")) return "trust";
+      if (c.includes("audience")) return "audience";
+      if (c.includes("value") || c.includes("positioning")) return "value";
+      if (c.includes("action") || c.includes("cta")) return "action";
+      if (c.includes("clarity") || c.includes("first-impression") || c.includes("first_impression")) {
+        return "first-impression";
+      }
+      return undefined;
     };
     const primaryRiskSignalId = primaryRisk
-      ? signalIdByRiskCategory[(primaryRisk.category || "").trim().toLowerCase()]
+      ? resolveRiskSignalId(primaryRisk.category)
       : undefined;
     const primaryIssueTargetSignal = primaryRiskSignalId
       ? data.signals.find((s) => s.id === primaryRiskSignalId) || overviewStats.weakest
@@ -1946,44 +2087,9 @@ export default function ResultsScreen({
     }, 3200);
   };
 
-  // Build plain-text diagnostic summary for honest sharing & export
-  const buildReportSummaryText = () => {
-    const signalLines = data.signals
-      .map((s) => `- ${s.title}: ${s.score}/100 (${s.badgeText}) — ${s.description}`)
-      .join("\n");
-    const riskLines =
-      data.risks && data.risks.length > 0
-        ? data.risks
-            .map((r) => `- [${r.severity.toUpperCase()}] ${r.title}: ${r.description}`)
-            .join("\n")
-        : "- No major communication risks identified.";
-
-    return [
-      `STRANGERLENS FIRST-IMPRESSION REPORT — ${data.domain}`,
-      `Value Clarity Score: ${data.score}/100 (${data.scoreStatus})`,
-      `Checked: ${data.checkedAt || "Just now"}`,
-      ``,
-      `VERDICT`,
-      `${data.verdict}`,
-      ``,
-      ...(data.websiteMessage?.summary
-        ? [`WHAT YOUR WEBSITE IS SAYING`, `${data.websiteMessage.summary}`, ``]
-        : []),
-      `FIRST-TIME VISITOR THOUGHT`,
-      `${data.visitorThought}`,
-      ``,
-      `FIVE FIRST-IMPRESSION SIGNALS`,
-      signalLines,
-      ``,
-      `#1 PRIORITY RECOMMENDATION: ${data.recommendation.subhead}`,
-      `${data.recommendation.explanation}`,
-      `What you say now: ${data.recommendation.currentDirection}`,
-      `Clearer direction: ${data.recommendation.strongerDirection}`,
-      ``,
-      `KEY RISKS IDENTIFIED`,
-      riskLines,
-    ].join("\n");
-  };
+  // Build plain-text diagnostic summary respecting Free Preview vs Full Report boundaries
+  const buildReportSummaryText = () =>
+    buildReportSummaryForExport(data, isReportUnlocked);
 
   // Clipboard Helper with Error Handling & Duplicate Click Protection
   const copyToClipboard = async (text: string, id: string, customToast?: string) => {
@@ -2016,14 +2122,14 @@ export default function ResultsScreen({
     }
   };
 
-  // Phase 2: Honest Share Summary with Clipboard Fallback
+  // Phase 2: Honest Share Summary with Clipboard Fallback (Strictly Free Preview when locked)
   const handleShare = async () => {
     if (shareState !== "idle") return;
     setShareState("sharing");
 
     const summaryText = buildReportSummaryText();
     const shareData = {
-      title: `StrangerLens Report for ${cleanDomain} (${data.score}/100)`,
+      title: `StrangerLens ${isReportUnlocked ? "Full Report" : "Free Preview"} for ${cleanDomain} (${data.score}/100)`,
       text: summaryText,
     };
 
@@ -2031,7 +2137,12 @@ export default function ResultsScreen({
       try {
         await navigator.share(shareData);
         setShareState("copied");
-        showToast("Report summary shared!", "success");
+        showToast(
+          isReportUnlocked
+            ? "Full report summary shared!"
+            : "Free preview summary shared!",
+          "success"
+        );
         setTimeout(() => setShareState("idle"), 2200);
         return;
       } catch {
@@ -2042,7 +2153,12 @@ export default function ResultsScreen({
     try {
       await navigator.clipboard.writeText(summaryText);
       setShareState("copied");
-      showToast("Report summary copied to clipboard!", "success");
+      showToast(
+        isReportUnlocked
+          ? "Full report summary copied to clipboard!"
+          : "Free preview summary copied to clipboard!",
+        "success"
+      );
       setTimeout(() => setShareState("idle"), 2200);
     } catch {
       showToast("Couldn't copy report summary automatically.", "warning");
@@ -2050,7 +2166,7 @@ export default function ResultsScreen({
     }
   };
 
-  // Phase 2: Honest Download Report Handler (Downloads formatted report file)
+  // Phase 2: Honest Download Report Handler (Downloads Free Preview Summary when locked)
   const handleDownloadReport = () => {
     if (downloadState !== "idle") return;
     setDownloadState("preparing");
@@ -2062,15 +2178,18 @@ export default function ResultsScreen({
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         const safeDomain = cleanDomain.replace(/[^a-z0-9.-]/gi, "-");
+        const filePrefix = isReportUnlocked
+          ? "strangerlens-full-report"
+          : "strangerlens-free-preview";
         link.href = url;
-        link.download = `strangerlens-report-${safeDomain}.txt`;
+        link.download = `${filePrefix}-${safeDomain}.txt`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
         setDownloadState("downloaded");
-        showToast(`Downloaded strangerlens-report-${safeDomain}.txt`, "success");
+        showToast(`Downloaded ${filePrefix}-${safeDomain}.txt`, "success");
         setTimeout(() => setDownloadState("idle"), 2500);
       } catch {
         setDownloadState("failed");
@@ -2097,14 +2216,48 @@ export default function ResultsScreen({
     setExpandedImprovementId((prev) => (prev === id ? null : id));
   };
 
-  // Paywall Checkout Submit Handler
+  // Focus Paywall Helper when clicking a locked section preview card or jump link
+  const handleLockedSectionClick = (sectionNum: string, sectionTitle: string) => {
+    const paywallEl = document.getElementById("paid-report-paywall-section");
+    if (paywallEl) {
+      paywallEl.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "center",
+      });
+    }
+    const emailInputEl = document.getElementById(
+      "paywall-email-input"
+    ) as HTMLInputElement | null;
+    if (emailInputEl) {
+      setTimeout(() => {
+        emailInputEl.focus({ preventScroll: true });
+      }, 150);
+    }
+    showToast(
+      `Section ${sectionNum} (${sectionTitle}) is part of the Full Report ($5). Enter your email above for launch access.`,
+      "warning"
+    );
+  };
+
+  const handleJumpLinkClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    sectionNum: string,
+    sectionTitle: string
+  ) => {
+    if (!isReportUnlocked) {
+      e.preventDefault();
+      handleLockedSectionClick(sectionNum, sectionTitle);
+    }
+  };
+
+  // Paywall Checkout Submit Handler (Honest Pre-Launch Coming Soon State — Never Fakes Payment Success)
   const handlePaywallCheckout = (e: React.FormEvent) => {
     e.preventDefault();
     if (paywallCheckoutState === "processing") return;
 
     const trimmedEmail = paywallEmail.trim();
     if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setPaywallEmailError("Please enter a valid email address to receive your report.");
+      setPaywallEmailError("Please enter a valid email address to continue.");
       return;
     }
 
@@ -2117,16 +2270,12 @@ export default function ResultsScreen({
         : "$12 Three-Report Pack";
 
     setTimeout(() => {
-      setPaywallCheckoutState("unlocked");
-      showToast(`${planLabel} selected for ${trimmedEmail}. Full report sections are below.`, "success");
-      const targetEl = document.getElementById("level-2-actionable-improvements");
-      if (targetEl) {
-        targetEl.scrollIntoView({
-          behavior: prefersReducedMotion ? "auto" : "smooth",
-          block: "start",
-        });
-      }
-    }, 250);
+      setPaywallCheckoutState("coming_soon");
+      showToast(
+        `Paid checkout for the ${planLabel} is coming soon. No payment was processed.`,
+        "warning"
+      );
+    }, 200);
   };
 
   // Enforce Real Analysis Only: Never show mock results or hardcoded scores
@@ -2346,7 +2495,11 @@ export default function ResultsScreen({
 
             <button
               onClick={handleShare}
-              title="Share or copy the diagnostic report summary"
+              title={
+                isReportUnlocked
+                  ? "Share or copy the full diagnostic report summary"
+                  : "Share or copy the Free Preview summary"
+              }
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-[#e3eaf5] text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-950 transition cursor-pointer shadow-2xs min-h-[44px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
             >
               {shareState === "copied" ? (
@@ -2365,7 +2518,11 @@ export default function ResultsScreen({
             <button
               onClick={handleDownloadReport}
               disabled={downloadState === "preparing"}
-              title="Download full report summary (.txt)"
+              title={
+                isReportUnlocked
+                  ? "Download full report summary (.txt)"
+                  : "Download Free Preview summary (.txt)"
+              }
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-[#e3eaf5] text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-950 transition cursor-pointer shadow-2xs min-h-[44px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
             >
               {downloadState === "preparing" ? (
@@ -2381,7 +2538,9 @@ export default function ResultsScreen({
               ) : (
                 <>
                   <Download className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  <span>Download report</span>
+                  <span>
+                    {isReportUnlocked ? "Download full report" : "Download free summary"}
+                  </span>
                 </>
               )}
             </button>
@@ -2735,6 +2894,9 @@ export default function ResultsScreen({
             <div className="flex items-center gap-3 self-start sm:self-auto shrink-0 print:hidden">
               <a
                 href="#five-detailed-signals-section"
+                onClick={(e) =>
+                  handleJumpLinkClick(e, "13", "Five Detailed Signal Breakdown")
+                }
                 className="text-xs font-bold text-[#1d68f5] hover:text-blue-700 transition-colors inline-flex items-center gap-1 min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded"
               >
                 <span>Detailed breakdown</span>
@@ -2864,6 +3026,9 @@ export default function ResultsScreen({
                     </span>
                     <a
                       href={`#detailed-signal-${sig.id}`}
+                      onClick={(e) =>
+                        handleJumpLinkClick(e, "13", "Five Detailed Signal Breakdown")
+                      }
                       aria-label={`Jump to ${sig.title} detailed analysis`}
                       className="text-[11px] font-bold text-[#1d68f5] hover:text-blue-700 shrink-0 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded print:hidden"
                     >
@@ -3026,16 +3191,18 @@ export default function ResultsScreen({
                 {/* Extracted Verbatim Quote Relevant to Primary Issue */}
                 <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    {visitorUnderstandingAndEvidence.primaryRecQuote
+                    {visitorUnderstandingAndEvidence.isPrimaryRecQuoteAligned
                       ? "CURRENT WORDING TIED TO THIS ISSUE"
-                      : "EXTRACTED HOMEPAGE TEXT"}
+                      : "EXTRACTED HOMEPAGE CONTEXT"}
                   </span>
                   {visitorUnderstandingAndEvidence.primaryRecQuote ||
                   visitorUnderstandingAndEvidence.verifiedExcerptText ? (
                     <p className="text-xs sm:text-[13px] text-slate-800 italic leading-relaxed font-medium break-words">
                       &ldquo;
-                      {visitorUnderstandingAndEvidence.primaryRecQuote ||
-                        visitorUnderstandingAndEvidence.verifiedExcerptText}
+                      {(visitorUnderstandingAndEvidence.isPrimaryRecQuoteAligned
+                        ? visitorUnderstandingAndEvidence.primaryRecQuote
+                        : visitorUnderstandingAndEvidence.verifiedExcerptText) ||
+                        visitorUnderstandingAndEvidence.primaryRecQuote}
                       &rdquo;
                     </p>
                   ) : (
@@ -3078,6 +3245,9 @@ export default function ResultsScreen({
                   {phase6DetailedData.secondaryRisks.length > 0 && (
                     <a
                       href="#communication-risks-section"
+                      onClick={(e) =>
+                        handleJumpLinkClick(e, "14", "Communication Risks")
+                      }
                       className="text-xs font-semibold text-slate-600 hover:text-[#1d68f5] inline-flex items-center gap-1 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded"
                     >
                       <span>All risks</span>
@@ -3086,6 +3256,9 @@ export default function ResultsScreen({
                   )}
                   <a
                     href="#complete-homepage-evidence-section"
+                    onClick={(e) =>
+                      handleJumpLinkClick(e, "12", "Complete Homepage Evidence")
+                    }
                     className="text-xs font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded"
                   >
                     <span>Full evidence</span>
@@ -3152,6 +3325,9 @@ export default function ResultsScreen({
                   {copyReadyImprovements.length > 0 ? (
                     <a
                       href="#copy-ready-improvements-section"
+                      onClick={(e) =>
+                        handleJumpLinkClick(e, "08", "Copy-Ready Improvements")
+                      }
                       className="w-full sm:w-auto rounded-full bg-[#eaf2ff] hover:bg-blue-100/80 text-[#1d68f5] text-xs font-bold px-4 py-2 transition-all inline-flex items-center justify-center gap-1.5 shrink-0 min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
                     >
                       <span>See copy-ready wording</span>
@@ -3160,6 +3336,9 @@ export default function ResultsScreen({
                   ) : priorityFixPlan.length > 0 ? (
                     <a
                       href="#priority-fix-plan-section"
+                      onClick={(e) =>
+                        handleJumpLinkClick(e, "07", "Priority Fix Plan")
+                      }
                       className="w-full sm:w-auto rounded-full bg-[#eaf2ff] hover:bg-blue-100/80 text-[#1d68f5] text-xs font-bold px-4 py-2 transition-all inline-flex items-center justify-center gap-1.5 shrink-0 min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
                     >
                       <span>View Priority Fix Plan</span>
@@ -3233,6 +3412,9 @@ export default function ResultsScreen({
                   </span>
                   <a
                     href="#other-improvements-section"
+                    onClick={(e) =>
+                      handleJumpLinkClick(e, "09", "Other Recommended Improvements")
+                    }
                     className="font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded print:hidden"
                   >
                     <span>Other improvements</span>
@@ -3377,7 +3559,7 @@ export default function ResultsScreen({
                 >
                   <span>
                     {paywallCheckoutState === "processing"
-                      ? "Unlocking report…"
+                      ? "Checking availability…"
                       : selectedPaywallPlan === "single"
                       ? "Unlock Full Report — $5"
                       : "Unlock 3-Report Pack — $12"}
@@ -3385,20 +3567,35 @@ export default function ResultsScreen({
                   <ArrowRight className="w-4 h-4 shrink-0" />
                 </button>
 
+                {paywallCheckoutState === "coming_soon" && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="rounded-xl bg-amber-50 border border-amber-200/90 p-3 text-left text-xs text-amber-950 space-y-1"
+                  >
+                    <p className="font-bold text-amber-900">
+                      Online checkout is not yet active
+                    </p>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      Paddle checkout for the{" "}
+                      {selectedPaywallPlan === "single"
+                        ? "$5 Full Report"
+                        : "$12 Three-Report Pack"}{" "}
+                      is currently being finalized for launch. No payment was processed and{" "}
+                      <strong className="font-semibold">{paywallEmail.trim()}</strong> has not been charged.
+                    </p>
+                  </div>
+                )}
+
                 <p className="text-[11px] text-slate-500 text-center leading-normal">
-                  Instant access to all 9 deep-dive sections · Receipt sent to your email
+                  One-time payment · No subscription
                 </p>
 
                 <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[10px] sm:text-[11px] text-slate-400">
                   <Link
-                    href="/refund-policy"
-                    className="text-slate-600 hover:text-[#1d68f5] font-medium underline underline-offset-2 transition-colors"
-                  >
-                    14-Day Refund Policy
-                  </Link>
-                  <span aria-hidden="true">·</span>
-                  <Link
                     href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="hover:text-slate-700 underline underline-offset-2 transition-colors"
                   >
                     Terms
@@ -3406,13 +3603,26 @@ export default function ResultsScreen({
                   <span aria-hidden="true">·</span>
                   <Link
                     href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="hover:text-slate-700 underline underline-offset-2 transition-colors"
                   >
                     Privacy
                   </Link>
                   <span aria-hidden="true">·</span>
                   <Link
+                    href="/refund-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-600 hover:text-[#1d68f5] font-medium underline underline-offset-2 transition-colors"
+                  >
+                    Refund Policy
+                  </Link>
+                  <span aria-hidden="true">·</span>
+                  <Link
                     href="/contact"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="hover:text-slate-700 underline underline-offset-2 transition-colors"
                   >
                     Support
@@ -3456,7 +3666,6 @@ export default function ResultsScreen({
                     num: "07",
                     title: "Priority Fix Plan",
                     meta: `${priorityFixPlan.length || 1} ordered steps`,
-                    href: "#priority-fix-plan-section",
                   },
                   {
                     num: "08",
@@ -3467,37 +3676,31 @@ export default function ResultsScreen({
                             copyReadyImprovements.length === 1 ? "rewrite" : "rewrites"
                           }`
                         : "Actionable wording",
-                    href: "#copy-ready-improvements-section",
                   },
                   {
                     num: "09",
-                    title: "Other Improvements",
+                    title: "Other Recommended Improvements",
                     meta: `${phase6DetailedData.deduplicatedImprovements.length} secondary fixes`,
-                    href: "#other-improvements-section",
                   },
                   {
                     num: "10",
-                    title: "First Few Seconds",
+                    title: "First Few Seconds Comprehension",
                     meta: `${overviewStats.clearQuestionsCount}/5 clear immediately`,
-                    href: "#first-seconds-section",
                   },
                   {
                     num: "11",
-                    title: "Visitor Impression",
+                    title: "First-Time Visitor Impression",
                     meta: "Stranger reaction",
-                    href: "#visitor-impression-section",
                   },
                   {
                     num: "12",
-                    title: "Homepage Evidence",
+                    title: "Complete Homepage Evidence",
                     meta: `${data.evidence.clearFindings.length + data.evidence.missingFindings.length} findings`,
-                    href: "#complete-homepage-evidence-section",
                   },
                   {
                     num: "13",
-                    title: "Five Detailed Signals",
+                    title: "Five Detailed Signal Breakdown",
                     meta: "5 signal breakdowns",
-                    href: "#five-detailed-signals-section",
                   },
                   {
                     num: "14",
@@ -3505,20 +3708,20 @@ export default function ResultsScreen({
                     meta: `${phase6DetailedData.totalRisksCount} ${
                       phase6DetailedData.totalRisksCount === 1 ? "risk" : "risks"
                     } flagged`,
-                    href: "#communication-risks-section",
                   },
                   {
                     num: "15",
                     title: "Recheck & Compare",
                     meta: "Before → After delta",
-                    href: "#recheck-compare-section",
                   },
                 ].map((sec, idx) => (
-                  <a
+                  <button
                     key={sec.num}
-                    href={sec.href}
+                    type="button"
                     role="listitem"
-                    className={`group rounded-xl bg-white/95 hover:bg-white border border-slate-200/80 hover:border-blue-300 px-3 py-2.5 flex items-center justify-between gap-2 transition-all shadow-2xs ${
+                    onClick={() => handleLockedSectionClick(sec.num, sec.title)}
+                    aria-label={`Locked section ${sec.num}: ${sec.title}. Click to focus unlock options.`}
+                    className={`w-full text-left group rounded-xl bg-white/95 hover:bg-white border border-slate-200/80 hover:border-blue-300 px-3 py-2.5 flex items-center justify-between gap-2 transition-all shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none ${
                       !showCompactPreviewDetails && idx >= 4 ? "hidden sm:flex" : "flex"
                     }`}
                   >
@@ -3536,7 +3739,7 @@ export default function ResultsScreen({
                       </div>
                     </div>
                     <Lock className="w-3 h-3 text-slate-400 group-hover:text-[#1d68f5] shrink-0" aria-hidden="true" />
-                  </a>
+                  </button>
                 ))}
               </div>
 
@@ -5530,6 +5733,8 @@ export default function ResultsScreen({
               <Link
                 key={item.href}
                 href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="hover:text-slate-900 transition-colors underline-offset-4 hover:underline"
               >
                 {item.label}

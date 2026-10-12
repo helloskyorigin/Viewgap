@@ -79,9 +79,9 @@ export default function ContactSupportPage() {
                 <span>Refunds &amp; Billing Inquiries</span>
               </div>
               <p className="text-xs sm:text-sm text-[#526078]">
-                Need a VAT/sales tax invoice, receipt copy, or a refund under our{" "}
+                Need a VAT/sales tax invoice, receipt copy, or assistance under our{" "}
                 <Link href="/refund-policy" className="text-[#246BFD] font-semibold hover:underline">
-                  14-Day Refund Policy
+                  Refund Policy
                 </Link>
                 ? Include your checkout email or {LEGAL_CONFIG.merchantOfRecord.name} order number.
               </p>

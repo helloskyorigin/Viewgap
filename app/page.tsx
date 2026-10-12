@@ -28,58 +28,94 @@ import {
 } from "@/components/motion/Reveal";
 import { LEGAL_CONFIG } from "@/lib/legal-config";
 
-// PRICING CONFIG (Preserves existing layout; paid checkout marked honestly as Coming soon)
-const PRICING_PLANS = [
+// Controlled by actual payment availability; remains false until verified Paddle checkout is live
+const IS_CHECKOUT_ENABLED = false;
+
+interface PricingPlan {
+  id: string;
+  name: string;
+  price: number;
+  paymentLabel: string;
+  badge: string | null;
+  positioning: string;
+  description: string;
+  features: string[];
+  creditNote?: string;
+  cta: string;
+  disabledCta: string;
+  popular: boolean;
+  isPaid: boolean;
+}
+
+// PRICING CONFIG (Preserves existing layout; paid checkout controlled by IS_CHECKOUT_ENABLED)
+const PRICING_PLANS: PricingPlan[] = [
   {
     id: "free",
-    name: "Free Review",
+    name: "Free Preview",
     price: 0,
-    period: "free",
-    tagline: "For an instant AI first-impression check",
+    paymentLabel: "FREE PREVIEW",
+    badge: null,
+    positioning: "Discover what's unclear.",
+    description: "See how your website comes across to a first-time visitor.",
     features: [
-      "Overall clarity score",
+      "Overall first-impression score",
+      "Short main verdict",
       "Five signal scores",
-      "Key homepage observations",
-      "Biggest issue & evidence",
-      "Priority fix recommendations",
+      "Biggest issue with evidence",
+      "Your #1 priority fix",
     ],
     cta: "Analyze My Website Free",
+    disabledCta: "Analyze My Website Free",
     popular: false,
-    comingSoon: false,
+    isPaid: false,
   },
   {
     id: "one_report",
-    name: "One Full Report",
+    name: "Full Report",
     price: 5,
-    period: "one-time",
-    tagline: "Planned one-time deep diagnosis pack",
+    paymentLabel: "ONE-TIME PAYMENT",
+    badge: "MOST POPULAR",
+    positioning: "Know exactly what to change.",
+    description:
+      "Turn your first-impression diagnosis into a clear, actionable improvement plan.",
     features: [
-      "Everything in Free Review",
-      "Detailed signal reasoning",
-      "Full extracted evidence",
-      "Communication risk analysis",
-      "Copy-ready improvements",
-      "Downloadable report summary",
+      "Everything in Free Preview",
+      "Prioritized 1-2-3 fix plan",
+      "Copy-ready website rewrites",
+      "Detailed five-signal analysis",
+      "Complete homepage evidence",
+      "Supporting-page insights when available",
+      "Communication risks and recommendations",
     ],
-    cta: "Coming soon",
+    cta: "Get Full Report — $5",
+    disabledCta: "Start with a Free Preview",
     popular: true,
-    comingSoon: true,
+    isPaid: true,
   },
   {
     id: "three_reports",
-    name: "Three-Report Pack",
+    name: "3-Report Pack",
     price: 12,
-    period: "one-time",
-    tagline: "Save $3 ($4 per report) for multiple sites or iterations",
+    paymentLabel: "ONE-TIME PAYMENT",
+    badge: "SAVE $3",
+    positioning: "Improve more. Check again.",
+    description:
+      "Three complete reports for multiple websites or improvement iterations.",
     features: [
-      "Three complete reports",
-      "Full report capabilities for each",
-      "Useful for checking multiple sites",
-      "No subscription required",
+      "3 complete Full Reports",
+      "All premium insights per report",
+      "Copy-ready recommendations",
+      "Useful for multiple websites",
+      "Useful for before/after evaluations",
+      "$4 per report",
+      "No subscription",
     ],
-    cta: "Coming soon",
+    creditNote:
+      "Unlocking from an existing free report uses 1 credit for the current report (2 report credits remain).",
+    cta: "Get 3-Report Pack — $12",
+    disabledCta: "Start with a Free Preview",
     popular: false,
-    comingSoon: true,
+    isPaid: true,
   },
 ];
 
@@ -108,12 +144,12 @@ const FAQ_ITEMS = [
   {
     question: "What is included in the free analysis?",
     answer:
-      "You can run an AI-powered first-impression review for free without creating an account, including your overall score, all five signal evaluations, extracted homepage evidence, and prioritized improvement suggestions.",
+      "The Free Preview ($0) includes your overall first-impression score, short main verdict, five signal scores, biggest issue with evidence, and your #1 priority fix — with no account required.",
   },
   {
     question: "What do paid reports cost?",
     answer:
-      "One-time report packs ($5 for a single full report or $12 for a 3-report pack, with no subscription) are planned and currently marked as coming soon. You can analyze your homepage for free right now.",
+      "One-time report unlocks ($5 for a single Full Report or $12 for a 3-Report Pack, with no subscription) include everything in Free Preview plus a prioritized 1-2-3 fix plan, copy-ready website rewrites, detailed five-signal analysis, complete homepage evidence, supporting-page insights when available, and communication risks and recommendations.",
   },
   {
     question: "Do I need to create an account?",
@@ -144,12 +180,72 @@ export default function LandingPage() {
   const [backendError, setBackendError] = useState<string | null>(null);
   const [analysisData, setAnalysisData] = useState<any>(null);
 
-  // FAQ accordion state
-  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  // FAQ accordion state — all answers closed by default
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const hamburgerButtonRef = useRef<HTMLButtonElement>(null);
   const shouldReduceMotion = useReducedMotion();
+
+  const ACTIVE_REPORT_SESSION_KEY = "strangerlens_active_report_v1";
+
+  // Restore active report from sessionStorage if user navigated to a legal/support page and returned
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let rafId: number | null = null;
+    try {
+      const rawSaved = window.sessionStorage.getItem(ACTIVE_REPORT_SESSION_KEY);
+      if (!rawSaved) return;
+      const parsed = JSON.parse(rawSaved);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        typeof parsed.rawUrl === "string" &&
+        parsed.analysisData &&
+        typeof parsed.analysisData.score === "number"
+      ) {
+        rafId = requestAnimationFrame(() => {
+          setSubmittedUrl(parsed.rawUrl);
+          setUrl(parsed.rawUrl);
+          setAnalysisData(parsed.analysisData);
+          setCurrentView("results");
+        });
+      }
+    } catch {
+      // Ignore malformed sessionStorage data
+    }
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  // Persist active report in sessionStorage while viewing results
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (currentView === "results" && analysisData && submittedUrl) {
+        window.sessionStorage.setItem(
+          ACTIVE_REPORT_SESSION_KEY,
+          JSON.stringify({
+            rawUrl: submittedUrl,
+            analysisData,
+            savedAt: Date.now(),
+          })
+        );
+      }
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [currentView, analysisData, submittedUrl]);
+
+  const clearPersistedReportSession = () => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.removeItem(ACTIVE_REPORT_SESSION_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+  };
 
   const urlValidation = React.useMemo(() => validateClientUrl(url), [url]);
 
@@ -158,6 +254,7 @@ export default function LandingPage() {
     if (mobileMenuOpen) setMobileMenuOpen(false);
     const wasNotOnLanding = currentView !== "landing";
     if (wasNotOnLanding) {
+      clearPersistedReportSession();
       setCurrentView("landing");
     }
     setTimeout(() => {
@@ -532,9 +629,9 @@ export default function LandingPage() {
             </AnimatePresence>
 
             <main className="flex-1 w-full max-w-[1180px] mx-auto px-4 sm:px-6 md:px-8">
-              {/* HERO SECTION */}
-              <section className="pt-7 pb-11 sm:pt-12 sm:pb-16 md:pt-16 md:pb-20 lg:pt-20 lg:pb-22 grid grid-cols-1 lg:grid-cols-12 gap-9 sm:gap-10 lg:gap-12 items-center">
-                <div className="lg:col-span-6 flex flex-col items-start text-left min-w-0">
+              {/* HERO SECTION — Side-by-side two-column layout on desktop, stacked on mobile */}
+              <section className="pt-7 pb-11 sm:pt-12 sm:pb-16 md:pt-14 md:pb-18 lg:pt-20 lg:pb-22 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-8 sm:gap-10 lg:gap-12 items-center">
+                <div className="w-full flex flex-col items-start text-left min-w-0">
                   {/* 1. Eyebrow with subtle blur-to-sharp entrance */}
                   <motion.div
                     initial={
@@ -613,7 +710,7 @@ export default function LandingPage() {
                     className="w-full max-w-lg"
                   >
                     <div
-                      className={`relative flex flex-col sm:flex-row items-stretch sm:items-center bg-white rounded-3xl sm:rounded-full border transition-all duration-200 p-2 sm:p-1.5 sm:pl-5 ${
+                      className={`relative flex flex-col sm:flex-row md:flex-col lg:flex-row items-stretch lg:items-center bg-white rounded-3xl sm:rounded-full md:rounded-3xl lg:rounded-full border transition-all duration-200 p-2 sm:p-1.5 sm:pl-5 md:p-2 lg:p-1.5 lg:pl-5 ${
                         errorMessage || urlValidation.status === "invalid"
                           ? "border-rose-400 ring-4 ring-rose-100/80 shadow-sm"
                           : urlValidation.status === "valid"
@@ -623,7 +720,7 @@ export default function LandingPage() {
                           : "border-[#DCE6F7] hover:border-blue-300/90 shadow-[0_8px_26px_-6px_rgba(36,107,253,0.10)]"
                       }`}
                     >
-                      <div className="flex items-center flex-1 min-w-0 px-2.5 sm:px-0 min-h-[44px] sm:min-h-[46px]">
+                      <div className="flex items-center flex-1 min-w-0 px-2.5 sm:px-0 md:px-2.5 lg:px-0 min-h-[44px] sm:min-h-[46px]">
                         <Link2
                           className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 mr-2.5 sm:mr-3 transition-colors duration-200 ${
                             isInputFocused ? "text-[#246BFD]" : "text-slate-400"
@@ -650,7 +747,7 @@ export default function LandingPage() {
                         disabled={
                           isVerifying || urlValidation.status === "invalid"
                         }
-                        className={`group mt-1.5 sm:mt-0 w-full sm:w-auto min-h-[44px] sm:min-h-[46px] px-4 sm:px-5 py-2.5 rounded-full font-semibold text-xs sm:text-[13px] flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 ${
+                        className={`group mt-1.5 sm:mt-0 md:mt-1.5 lg:mt-0 w-full sm:w-auto md:w-full lg:w-auto min-h-[44px] sm:min-h-[46px] px-4 sm:px-5 py-2.5 rounded-full font-semibold text-xs sm:text-[13px] flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 ${
                           urlValidation.status === "invalid"
                             ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
                             : isVerifying
@@ -696,7 +793,7 @@ export default function LandingPage() {
                   </motion.p>
                 </div>
 
-                {/* 6. Hero Dashboard Preview (Untruncated Signal Labels & Depth Entrance) */}
+                {/* 6. Right Column — First-Impression Report Preview */}
                 <motion.div
                   initial={
                     shouldReduceMotion
@@ -709,148 +806,137 @@ export default function LandingPage() {
                     delay: 0.24,
                     ease: EASE_OUT_EXPO,
                   }}
-                  className="lg:col-span-6 w-full flex justify-center min-w-0"
+                  className="w-full min-w-0 flex justify-center md:justify-end"
                 >
-                  <div className="w-full max-w-[540px] bg-white border border-[#E3EAF5] rounded-3xl p-4 sm:p-6 shadow-[0_20px_50px_-15px_rgba(16,24,40,0.10)] relative overflow-hidden bg-gradient-to-b from-white to-[#F5F8FF]/55">
-                    <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-bold">
-                          S
+                  <div className="w-full bg-white border border-[#E3EAF5] rounded-3xl p-4 sm:p-6 shadow-[0_20px_50px_-15px_rgba(16,24,40,0.08)]">
+                    {/* A. Card Header */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-3.5 border-b border-slate-100 mb-4">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-[#EAF2FF] text-[#246BFD] flex items-center justify-center shrink-0">
+                          <Sparkles className="w-4 h-4" />
                         </div>
-                        <span className="font-bold text-slate-900 text-sm whitespace-nowrap">
-                          StrangerLens
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md font-medium">
-                          example.com · Illustrative preview
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Mini Score & Verdict */}
-                    <div className="bg-white border border-[#E3EAF5] rounded-2xl p-3.5 sm:p-4 mb-3.5 shadow-xs flex items-center gap-3.5 sm:gap-4">
-                      <div className="relative w-15 h-15 sm:w-16 sm:h-16 shrink-0 flex items-center justify-center">
-                        <svg
-                          className="w-full h-full transform -rotate-90"
-                          viewBox="0 0 100 100"
-                        >
-                          <circle
-                            cx="50"
-                            cy="50"
-                            r="40"
-                            stroke="#f1f5f9"
-                            strokeWidth="8"
-                            fill="transparent"
-                          />
-                          <motion.circle
-                            cx="50"
-                            cy="50"
-                            r="40"
-                            stroke="#f59e0b"
-                            strokeWidth="8"
-                            strokeDasharray="251.2"
-                            initial={
-                              shouldReduceMotion
-                                ? { strokeDashoffset: 75 }
-                                : { strokeDashoffset: 251.2 }
-                            }
-                            animate={{ strokeDashoffset: 75 }}
-                            transition={{
-                              duration: 1.1,
-                              delay: 0.45,
-                              ease: EASE_OUT_EXPO,
-                            }}
-                            strokeLinecap="round"
-                            fill="transparent"
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center tabular-nums">
-                          <span className="text-base sm:text-lg font-bold text-slate-950 leading-none">
-                            72
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-[#101828] text-sm sm:text-base tracking-tight block">
+                            First-Impression Report
                           </span>
-                          <span className="text-[9px] text-slate-400">/100</span>
+                          <span className="text-[11px] text-slate-400 font-medium block">
+                            Illustrative preview
+                          </span>
                         </div>
                       </div>
-                      <div className="min-w-0">
-                        <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 mb-1">
-                          Needs work
-                        </span>
-                        <p className="text-xs text-slate-700 font-medium leading-snug">
-                          The website clearly communicates its core offering, but lacks trust signals and a stronger call to action.
-                        </p>
-                      </div>
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#246BFD] bg-[#EAF2FF] px-2.5 py-1 rounded-full shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#246BFD]" />
+                        5 Visitor Signals
+                      </span>
                     </div>
 
-                    {/* 5 Signals Row — Responsive untruncated labels across all widths (320px+) */}
-                    <div className="grid grid-cols-5 gap-1.5 sm:gap-2 mb-3.5">
+                    {/* B. Five Signal Cards with Meaningful Status Colors */}
+                    <div className="grid grid-cols-2 min-[420px]:grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
                       {[
-                        { label: "Impression", score: 80 },
-                        { label: "Audience", score: 70 },
-                        { label: "Value", score: 85 },
-                        { label: "Trust", score: 20 },
-                        { label: "Action", score: 60 },
-                      ].map((sig, i) => (
-                        <motion.div
+                        {
+                          label: "First Impression",
+                          status: "Clear",
+                          pillClass:
+                            "bg-[#ECFDF5] border-emerald-200/90 text-[#059669]",
+                          dotClass: "bg-[#059669]",
+                        },
+                        {
+                          label: "Audience",
+                          status: "Clear",
+                          pillClass:
+                            "bg-[#ECFDF5] border-emerald-200/90 text-[#059669]",
+                          dotClass: "bg-[#059669]",
+                        },
+                        {
+                          label: "Value",
+                          status: "Partly clear",
+                          pillClass:
+                            "bg-[#FFFBEB] border-amber-200/90 text-[#D97706]",
+                          dotClass: "bg-[#D97706]",
+                        },
+                        {
+                          label: "Trust",
+                          status: "Needs work",
+                          pillClass:
+                            "bg-[#FFF1F2] border-rose-200/90 text-[#E11D48]",
+                          dotClass: "bg-[#E11D48]",
+                        },
+                        {
+                          label: "Action",
+                          status: "Clear",
+                          pillClass:
+                            "bg-[#ECFDF5] border-emerald-200/90 text-[#059669]",
+                          dotClass: "bg-[#059669]",
+                        },
+                      ].map((sig) => (
+                        <div
                           key={sig.label}
-                          initial={
-                            shouldReduceMotion ? false : { opacity: 0, y: 8 }
-                          }
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{
-                            duration: 0.4,
-                            delay: 0.48 + i * 0.05,
-                            ease: EASE_OUT_EXPO,
-                          }}
-                          className="bg-white border border-[#E3EAF5] rounded-xl px-1 py-2 sm:p-2 text-center shadow-2xs flex flex-col items-center justify-center min-w-0"
+                          className={`border rounded-2xl px-2.5 py-2.5 text-center flex flex-col items-center justify-between min-w-0 ${sig.pillClass}`}
                         >
-                          <span className="text-[9px] min-[375px]:text-[10px] sm:text-[10.5px] text-slate-500 font-medium leading-tight tracking-tight whitespace-nowrap block">
+                          <span className="text-[11px] font-bold text-[#101828] leading-tight">
                             {sig.label}
                           </span>
-                          <span className="text-xs sm:text-sm font-bold text-slate-900 tabular-nums mt-0.5">
-                            {sig.score}
+                          <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold leading-none">
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${sig.dotClass}`}
+                            />
+                            {sig.status}
                           </span>
-                        </motion.div>
+                        </div>
                       ))}
                     </div>
 
-                    {/* What your website is actually saying */}
-                    <motion.div
-                      initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        duration: 0.45,
-                        delay: 0.68,
-                        ease: EASE_OUT_EXPO,
-                      }}
-                      className="bg-white border border-[#E3EAF5] rounded-2xl p-3.5 mb-2.5 shadow-2xs"
-                    >
-                      <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block mb-1">
-                        What your website is actually saying
-                      </span>
-                      <p className="text-xs text-slate-700 leading-normal">
-                        This product appears to be a tool that helps people do something specific. The core offering is clear, but trust signals and proof points are limited.
+                    {/* C. Biggest Issue Component */}
+                    <div className="rounded-2xl bg-[#FFF1F2]/75 border border-rose-200/80 p-3.5 sm:p-4 mb-3">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-[#E11D48]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#E11D48]" />
+                          BIGGEST ISSUE
+                        </span>
+                      </div>
+                      <p className="text-xs sm:text-[13px] font-semibold text-[#101828] leading-snug mb-2">
+                        The headline doesn{"'"}t explain what the product actually helps visitors do.
                       </p>
-                    </motion.div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs bg-white/90 border border-rose-200/70 rounded-xl px-3 py-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#E11D48] shrink-0">
+                          EVIDENCE:
+                        </span>
+                        <span className="text-slate-700 font-medium break-words">
+                          &ldquo;Modern solutions for teams&rdquo;
+                        </span>
+                      </div>
+                    </div>
 
-                    {/* If you change only one thing */}
-                    <motion.div
-                      initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        duration: 0.45,
-                        delay: 0.76,
-                        ease: EASE_OUT_EXPO,
-                      }}
-                      className="bg-white border border-[#E3EAF5] rounded-2xl p-3.5 shadow-2xs"
-                    >
-                      <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block mb-1">
-                        If you change only one thing
-                      </span>
-                      <p className="text-xs text-slate-800 font-medium">
-                        Strengthen the trust behind your main claim.
-                      </p>
-                    </motion.div>
+                    {/* D. #1 Priority Fix Component */}
+                    <div className="rounded-2xl bg-[#ECFDF5]/75 border border-emerald-200/80 p-3.5 sm:p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-[#059669]">
+                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          #1 PRIORITY FIX
+                        </span>
+                        <span className="text-[11px] font-medium text-[#059669]">
+                          Explain the main benefit directly in the headline.
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                        <div className="bg-white/90 border border-slate-200/80 rounded-xl p-2.5">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
+                            BEFORE
+                          </span>
+                          <p className="text-slate-600 leading-snug break-words">
+                            &ldquo;Modern solutions for teams&rdquo;
+                          </p>
+                        </div>
+                        <div className="bg-white border border-emerald-300/90 rounded-xl p-2.5 shadow-2xs">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#059669] block mb-1">
+                            AFTER
+                          </span>
+                          <p className="font-bold text-[#059669] leading-snug break-words">
+                            &ldquo;Plan projects, assign tasks, and track deadlines in one place.&rdquo;
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               </section>
@@ -932,12 +1018,12 @@ export default function LandingPage() {
                 </div>
               </section>
 
-              {/* SECTION: WHAT STRANGERLENS REVEALS */}
+              {/* SECTION: FIVE CORE SIGNALS */}
               <section className="py-12 sm:py-14 md:py-20 border-t border-slate-100">
                 <div className="max-w-4xl mx-auto text-center mb-8 sm:mb-10 md:mb-12">
                   <Reveal y={10} blur>
                     <span className="inline-block text-[11px] font-bold tracking-widest text-[#246BFD] uppercase bg-[#EAF2FF] px-3 py-1 rounded-full border border-blue-100">
-                      WHAT STRANGERLENS REVEALS
+                      FIVE EVALUATION DIMENSIONS
                     </span>
                   </Reveal>
                   <Reveal y={14} delay={0.06}>
@@ -1010,203 +1096,139 @@ export default function LandingPage() {
                 </StaggerContainer>
               </section>
 
-              {/* SECTION: EXAMPLE REPORT PREVIEW */}
-              <section className="py-12 sm:py-14 md:py-20 border-t border-slate-100">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 items-center">
-                  <div className="lg:col-span-5">
-                    <Reveal y={10} blur>
-                      <span className="inline-block text-[11px] font-bold tracking-widest text-[#246BFD] uppercase bg-[#EAF2FF] px-3 py-1 rounded-full border border-blue-100">
-                        EXAMPLE REPORT PREVIEW
-                      </span>
-                    </Reveal>
-                    <Reveal y={14} delay={0.06}>
-                      <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight mt-3.5 mb-3.5 [text-wrap:balance]">
-                        Not another generic website score.
-                      </h2>
-                    </Reveal>
-                    <Reveal y={14} delay={0.12}>
-                      <p className="text-[15px] sm:text-base text-[#526078] leading-relaxed mb-6 font-normal">
-                        Get an AI-powered, evidence-backed review of your accessible homepage content — showing what is clear, where visitors may hesitate, and what to improve first.
-                      </p>
-                    </Reveal>
-                    <Reveal y={14} delay={0.18}>
-                      <button
-                        onClick={scrollToInput}
-                        className="group rounded-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white font-medium px-6 py-3 inline-flex items-center gap-2 shadow-xs hover:shadow-md hover:shadow-blue-500/15 transition-all duration-200 cursor-pointer text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
-                      >
-                        <span>Analyze My Website Free →</span>
-                      </button>
-                    </Reveal>
-                  </div>
-
-                  <Reveal
-                    y={20}
-                    scale={0.985}
-                    delay={0.1}
-                    className="lg:col-span-7"
-                  >
-                    <div className="bg-[#F5F8FF] border border-[#E3EAF5] rounded-3xl p-4 sm:p-6 shadow-[0_18px_40px_-15px_rgba(16,24,40,0.08)]">
-                      <div className="bg-white border border-[#E3EAF5] rounded-2xl p-4 sm:p-5 shadow-xs">
-                        <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-bold text-sm text-slate-900 truncate">
-                              Results · example.com
-                            </span>
-                          </div>
-                          <span className="text-[11px] bg-slate-100 px-2.5 py-0.5 rounded text-slate-600 font-medium shrink-0">
-                            Illustrative preview
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-3.5 sm:gap-4 mb-4 bg-slate-50 rounded-xl p-3 sm:p-3.5">
-                          <div className="relative w-14 h-14 shrink-0 flex items-center justify-center">
-                            <svg
-                              className="w-full h-full transform -rotate-90"
-                              viewBox="0 0 100 100"
-                            >
-                              <circle
-                                cx="50"
-                                cy="50"
-                                r="40"
-                                stroke="#e2e8f0"
-                                strokeWidth="8"
-                                fill="transparent"
-                              />
-                              <motion.circle
-                                cx="50"
-                                cy="50"
-                                r="40"
-                                stroke="#f59e0b"
-                                strokeWidth="8"
-                                strokeDasharray="251.2"
-                                initial={
-                                  shouldReduceMotion
-                                    ? { strokeDashoffset: 82.9 }
-                                    : { strokeDashoffset: 251.2 }
-                                }
-                                whileInView={{ strokeDashoffset: 82.9 }}
-                                viewport={{ once: true, amount: 0.4 }}
-                                transition={{
-                                  duration: 1.0,
-                                  delay: 0.2,
-                                  ease: EASE_OUT_EXPO,
-                                }}
-                                strokeLinecap="round"
-                                fill="transparent"
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center tabular-nums">
-                              <span className="text-base font-extrabold text-slate-900 leading-none">
-                                67
-                              </span>
-                              <span className="text-[9px] text-slate-400">
-                                /100
-                              </span>
-                            </div>
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-                              Needs work
-                            </span>
-                            <p className="text-xs text-slate-700 mt-1 leading-relaxed">
-                              The website clearly communicates its core offering, but value proposition, trust signals and a stronger call to action could improve first-time visitor confidence.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2.5 text-xs text-slate-700">
-                          <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100">
-                            <strong className="text-blue-900 block mb-0.5 font-semibold">
-                              What your website is actually saying:
-                            </strong>
-                            This product appears to be a tool that helps people do something specific. The core offering is clear, but trust signals and proof points are limited.
-                          </div>
-                          <div className="p-3 bg-rose-50/60 rounded-xl border border-rose-100">
-                            <strong className="text-rose-900 block mb-0.5 font-semibold">
-                              Risk found (Trust risk):
-                            </strong>
-                            Limited visible proof for key claims.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </Reveal>
-                </div>
-              </section>
-
-              {/* SECTION: FROM DIAGNOSIS TO ACTION */}
+              {/* SECTION: INSIDE YOUR REPORT (3 Compact Cards Side-by-Side on Desktop) */}
               <section
                 id="how-it-works"
                 className="scroll-mt-20 sm:scroll-mt-24 py-12 sm:py-14 md:py-20 border-t border-slate-100"
               >
-                <div className="max-w-4xl mx-auto text-center mb-8 sm:mb-10 md:mb-12">
+                <div className="max-w-4xl mx-auto text-center mb-8 sm:mb-10">
                   <Reveal y={10} blur>
                     <span className="inline-block text-[11px] font-bold tracking-widest text-[#246BFD] uppercase bg-[#EAF2FF] px-3 py-1 rounded-full border border-blue-100">
-                      FROM DIAGNOSIS TO ACTION
+                      INSIDE YOUR REPORT
                     </span>
                   </Reveal>
                   <Reveal y={14} delay={0.06}>
                     <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight mt-3.5 mb-3 [text-wrap:balance]">
-                      Know what to fix first.
+                      See what StrangerLens reveals.
                     </h2>
                   </Reveal>
                   <Reveal y={14} delay={0.12}>
                     <p className="text-[15px] sm:text-lg text-[#526078] max-w-2xl mx-auto leading-relaxed font-normal">
-                      StrangerLens helps founders, developers, and website owners see what their homepage communicates to a first-time visitor and what to improve first.
+                      Understand what{"'"}s unclear, discover the evidence, and know where to start.
                     </p>
                   </Reveal>
                 </div>
 
-                <div className="relative max-w-4xl mx-auto">
-                  {/* Subtle desktop connecting line behind the 3 step cards */}
-                  <motion.div
-                    initial={shouldReduceMotion ? false : { scaleX: 0, opacity: 0 }}
-                    whileInView={{ scaleX: 1, opacity: 1 }}
-                    viewport={{ once: true, amount: 0.3 }}
-                    transition={{ duration: 0.8, delay: 0.15, ease: EASE_OUT_EXPO }}
-                    className="hidden md:block absolute top-11 left-[16%] right-[16%] h-[1px] bg-gradient-to-r from-blue-100 via-blue-200 to-blue-100 origin-left z-0"
-                    aria-hidden="true"
-                  />
-
-                  <StaggerContainer
-                    staggerDelay={0.1}
-                    className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6"
-                  >
-                    {[
-                      {
-                        step: "01",
-                        title: "Understand",
-                        desc: "See what your accessible homepage content communicates to a first-time visitor.",
-                      },
-                      {
-                        step: "02",
-                        title: "Discover",
-                        desc: "Spot where message clarity, audience fit, value, or trust signals break down.",
-                      },
-                      {
-                        step: "03",
-                        title: "Improve",
-                        desc: "Review evidence-backed priorities and copy-ready wording to fix first.",
-                      },
-                    ].map((s, idx) => (
-                      <StaggerItem key={idx} y={18}>
-                        <div className="h-full bg-white border border-[#E3EAF5] rounded-3xl p-6 shadow-2xs flex flex-col justify-between hover:border-blue-300 md:hover:-translate-y-0.5 transition-all duration-200">
-                          <div>
-                            <span className="text-xs font-bold text-[#246BFD] bg-[#EAF2FF] px-2.5 py-1 rounded-md inline-block mb-3.5 tabular-nums border border-blue-100/80">
-                              {s.step}
-                            </span>
-                            <h3 className="text-lg font-bold text-slate-950 mb-1.5">
-                              {s.title}
-                            </h3>
-                            <p className="text-sm text-slate-600 leading-relaxed">
-                              {s.desc}
-                            </p>
+                <StaggerContainer
+                  staggerDelay={0.08}
+                  className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 items-stretch"
+                >
+                  {/* CARD 1 — UNDERSTAND */}
+                  <StaggerItem y={16} className="h-full min-w-0">
+                    <div className="h-full bg-white border border-[#E3EAF5] rounded-2xl p-5 flex flex-col justify-between shadow-2xs hover:border-blue-300 transition-colors">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#246BFD] bg-[#EAF2FF] px-2.5 py-1 rounded-full">
+                            UNDERSTAND
+                          </span>
+                          <div className="w-8 h-8 rounded-full bg-[#EAF2FF] text-[#246BFD] flex items-center justify-center shrink-0">
+                            <Eye className="w-4 h-4" />
                           </div>
                         </div>
-                      </StaggerItem>
-                    ))}
-                  </StaggerContainer>
-                </div>
+
+                        <h3 className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight mb-1.5">
+                          First-Impression Diagnosis
+                        </h3>
+                        <p className="text-xs sm:text-sm text-[#526078] leading-relaxed mb-4">
+                          See how clearly your homepage communicates across five core visitor signals.
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#ECFDF5] text-[#059669] border border-emerald-200/80">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#059669]" />
+                          Clear
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#FFFBEB] text-[#D97706] border border-amber-200/80">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
+                          Partly clear
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#FFF1F2] text-[#E11D48] border border-rose-200/80">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#E11D48]" />
+                          Needs work
+                        </span>
+                      </div>
+                    </div>
+                  </StaggerItem>
+
+                  {/* CARD 2 — DISCOVER */}
+                  <StaggerItem y={16} className="h-full min-w-0">
+                    <div className="h-full bg-white border border-[#E3EAF5] rounded-2xl p-5 flex flex-col justify-between shadow-2xs hover:border-blue-300 transition-colors">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#D97706] bg-[#FFFBEB] px-2.5 py-1 rounded-full">
+                            DISCOVER
+                          </span>
+                          <div className="w-8 h-8 rounded-full bg-[#FFFBEB] text-[#D97706] flex items-center justify-center shrink-0">
+                            <Shield className="w-4 h-4" />
+                          </div>
+                        </div>
+
+                        <h3 className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight mb-1.5">
+                          Biggest Issue + Evidence
+                        </h3>
+                        <p className="text-xs sm:text-sm text-[#526078] leading-relaxed mb-4">
+                          See the #1 reason a new visitor may feel confused or leave — backed by your actual homepage wording.
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100">
+                        <div className="rounded-xl bg-[#FFF1F2]/70 border border-rose-200/80 px-3 py-2 text-xs">
+                          <span className="font-bold text-[#E11D48] block">
+                            Verified page evidence
+                          </span>
+                          <span className="text-slate-700 leading-snug block mt-0.5">
+                            Connects findings directly to your headline, copy, and CTAs.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </StaggerItem>
+
+                  {/* CARD 3 — IMPROVE */}
+                  <StaggerItem y={16} className="h-full min-w-0">
+                    <div className="h-full bg-white border border-[#E3EAF5] rounded-2xl p-5 flex flex-col justify-between shadow-2xs hover:border-blue-300 transition-colors">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#059669] bg-[#ECFDF5] px-2.5 py-1 rounded-full">
+                            IMPROVE
+                          </span>
+                          <div className="w-8 h-8 rounded-full bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                            <Sparkles className="w-4 h-4" />
+                          </div>
+                        </div>
+
+                        <h3 className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight mb-1.5">
+                          Priority Fix + Copy Rewrites
+                        </h3>
+                        <p className="text-xs sm:text-sm text-[#526078] leading-relaxed mb-4">
+                          Start with your #1 fix for free, then unlock the 1-2-3 action plan and copy-ready rewrites.
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100">
+                        <div className="rounded-xl bg-[#ECFDF5]/80 border border-emerald-200/80 px-3 py-2 text-xs">
+                          <span className="font-bold text-[#059669] block">
+                            Before → After guidance
+                          </span>
+                          <span className="text-slate-700 leading-snug block mt-0.5">
+                            Clear replacement copy you can apply immediately.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </StaggerItem>
+                </StaggerContainer>
               </section>
 
               {/* SECTION: PRICING */}
@@ -1227,127 +1249,154 @@ export default function LandingPage() {
                   </Reveal>
                   <Reveal y={14} delay={0.12}>
                     <p className="text-[15px] sm:text-lg text-[#526078] max-w-2xl mx-auto leading-relaxed font-normal">
-                      Run an AI-powered first-impression review for free today. One-time report packs are coming soon.
+                      Start with a free first-impression preview today. Unlock complete diagnostic reports with a one-time payment — no subscriptions.
                     </p>
                   </Reveal>
                 </div>
 
                 <StaggerContainer
                   staggerDelay={0.09}
-                  className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 max-w-5xl mx-auto pt-2"
+                  className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 max-w-5xl mx-auto pt-3 items-stretch"
                 >
-                  {PRICING_PLANS.map((plan) => (
-                    <StaggerItem key={plan.id} y={20} className="h-full">
-                      <div
-                        className={`h-full rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 ${
-                          plan.popular
-                            ? "bg-[#F5F8FF] border-2 border-[#246BFD] shadow-[0_16px_38px_-12px_rgba(36,107,253,0.16)] md:hover:-translate-y-1 relative"
-                            : "bg-white border border-[#E3EAF5] shadow-xs hover:border-blue-300 md:hover:-translate-y-1 hover:shadow-md"
-                        }`}
-                      >
-                        {plan.popular && (
-                          <motion.span
-                            initial={
-                              shouldReduceMotion
-                                ? false
-                                : { opacity: 0, scale: 0.9, y: 4 }
-                            }
-                            whileInView={{ opacity: 1, scale: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{
-                              duration: 0.35,
-                              delay: 0.22,
-                              ease: EASE_OUT_EXPO,
-                            }}
-                            className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#246BFD] text-white text-[10px] font-bold tracking-wider uppercase px-3 py-0.5 rounded-full shadow-xs whitespace-nowrap"
-                          >
-                            Coming soon
-                          </motion.span>
-                        )}
+                  {PRICING_PLANS.map((plan) => {
+                    const isPaidPreLaunch = plan.isPaid && !IS_CHECKOUT_ENABLED;
+                    return (
+                      <StaggerItem key={plan.id} y={20} className="h-full">
+                        <div
+                          className={`h-full rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 relative ${
+                            plan.popular
+                              ? "bg-[#F5F8FF] border-2 border-[#246BFD] shadow-[0_18px_42px_-12px_rgba(36,107,253,0.18)] md:-translate-y-1.5 md:hover:-translate-y-2"
+                              : "bg-white border border-[#E3EAF5] shadow-xs hover:border-blue-300 md:hover:-translate-y-1 hover:shadow-md"
+                          }`}
+                        >
+                          {plan.badge && (
+                            <motion.div
+                              initial={
+                                shouldReduceMotion
+                                  ? false
+                                  : { opacity: 0, scale: 0.92, y: 4 }
+                              }
+                              whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                              viewport={{ once: true }}
+                              transition={{
+                                duration: 0.35,
+                                delay: 0.18,
+                                ease: EASE_OUT_EXPO,
+                              }}
+                              className="absolute -top-3.5 left-6 right-6 flex items-center justify-between gap-2 pointer-events-none"
+                            >
+                              <span
+                                className={`text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-xs whitespace-nowrap ${
+                                  plan.popular
+                                    ? "bg-[#246BFD] text-white"
+                                    : "bg-emerald-600 text-white"
+                                }`}
+                              >
+                                {plan.badge}
+                              </span>
+                            </motion.div>
+                          )}
 
-                        <div>
-                          <h3 className="font-bold text-slate-950 text-xl mb-1">
-                            {plan.name}
-                          </h3>
-                          <p className="text-xs text-slate-500 mb-4">
-                            {plan.tagline}
-                          </p>
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <h3 className="font-extrabold text-slate-950 text-xl tracking-tight">
+                                {plan.name}
+                              </h3>
+                            </div>
 
-                          <div className="flex items-baseline gap-1 mb-5 pb-4 border-b border-slate-200/70 tabular-nums">
-                            <span className="text-4xl font-extrabold text-slate-950">
-                              ${plan.price}
-                            </span>
-                            <span className="text-xs text-slate-500">
-                              /{plan.period}
-                            </span>
+                            <p className="text-sm font-bold text-[#246BFD] mb-1">
+                              {plan.positioning}
+                            </p>
+                            <p className="text-xs sm:text-[13px] text-[#526078] leading-relaxed mb-5">
+                              {plan.description}
+                            </p>
+
+                            <div className="flex items-baseline gap-2 mb-5 pb-4 border-b border-slate-200/80 tabular-nums">
+                              <span className="text-4xl sm:text-[42px] font-extrabold text-slate-950 tracking-tight leading-none">
+                                ${plan.price}
+                              </span>
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                {plan.paymentLabel}
+                              </span>
+                            </div>
+
+                            <div className="mb-6">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-3">
+                                Includes:
+                              </span>
+                              <ul className="space-y-2.5 text-sm text-slate-700">
+                                {plan.features.map((feat, i) => (
+                                  <li key={i} className="flex items-start gap-2.5">
+                                    <Check
+                                      className={`w-4 h-4 shrink-0 mt-0.5 ${
+                                        plan.popular
+                                          ? "text-[#246BFD]"
+                                          : "text-emerald-600"
+                                      }`}
+                                    />
+                                    <span className="leading-snug">{feat}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                              {plan.creditNote && (
+                                <p className="mt-3.5 pt-3 border-t border-slate-100 text-[11px] text-slate-500 leading-relaxed">
+                                  {plan.creditNote}
+                                </p>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="space-y-2.5 mb-7 text-sm text-slate-700">
-                            {plan.features.map((feat, i) => (
-                              <div key={i} className="flex items-start gap-2.5">
-                                <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                                <span>{feat}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {plan.comingSoon ? (
-                          <button
-                            type="button"
-                            disabled
-                            aria-disabled="true"
-                            className="w-full py-3 px-4 rounded-full text-sm font-semibold inline-flex items-center justify-center gap-1.5 bg-slate-200/80 text-slate-500 cursor-not-allowed select-none"
-                          >
-                            <span>{plan.cta}</span>
-                          </button>
-                        ) : (
                           <button
                             type="button"
                             onClick={scrollToInput}
-                            className="group w-full py-3 px-4 rounded-full text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white shadow-xs hover:shadow-md hover:shadow-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
+                            className={`group w-full min-h-[46px] py-3 px-4 rounded-full text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 ${
+                              plan.popular || !plan.isPaid
+                                ? "bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white shadow-xs hover:shadow-md hover:shadow-blue-500/20"
+                                : "bg-white hover:bg-[#EAF2FF] active:scale-[0.98] text-slate-900 border border-[#DCE6F7] hover:border-blue-300"
+                            }`}
                           >
-                            <span>{plan.cta} →</span>
+                            <span>
+                              {isPaidPreLaunch ? plan.disabledCta : plan.cta} →
+                            </span>
                           </button>
-                        )}
-                      </div>
-                    </StaggerItem>
-                  ))}
+                        </div>
+                      </StaggerItem>
+                    );
+                  })}
                 </StaggerContainer>
 
                 <Reveal y={12} delay={0.16}>
-                  <div className="max-w-3xl mx-auto mt-7 text-center text-xs text-[#526078] space-y-1.5">
-                    <p>
-                      One-time purchases only · No recurring subscriptions · Covered by our{" "}
-                      <Link
-                        href="/refund-policy"
-                        className="font-semibold text-[#246BFD] hover:underline"
-                      >
-                        14-Day Refund Policy
-                      </Link>
-                      .
+                  <div className="max-w-3xl mx-auto mt-8 text-center text-xs text-[#526078] space-y-1.5">
+                    <p className="font-semibold text-slate-700">
+                      One-time payment · No subscription
                     </p>
-                    <p className="text-[11px] text-slate-400">
-                      Questions about plans or billing?{" "}
-                      <Link
-                        href="/contact"
-                        className="text-slate-600 hover:text-slate-900 underline underline-offset-2"
-                      >
-                        Contact Support
-                      </Link>{" "}
-                      ·{" "}
+                    <p className="text-xs text-slate-500 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
                       <Link
                         href="/terms"
-                        className="text-slate-600 hover:text-slate-900 underline underline-offset-2"
+                        className="text-slate-600 hover:text-[#246BFD] underline underline-offset-2 transition-colors"
                       >
-                        Terms of Service
-                      </Link>{" "}
-                      ·{" "}
+                        Terms
+                      </Link>
+                      <span aria-hidden="true">·</span>
                       <Link
                         href="/privacy"
-                        className="text-slate-600 hover:text-slate-900 underline underline-offset-2"
+                        className="text-slate-600 hover:text-[#246BFD] underline underline-offset-2 transition-colors"
                       >
-                        Privacy Policy
+                        Privacy
+                      </Link>
+                      <span aria-hidden="true">·</span>
+                      <Link
+                        href="/refund-policy"
+                        className="text-slate-600 hover:text-[#246BFD] underline underline-offset-2 transition-colors"
+                      >
+                        Refund Policy
+                      </Link>
+                      <span aria-hidden="true">·</span>
+                      <Link
+                        href="/contact"
+                        className="text-slate-600 hover:text-[#246BFD] underline underline-offset-2 transition-colors"
+                      >
+                        Contact Support
                       </Link>
                     </p>
                   </div>
@@ -1376,12 +1425,15 @@ export default function LandingPage() {
                   <div className="divide-y divide-slate-100 border-t border-b border-slate-100">
                     {FAQ_ITEMS.map((item, idx) => {
                       const isOpen = openFaqIndex === idx;
+                      const answerId = `faq-answer-${idx}`;
                       return (
                         <div key={idx} className="py-3.5 sm:py-4">
                           <button
+                            type="button"
                             onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
                             className="w-full flex items-center justify-between gap-4 text-left py-1.5 group cursor-pointer bg-transparent border-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] rounded-lg"
                             aria-expanded={isOpen}
+                            aria-controls={answerId}
                           >
                             <span className="font-bold text-slate-900 group-hover:text-[#246BFD] transition-colors text-[15px] sm:text-base">
                               {item.question}
@@ -1397,6 +1449,7 @@ export default function LandingPage() {
                           <AnimatePresence initial={false}>
                             {isOpen && (
                               <motion.div
+                                id={answerId}
                                 initial={
                                   shouldReduceMotion
                                     ? false
@@ -1514,13 +1567,17 @@ export default function LandingPage() {
               rawUrl={submittedUrl}
               isBackendReady={!isPending && analysisData !== null}
               backendError={backendError}
+              onRetry={() => {
+                handleAnalyze(undefined, submittedUrl || url);
+              }}
               onBackToLanding={() => {
+                clearPersistedReportSession();
                 setCurrentView("landing");
                 setTimeout(() => scrollToInput(), 100);
               }}
               onOpenFaq={() => {
+                setOpenFaqIndex(null);
                 setActiveInfoModal("faq");
-                setOpenFaqIndex(0);
               }}
               onOpenPricing={() => setActiveInfoModal("pricing")}
               onGoToResults={() => setCurrentView("results")}
@@ -1539,15 +1596,16 @@ export default function LandingPage() {
               rawUrl={submittedUrl}
               analysisData={analysisData || undefined}
               onBackToLanding={() => {
+                clearPersistedReportSession();
                 setCurrentView("landing");
                 setTimeout(() => scrollToInput(), 100);
               }}
               onRunNewCheck={() => {
-                handleAnalyze();
+                handleAnalyze(undefined, submittedUrl || url);
               }}
               onOpenFaq={() => {
+                setOpenFaqIndex(null);
                 setActiveInfoModal("faq");
-                setOpenFaqIndex(0);
               }}
               onOpenPricing={() => setActiveInfoModal("pricing")}
             />
@@ -1599,12 +1657,15 @@ export default function LandingPage() {
               <div className="mt-4 overflow-y-auto pr-1 divide-y divide-slate-100 flex-1">
                 {FAQ_ITEMS.map((item, idx) => {
                   const isOpen = openFaqIndex === idx;
+                  const modalAnswerId = `faq-modal-answer-${idx}`;
                   return (
                     <div key={idx} className="py-3.5 first:pt-2 last:pb-2">
                       <button
+                        type="button"
                         onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
                         className="w-full flex items-center justify-between gap-3 text-left py-1 group cursor-pointer bg-transparent border-0"
                         aria-expanded={isOpen}
+                        aria-controls={modalAnswerId}
                       >
                         <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors text-sm sm:text-base">
                           {item.question}
@@ -1618,6 +1679,7 @@ export default function LandingPage() {
                       <AnimatePresence initial={false}>
                         {isOpen && (
                           <motion.div
+                            id={modalAnswerId}
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
@@ -1668,7 +1730,7 @@ export default function LandingPage() {
                     Simple, Transparent Pricing
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                    Run an AI-powered first-impression review for free today. Paid packs are coming soon.
+                    Start with a free first-impression preview today. One-time report unlocks with no subscriptions.
                   </p>
                 </div>
                 <button
@@ -1680,79 +1742,93 @@ export default function LandingPage() {
                 </button>
               </div>
 
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 overflow-y-auto flex-1 pr-1 pb-1">
-                {PRICING_PLANS.map((plan) => (
-                  <div
-                    key={plan.id}
-                    className={`rounded-2xl p-5 flex flex-col justify-between ${
-                      plan.popular
-                        ? "bg-[#F5F8FF] border-2 border-[#246BFD] shadow-sm relative"
-                        : "bg-white border border-[#E3EAF5]"
-                    }`}
-                  >
-                    {plan.popular && (
-                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#246BFD] text-white text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                        Coming soon
-                      </span>
-                    )}
-                    <div>
-                      <h4 className="font-bold text-slate-950 text-lg mb-1">
-                        {plan.name}
-                      </h4>
-                      <p className="text-xs text-slate-500 mb-4">{plan.tagline}</p>
-                      <div className="flex items-baseline gap-1 mb-4 pb-3 border-b border-slate-100 tabular-nums">
-                        <span className="text-3xl font-extrabold text-slate-950">
-                          ${plan.price}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          /{plan.period}
-                        </span>
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 overflow-y-auto flex-1 pr-1 pb-1 pt-2">
+                {PRICING_PLANS.map((plan) => {
+                  const isPaidPreLaunch = plan.isPaid && !IS_CHECKOUT_ENABLED;
+                  return (
+                    <div
+                      key={plan.id}
+                      className={`rounded-2xl p-5 flex flex-col justify-between relative ${
+                        plan.popular
+                          ? "bg-[#F5F8FF] border-2 border-[#246BFD] shadow-sm"
+                          : "bg-white border border-[#E3EAF5]"
+                      }`}
+                    >
+                      {plan.badge && (
+                        <div className="absolute -top-3 left-4 right-4 flex items-center justify-between gap-1.5 pointer-events-none">
+                          <span
+                            className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full whitespace-nowrap ${
+                              plan.popular
+                                ? "bg-[#246BFD] text-white"
+                                : "bg-emerald-600 text-white"
+                            }`}
+                          >
+                            {plan.badge}
+                          </span>
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="font-extrabold text-slate-950 text-lg mb-0.5">
+                          {plan.name}
+                        </h4>
+                        <p className="text-xs font-bold text-[#246BFD] mb-1">
+                          {plan.positioning}
+                        </p>
+                        <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                          {plan.description}
+                        </p>
+                        <div className="flex items-baseline gap-1.5 mb-4 pb-3 border-b border-slate-100 tabular-nums">
+                          <span className="text-3xl font-extrabold text-slate-950">
+                            ${plan.price}
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            {plan.paymentLabel}
+                          </span>
+                        </div>
+                        <div className="space-y-2 mb-6 text-xs text-slate-700">
+                          {plan.features.map((feat, i) => (
+                            <div key={i} className="flex items-start gap-2">
+                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              <span>{feat}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="space-y-2 mb-6 text-xs text-slate-700">
-                        {plan.features.map((feat, i) => (
-                          <div key={i} className="flex items-start gap-2">
-                            <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                            <span>{feat}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {plan.comingSoon ? (
-                      <button
-                        type="button"
-                        disabled
-                        aria-disabled="true"
-                        className="w-full py-2.5 px-4 rounded-full text-xs font-semibold inline-flex items-center justify-center gap-1.5 bg-slate-200/80 text-slate-500 cursor-not-allowed select-none"
-                      >
-                        <span>{plan.cta}</span>
-                      </button>
-                    ) : (
                       <button
                         type="button"
                         onClick={scrollToInput}
-                        className="group w-full py-2.5 px-4 rounded-full text-xs font-semibold transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer bg-[#246BFD] hover:bg-blue-600 text-white"
+                        className={`group w-full py-2.5 px-4 rounded-full text-xs font-semibold transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer ${
+                          plan.popular || !plan.isPaid
+                            ? "bg-[#246BFD] hover:bg-blue-600 text-white"
+                            : "bg-white hover:bg-[#EAF2FF] text-slate-900 border border-[#DCE6F7]"
+                        }`}
                       >
-                        <span>{plan.cta} →</span>
+                        <span>
+                          {isPaidPreLaunch ? plan.disabledCta : plan.cta} →
+                        </span>
                       </button>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-500 shrink-0">
-                <span>
-                  One-time payment · No recurring charges ·{" "}
-                  <Link href="/refund-policy" className="text-[#246BFD] font-semibold hover:underline">
-                    14-Day Refund Policy
-                  </Link>
+                <span className="font-semibold text-slate-700">
+                  One-time payment · No subscription
                 </span>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <Link href="/terms" className="hover:text-slate-900 underline underline-offset-2">
                     Terms
                   </Link>
+                  <span aria-hidden="true">·</span>
                   <Link href="/privacy" className="hover:text-slate-900 underline underline-offset-2">
                     Privacy
                   </Link>
+                  <span aria-hidden="true">·</span>
+                  <Link href="/refund-policy" className="hover:text-slate-900 underline underline-offset-2">
+                    Refund Policy
+                  </Link>
+                  <span aria-hidden="true">·</span>
                   <Link href="/contact" className="hover:text-slate-900 underline underline-offset-2">
                     Support
                   </Link>

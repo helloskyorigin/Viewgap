@@ -12,7 +12,10 @@ import {
 } from "@/lib/recheck-compare";
 import { SIGNAL_WEIGHTS } from "@/services/scoring/scoringConfig";
 import { calculateOverallScore } from "@/services/scoring/calculateOverallScore";
-import ResultsScreen from "@/components/ResultsScreen";
+import ResultsScreen, { buildReportSummaryForExport } from "@/components/ResultsScreen";
+import ScanScreen from "@/components/ScanScreen";
+import LandingPage from "@/app/page";
+import { LEGAL_CONFIG } from "@/lib/legal-config";
 import PrivacyPolicyPage from "@/app/privacy/page";
 import TermsOfServicePage from "@/app/terms/page";
 import RefundPolicyPage from "@/app/refund-policy/page";
@@ -734,7 +737,7 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     assert.ok(privacyHtml.includes("Privacy Policy"));
     assert.ok(privacyHtml.includes("localStorage"));
     assert.ok(privacyHtml.includes("Paddle"));
-    assert.ok(privacyHtml.includes("support@strangerlens.com"));
+    assert.ok(privacyHtml.includes(LEGAL_CONFIG.supportEmail));
 
     // Terms of Service checks
     assert.ok(termsHtml.includes("Terms of Service"));
@@ -744,13 +747,324 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
 
     // Refund Policy checks
     assert.ok(refundHtml.includes("Refund Policy"));
-    assert.ok(refundHtml.includes("14-Day Refund Window"));
-    assert.ok(refundHtml.includes("fourteen (14) calendar days"));
-    assert.ok(refundHtml.includes("support@strangerlens.com"));
+    assert.ok(refundHtml.includes("Digital report purchases are generally final once delivered."));
+    assert.ok(refundHtml.includes("does not offer a separate voluntary money-back guarantee"));
+    assert.ok(refundHtml.includes("https://www.paddle.com/legal/refund-policy"));
+    assert.ok(refundHtml.includes("https://www.paddle.com/legal/buyer-terms"));
+    assert.ok(refundHtml.includes("https://paddle.net"));
+    assert.ok(refundHtml.includes(LEGAL_CONFIG.supportEmail));
 
     // Contact Support checks
     assert.ok(contactHtml.includes("Contact Support"));
-    assert.ok(contactHtml.includes("support@strangerlens.com"));
+    assert.ok(contactHtml.includes(LEGAL_CONFIG.supportEmail));
     assert.ok(contactHtml.includes("24–48 business hours"));
+  });
+
+  test("TEST 16: Final Pre-Launch UI/UX Corrections Phase 1 — Locked section buttons do not bypass paywall, honest pre-launch checkout copy, new-tab legal links, and ScanScreen retry action", () => {
+    const snapshot = extractWebsiteSnapshot(ARE_YOU_RARE_HTML, { baseUrl: "https://areyourare.ai.studio" });
+    const validated = validateAndScoreAnalysis({} as any, snapshot);
+    const mapped = mapBackendToFrontend(validated, "https://areyourare.ai.studio", snapshot);
+
+    const html = renderToStaticMarkup(
+      React.createElement(ResultsScreen, {
+        rawUrl: "https://areyourare.ai.studio",
+        analysisData: mapped,
+        previousCheckRecord: null,
+        onBackToLanding: () => {},
+        onRunNewCheck: () => {},
+        onOpenFaq: () => {},
+        onOpenPricing: () => {},
+      })
+    );
+
+    const idxPaywall = html.indexOf('id="paid-report-paywall-section"');
+    const idxLevel2 = html.indexOf('id="level-2-actionable-improvements"');
+    const paywallSlice = html.slice(idxPaywall, idxLevel2);
+
+    // 1. Locked preview items in paywall do NOT contain anchor hrefs that jump past the paywall
+    assert.ok(!paywallSlice.includes('href="#priority-fix-plan-section"'));
+    assert.ok(!paywallSlice.includes('href="#copy-ready-improvements-section"'));
+    assert.ok(!paywallSlice.includes('href="#recheck-compare-section"'));
+    assert.ok(paywallSlice.includes("Locked section 07: Priority Fix Plan"));
+
+    // 2. Paywall states honest one-time payment disclosure and does not claim instant paid receipt delivery
+    assert.ok(paywallSlice.includes("One-time payment · No subscription"));
+    assert.ok(!paywallSlice.includes("Instant access to all 9 deep-dive sections · Receipt sent to your email"));
+
+    // 3. Legal links inside ResultsScreen open in a new tab so active report state is preserved
+    assert.ok(paywallSlice.includes('href="/refund-policy"'));
+    assert.ok(paywallSlice.includes('target="_blank"'));
+    assert.ok(paywallSlice.includes('rel="noopener noreferrer"'));
+
+    // 4. ScanScreen renders error state with Try again and Change URL buttons
+    const scanErrorHtml = renderToStaticMarkup(
+      React.createElement(ScanScreen, {
+        rawUrl: "https://areyourare.ai.studio",
+        isBackendReady: false,
+        backendError: "Website is unreachable. Please verify the domain and ensure the site is online.",
+        onRetry: () => {},
+        onBackToLanding: () => {},
+      })
+    );
+    assert.ok(scanErrorHtml.includes("CHECK FAILED"));
+    assert.ok(scanErrorHtml.includes("Try again"));
+    assert.ok(scanErrorHtml.includes("Change URL"));
+  });
+
+  test("TEST 17: Final Pre-Launch UI/UX Corrections Phase 2 — Non-contradictory Biggest Issue evidence, consistent Free vs Paid descriptions, and Share/Download access boundaries", () => {
+    const snapshot = extractWebsiteSnapshot(ARE_YOU_RARE_HTML, { baseUrl: "https://areyourare.ai.studio" });
+    const validated = validateAndScoreAnalysis({} as any, snapshot);
+    const mapped = mapBackendToFrontend(validated, "https://areyourare.ai.studio", snapshot);
+
+    // 1. Issue 1: When primary risk is in 'value' (68/100) and missingFindings only has 'audience' and 'trust',
+    // Section 05 PRIMARY EVIDENCE GAP must NOT contradict the left card by displaying an 'audience' finding.
+    const customValueRiskPayload = {
+      ...mapped,
+      signals: [
+        { id: "first-impression", title: "First impression", score: 82, badgeText: "Clear", badgeType: "clear" as const, description: "Clear first impression.", icon: "eye" },
+        { id: "audience", title: "Audience", score: 62, badgeText: "Partly clear", badgeType: "amber" as const, description: "Audience could be more specific.", icon: "users" },
+        { id: "value", title: "Value", score: 68, badgeText: "Understandable", badgeType: "amber" as const, description: "Value is understandable.", icon: "sparkles" },
+        { id: "trust", title: "Trust", score: 45, badgeText: "Needs work", badgeType: "coral" as const, description: "Trust signals are weak.", icon: "shield" },
+        { id: "action", title: "Action", score: 85, badgeText: "Clear", badgeType: "clear" as const, description: "Primary CTA is clear.", icon: "arrow" },
+      ],
+      risks: [
+        {
+          category: "value",
+          severity: "high" as const,
+          title: "Primary outcome lacks concrete specificity",
+          description: "Visitors see a general rarity calculator prompt without knowing what the output looks like.",
+          why_it_matters: "Clear outcome previews increase quiz completion.",
+        },
+      ],
+    };
+
+    const htmlValueRisk = renderToStaticMarkup(
+      React.createElement(ResultsScreen, {
+        rawUrl: "https://areyourare.ai.studio",
+        analysisData: customValueRiskPayload,
+        previousCheckRecord: null,
+        onBackToLanding: () => {},
+        onRunNewCheck: () => {},
+        onOpenFaq: () => {},
+        onOpenPricing: () => {},
+      })
+    );
+    const sec05Start = htmlValueRisk.indexOf('id="biggest-issue-section"');
+    const sec06Start = htmlValueRisk.indexOf('id="priority-fix-section"');
+    const sec05Html = htmlValueRisk.slice(sec05Start, sec06Start);
+    assert.ok(sec05Html.includes("Primary outcome lacks concrete specificity"));
+    assert.ok(
+      !sec05Html.includes("Target audience is not explicitly stated in hero section"),
+      "Section 05 Primary Evidence Gap must not display an unrelated Audience missing finding for a Value issue"
+    );
+    assert.ok(
+      sec05Html.includes("Primary value statement could express a more concrete, measurable visitor outcome")
+    );
+
+    // 2. Issue 2: Canonical Free Preview vs Paid Full Report descriptions are consistent across Landing Page, Paywall, and Legal Config
+    const landingHtml = renderToStaticMarkup(React.createElement(LandingPage));
+    for (const freeFeature of [
+      "Overall first-impression score",
+      "Short main verdict",
+      "Five signal scores",
+      "Biggest issue with evidence",
+      "Your #1 priority fix",
+    ]) {
+      assert.ok(landingHtml.includes(freeFeature), `Expected landing page to include ${freeFeature}`);
+    }
+    assert.ok(LEGAL_CONFIG.pricing.freeTier.summary.includes("overall first-impression score"));
+    assert.ok(LEGAL_CONFIG.pricing.singleReport.summary.includes("prioritized 1-2-3 fix plan"));
+    assert.ok(LEGAL_CONFIG.pricing.threeReportPack.summary.includes("3 complete Full Reports"));
+
+    // 3. Issue 3: Share and Download access boundaries — Unpaid export contains ONLY Free Preview summary, never locked content
+    const freeExportText = buildReportSummaryForExport(mapped, false);
+    assert.ok(freeExportText.includes("STRANGERLENS FREE PREVIEW SUMMARY"));
+    assert.ok(freeExportText.includes("FIVE SIGNAL OVERVIEW"));
+    assert.ok(freeExportText.includes("BIGGEST ISSUE + EVIDENCE"));
+    assert.ok(freeExportText.includes("YOUR #1 PRIORITY FIX:"));
+    // Must NOT leak locked Visitor Thought, Detailed Signal explanations, or Full Communication Risks list
+    assert.ok(!freeExportText.includes("FIRST-TIME VISITOR IMPRESSION"));
+    assert.ok(!freeExportText.includes(mapped.visitorThought));
+    assert.ok(!freeExportText.includes("COMMUNICATION RISKS"));
+    assert.ok(!freeExportText.includes("FIVE DETAILED SIGNAL BREAKDOWN"));
+
+    // Paid/unlocked export includes full report details
+    const unlockedExportText = buildReportSummaryForExport(mapped, true);
+    assert.ok(unlockedExportText.includes("STRANGERLENS FULL FIRST-IMPRESSION REPORT"));
+    assert.ok(unlockedExportText.includes("FIRST-TIME VISITOR IMPRESSION"));
+    assert.ok(unlockedExportText.includes(mapped.visitorThought));
+    assert.ok(unlockedExportText.includes("FIVE DETAILED SIGNAL BREAKDOWN"));
+    assert.ok(unlockedExportText.includes("COMMUNICATION RISKS"));
+
+    // Unpaid ResultsScreen top bar shows "Download free summary"
+    assert.ok(htmlValueRisk.includes("Download free summary"));
+  });
+
+  test("TEST 18: Final Pricing Page UX Optimization & Refund Policy Correction — Value-based pricing cards, Coming Soon disabled paid CTAs, and removal of voluntary 14-day refund guarantee", () => {
+    const landingHtml = renderToStaticMarkup(React.createElement(LandingPage));
+    const refundHtml = renderToStaticMarkup(React.createElement(RefundPolicyPage));
+    const termsHtml = renderToStaticMarkup(React.createElement(TermsOfServicePage));
+    const contactHtml = renderToStaticMarkup(React.createElement(ContactSupportPage));
+
+    const snapshot = extractWebsiteSnapshot(ARE_YOU_RARE_HTML, { baseUrl: "https://areyourare.ai.studio" });
+    const validated = validateAndScoreAnalysis({} as any, snapshot);
+    const mapped = mapBackendToFrontend(validated, "https://areyourare.ai.studio", snapshot);
+    const resultsHtml = renderToStaticMarkup(
+      React.createElement(ResultsScreen, {
+        rawUrl: "https://areyourare.ai.studio",
+        analysisData: mapped,
+        previousCheckRecord: null,
+        onBackToLanding: () => {},
+        onRunNewCheck: () => {},
+        onOpenFaq: () => {},
+        onOpenPricing: () => {},
+      })
+    );
+
+    // 1. Free Preview ($0) card copy
+    assert.ok(landingHtml.includes("Free Preview"));
+    assert.ok(landingHtml.includes("$0"));
+    assert.ok(landingHtml.includes("Discover what&#x27;s unclear."));
+    assert.ok(landingHtml.includes("See how your website comes across to a first-time visitor."));
+    assert.ok(landingHtml.includes("Analyze My Website Free →"));
+
+    // 2. Full Report ($5) featured card copy
+    assert.ok(landingHtml.includes("Full Report"));
+    assert.ok(landingHtml.includes("$5"));
+    assert.ok(landingHtml.includes("ONE-TIME PAYMENT"));
+    assert.ok(landingHtml.includes("MOST POPULAR"));
+    assert.ok(landingHtml.includes("Know exactly what to change."));
+    assert.ok(landingHtml.includes("Turn your first-impression diagnosis into a clear, actionable improvement plan."));
+    assert.ok(landingHtml.includes("Prioritized 1-2-3 fix plan"));
+    assert.ok(landingHtml.includes("Copy-ready website rewrites"));
+    assert.ok(landingHtml.includes("Detailed five-signal analysis"));
+    assert.ok(landingHtml.includes("Complete homepage evidence"));
+    assert.ok(landingHtml.includes("Supporting-page insights when available"));
+    assert.ok(landingHtml.includes("Communication risks and recommendations"));
+
+    // 3. 3-Report Pack ($12) card copy & credit disclosure
+    assert.ok(landingHtml.includes("3-Report Pack"));
+    assert.ok(landingHtml.includes("$12"));
+    assert.ok(landingHtml.includes("SAVE $3"));
+    assert.ok(landingHtml.includes("Improve more. Check again."));
+    assert.ok(landingHtml.includes("Three complete reports for multiple websites or improvement iterations."));
+    assert.ok(landingHtml.includes("3 complete Full Reports"));
+    assert.ok(landingHtml.includes("All premium insights per report"));
+    assert.ok(landingHtml.includes("Copy-ready recommendations"));
+    assert.ok(landingHtml.includes("Useful for multiple websites"));
+    assert.ok(landingHtml.includes("Useful for before/after evaluations"));
+    assert.ok(landingHtml.includes("$4 per report"));
+    assert.ok(landingHtml.includes("No subscription"));
+    assert.ok(landingHtml.includes("2 report credits remain"));
+
+    // 4. Truthful pre-launch CTA on paid plans and no outdated Coming Soon labels
+    assert.ok(landingHtml.includes("Start with a Free Preview →"));
+    assert.ok(!landingHtml.includes("Coming Soon"));
+    assert.ok(!landingHtml.includes("Coming soon"));
+
+    // 5. Payment disclosure near pricing
+    assert.ok(landingHtml.includes("One-time payment · No subscription"));
+    assert.ok(landingHtml.includes('href="/terms"'));
+    assert.ok(landingHtml.includes('href="/privacy"'));
+    assert.ok(landingHtml.includes('href="/refund-policy"'));
+
+    // 6. No voluntary 14-day refund guarantee anywhere across landing, results, refund policy, terms, or contact
+    for (const [name, pageHtml] of [
+      ["Landing", landingHtml],
+      ["Results", resultsHtml],
+      ["RefundPolicy", refundHtml],
+      ["Terms", termsHtml],
+      ["Contact", contactHtml],
+    ] as const) {
+      assert.ok(!pageHtml.includes("14-Day Refund"), `Unexpected 14-Day Refund in ${name}`);
+      assert.ok(!pageHtml.includes("14-day"), `Unexpected 14-day in ${name}`);
+      assert.ok(!pageHtml.includes("fourteen (14)"), `Unexpected fourteen (14) in ${name}`);
+      assert.ok(!pageHtml.includes("We gladly issue full refunds"), `Unexpected voluntary refund promise in ${name}`);
+      assert.ok(!pageHtml.includes("No refunds under any circumstances"), `Unexpected statutory waiver in ${name}`);
+    }
+
+    // 7. Refund Policy contains all 7 required sections and official Paddle links
+    for (const heading of [
+      "1. Digital Product Purchases",
+      "2. General Refund Approach",
+      "3. Failed Delivery or Technical Issues",
+      "4. Duplicate or Incorrect Charges",
+      "5. Statutory Consumer Rights",
+      "6. Paddle Refund Requests",
+      "7. Customer Support",
+    ]) {
+      assert.ok(refundHtml.includes(heading), `Expected Refund Policy to include ${heading}`);
+    }
+  });
+
+  test("TEST 19: Final Landing Page Responsive Layout & Product Preview Correction — Side-by-side desktop hero, no RGB top borders, coherent illustrative scenario, and 3-column lower showcase", () => {
+    const landingHtml = renderToStaticMarkup(React.createElement(LandingPage));
+
+    // 1. Fake example domain, fabricated sample scores, and disconnected/technical jargon removed
+    assert.ok(!landingHtml.includes("EXAMPLE REPORT PREVIEW"));
+    assert.ok(!landingHtml.includes("example.com"));
+    assert.ok(!landingHtml.includes(">72<"));
+    assert.ok(!landingHtml.includes(">67<"));
+    for (const bannedText of [
+      "Live HTML",
+      "Grounded in HTML",
+      "0–100 Deterministic Scale",
+      "Extracted from page",
+      "First-Impression Diagnostic Structure",
+      "Visitor comprehension check",
+      "Next-gen workflow platform",
+      "Ship client onboarding in 5",
+      "Vague feature headline",
+      "bg-gradient-to-r from-[#246BFD] via-emerald-500 to-amber-500",
+      "border-t-4",
+    ]) {
+      assert.ok(!landingHtml.includes(bannedText), `Unexpected text or RGB border in landing page: ${bannedText}`);
+    }
+
+    // 2. Desktop two-column hero layout with minmax(0,1fr) columns
+    assert.ok(landingHtml.includes("md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"));
+
+    // 3. Hero Report Preview with one unobtrusive Illustrative preview label & coherent project-management example
+    const illustrativeMatches = landingHtml.match(/Illustrative preview/g) || [];
+    assert.strictEqual(illustrativeMatches.length, 1, "Expected exactly one unobtrusive Illustrative preview label");
+    assert.ok(landingHtml.includes("First-Impression Report"));
+    assert.ok(landingHtml.includes("5 Visitor Signals"));
+    assert.ok(landingHtml.includes("BIGGEST ISSUE"));
+    assert.ok(landingHtml.includes("The headline doesn&#x27;t explain what the product actually helps visitors do."));
+    assert.ok(landingHtml.includes("EVIDENCE:"));
+    assert.ok(landingHtml.includes("Modern solutions for teams"));
+    assert.ok(landingHtml.includes("#1 PRIORITY FIX"));
+    assert.ok(landingHtml.includes("Explain the main benefit directly in the headline."));
+    assert.ok(landingHtml.includes("BEFORE"));
+    assert.ok(landingHtml.includes("AFTER"));
+    assert.ok(landingHtml.includes("Plan projects, assign tasks, and track deadlines in one place."));
+
+    // 4. Meaningful status colors on the 5 signal cards
+    assert.ok(landingHtml.includes("Clear"));
+    assert.ok(landingHtml.includes("Partly clear"));
+    assert.ok(landingHtml.includes("Needs work"));
+
+    // 5. Lower Showcase ("See what StrangerLens reveals.") uses responsive 3-column grid without duplicating the full report
+    assert.ok(landingHtml.includes("See what StrangerLens reveals."));
+    assert.ok(landingHtml.includes("Understand what&#x27;s unclear, discover the evidence, and know where to start."));
+    assert.ok(landingHtml.includes("UNDERSTAND"));
+    assert.ok(landingHtml.includes("First-Impression Diagnosis"));
+    assert.ok(landingHtml.includes("DISCOVER"));
+    assert.ok(landingHtml.includes("Biggest Issue + Evidence"));
+    assert.ok(landingHtml.includes("IMPROVE"));
+    assert.ok(landingHtml.includes("Priority Fix + Copy Rewrites"));
+
+    // 6. Hero left column & CTAs preserved
+    assert.ok(landingHtml.includes("Does Your Website"));
+    assert.ok(landingHtml.includes("Make Sense to a"));
+    assert.ok(landingHtml.includes("Stranger?"));
+    assert.ok(landingHtml.includes("Analyze My Website Free →"));
+
+    // 7. Outdated Coming Soon labels removed & FAQ closed by default
+    assert.ok(!landingHtml.toLowerCase().includes("coming soon"));
+    assert.ok(landingHtml.includes("Start with a Free Preview →"));
+    assert.ok(!landingHtml.includes('aria-expanded="true"'));
+    assert.ok(landingHtml.includes('aria-expanded="false"'));
+    assert.ok(landingHtml.includes('aria-controls="faq-answer-0"'));
   });
 });

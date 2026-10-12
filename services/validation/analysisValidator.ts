@@ -408,13 +408,22 @@ export function validateAndScoreAnalysis(
         : "medium";
 
       const cat = (r.category || "clarity").toLowerCase();
-      // Enforce severity consistency with signal scores:
-      if (cat === "trust" && processedSignals.trust.score < 50) severity = "high";
-      if (cat === "audience" && processedSignals.audience.score < 50) severity = "high";
-      if (cat === "value" && processedSignals.value.score < 50) severity = "high";
-      if (cat === "action" && processedSignals.action.score < 50) severity = "high";
-      if ((cat === "clarity" || cat === "first_impression") && processedSignals.first_impression.score < 50) {
+      const catScore =
+        cat.includes("trust") || cat.includes("credibility")
+          ? processedSignals.trust.score
+          : cat.includes("audience")
+          ? processedSignals.audience.score
+          : cat.includes("value") || cat.includes("positioning")
+          ? processedSignals.value.score
+          : cat.includes("action") || cat.includes("cta")
+          ? processedSignals.action.score
+          : processedSignals.first_impression.score;
+
+      // Enforce severity consistency with signal scores so a Clear signal (>= 70) is never flagged as a high/medium bottleneck ahead of weak signals:
+      if (catScore < 50) {
         severity = "high";
+      } else if (catScore >= 70) {
+        severity = "low";
       }
 
       let desc = qualifyDefinitiveNegativeText(

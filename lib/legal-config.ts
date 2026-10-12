@@ -13,27 +13,29 @@ export const LEGAL_CONFIG = {
   lastUpdated: "October 12, 2026",
   pricing: {
     freeTier: {
-      name: "Free First-Impression Review",
+      name: "Free Preview",
       price: "$0",
       billingType: "Free (No account or card required)",
       summary:
-        "Includes overall clarity score, 5 core signal scores, extracted homepage observations, biggest communication issue with page evidence, and #1 priority fix direction.",
+        "Discover what's unclear. Includes overall first-impression score, short main verdict, five signal scores, biggest issue with evidence, and your #1 priority fix.",
     },
     singleReport: {
-      name: "One Full Report",
+      name: "Full Report",
       price: "$5 USD",
-      billingType: "One-time purchase · No subscription",
+      billingType: "One-time payment · No subscription",
       summary:
-        "Unlocks all 15 diagnostic and action sections for 1 website scan, including Priority Fix Plan, Copy-Ready Improvements, First Few Seconds breakdown, Five Signal Deep Dive, Visitor Hesitation analysis, Communication Risk flags, and Recheck & Compare.",
+        "Know exactly what to change. Includes everything in Free Preview, prioritized 1-2-3 fix plan, copy-ready website rewrites, detailed five-signal analysis, complete homepage evidence, supporting-page insights when available, and communication risks and recommendations.",
     },
     threeReportPack: {
-      name: "Three-Report Pack",
+      name: "3-Report Pack",
       price: "$12 USD",
-      billingType: "One-time purchase · No subscription ($4 per report)",
+      billingType: "One-time payment · No subscription ($4 per report · Save $3)",
       summary:
-        "Unlocks 3 complete 15-section website reports for evaluating multiple websites or testing before-and-after homepage iterations.",
+        "Improve more. Check again. Includes 3 complete Full Reports, all premium insights per report, and copy-ready recommendations for multiple websites or before/after evaluations (unlocking from an existing free preview uses 1 credit for the current report, leaving 2 report credits).",
     },
   },
+  refundPolicySummary:
+    "Digital report purchases are generally final once delivered. StrangerLens does not offer a separate voluntary money-back guarantee. Refunds remain subject to applicable consumer protection laws and Paddle's Refund Policy.",
   merchantOfRecord: {
     name: "Paddle",
     disclosure:
