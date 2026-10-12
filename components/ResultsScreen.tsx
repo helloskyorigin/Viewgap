@@ -19,6 +19,7 @@ import {
   Users,
   Eye,
   ChevronRight,
+  ChevronDown,
   MinusCircle,
   Copy,
   CheckCircle2,
@@ -102,6 +103,13 @@ export interface AnalysisData {
     color: string;
   }>;
   supportingContext?: SupportingContext;
+  isFreeTierOnly?: boolean;
+  lockedPreviewCounts?: {
+    actionSteps: number;
+    secondaryFixes: number;
+    copyRewrites: number;
+    totalRisks: number;
+  };
   isPartialAccess?: boolean;
   isAccessError?: boolean;
   checkedAt?: string;
@@ -2571,85 +2579,35 @@ export default function ResultsScreen({
           </div>
         </motion.div>
 
-        {/* 01. WEBSITE SCORE + MAIN VERDICT + FIVE SIGNALS */}
+        {/* 01. THE STRANGER VERDICT */}
         <motion.section
           id="five-signal-overview-section"
           aria-labelledby="five-signal-overview-heading"
           initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-[0_14px_34px_-15px_rgba(16,24,40,0.07)] relative scroll-mt-24 bg-gradient-to-b from-white to-[#f8faff]/50 space-y-6"
+          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-[0_14px_34px_-15px_rgba(16,24,40,0.07)] relative scroll-mt-24 space-y-6"
         >
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
-            {/* Zone 1: Score Visualization Ring (Left - 4 cols) */}
+          {/* Top Row: Score on Left, Verdict on Right */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-center">
+            {/* Score on Left (4 cols) */}
             <div
               data-score-section="VALUE CLARITY SCORE"
-              className="lg:col-span-4 flex flex-col items-center text-center border-b lg:border-b-0 lg:border-r border-slate-100 pb-6 lg:pb-0 lg:pr-6 shrink-0"
+              className="md:col-span-4 flex flex-col items-center md:items-start text-center md:text-left border-b md:border-b-0 md:border-r border-slate-100 pb-6 md:pb-0 md:pr-6 shrink-0"
             >
-              <div className="flex items-center justify-center gap-1.5 mb-2.5 text-[11px] font-bold tracking-wider text-slate-500 uppercase">
-                <span>OVERALL FIRST-IMPRESSION SCORE</span>
+              <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase mb-2">
+                OVERALL FIRST-IMPRESSION SCORE
+              </span>
+
+              <div className="flex items-baseline gap-1.5 tabular-nums">
+                <span className="text-5xl sm:text-6xl font-black text-[#101828] tracking-tight leading-none">
+                  {displayScore}
+                </span>
+                <span className="text-sm sm:text-base font-bold text-slate-400">/ 100</span>
               </div>
 
-              {/* Clean Circular Gauge */}
-              <div className="relative w-[136px] h-[136px] sm:w-[148px] sm:h-[148px] flex items-center justify-center my-1">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="40"
-                    stroke="#f1f5f9"
-                    strokeWidth="8"
-                    fill="transparent"
-                  />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="40"
-                    stroke={scoreVisuals.stroke}
-                    strokeWidth="8"
-                    strokeDasharray={`${2 * Math.PI * 40}`}
-                    strokeDashoffset={`${2 * Math.PI * 40 * (1 - displayScore / 100)}`}
-                    strokeLinecap="round"
-                    fill="transparent"
-                    className="transition-all duration-300 ease-out"
-                  />
-                </svg>
-
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none tabular-nums">
-                  <span className="text-4xl sm:text-[44px] font-extrabold text-slate-950 tracking-tight leading-none">
-                    {displayScore}
-                  </span>
-                  <span className="text-xs text-slate-400 font-semibold mt-1">
-                    / 100
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-slate-500 font-medium tabular-nums">
-                <span>{overviewStats.clearSignalsCount} of 5 signals strong</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setActiveInfoTooltip((prev) => !prev)}
-                aria-expanded={activeInfoTooltip}
-                aria-controls="score-calculation-disclosure"
-                className="mt-2.5 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 min-h-[40px] rounded-xl text-xs font-semibold text-[#1d68f5] hover:text-blue-700 hover:bg-blue-50/80 border border-transparent hover:border-blue-100 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none print:hidden"
-              >
-                <Info className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                <span>How is this score calculated?</span>
-              </button>
-            </div>
-
-            {/* Zone 2: Main Verdict & Stranger Interpretation (Right - 8 cols) */}
-            <div className="lg:col-span-8 flex flex-col justify-center">
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <motion.div
-                  initial={prefersReducedMotion ? {} : { opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15, duration: 0.2 }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${scoreVisuals.pillBg}`}
-                >
+              <div className="mt-3 flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${scoreVisuals.pillBg}`}>
                   {data.score >= 75 ? (
                     <Check className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
                   ) : data.score >= 50 ? (
@@ -2658,63 +2616,50 @@ export default function ResultsScreen({
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   )}
                   <span>{data.scoreStatus}</span>
-                </motion.div>
-
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  01 · Website Score &amp; Verdict
                 </span>
               </div>
 
+              {/* Small optional score disclosure */}
+              <button
+                type="button"
+                onClick={() => setActiveInfoTooltip((prev) => !prev)}
+                aria-expanded={activeInfoTooltip}
+                aria-controls="score-calculation-disclosure"
+                className="mt-3.5 inline-flex items-center gap-1.5 text-xs font-semibold text-[#1d68f5] hover:text-blue-700 transition-colors cursor-pointer print:hidden focus-visible:outline-none"
+              >
+                <Info className="w-3.5 h-3.5 shrink-0" />
+                <span>How is this score calculated?</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${activeInfoTooltip ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+
+            {/* Verdict on Right (8 cols) */}
+            <div className="md:col-span-8 flex flex-col justify-center">
+              <span className="text-[11px] font-bold tracking-widest text-[#246bfd] uppercase mb-2 block">
+                01 · THE STRANGER VERDICT
+              </span>
+
               <h1
                 id="five-signal-overview-heading"
-                className="text-xl sm:text-2xl lg:text-[26px] font-extrabold text-[#101828] tracking-tight leading-[1.28] mb-2.5 [text-wrap:balance]"
+                className="text-xl sm:text-2xl md:text-[28px] font-extrabold text-[#101828] tracking-tight leading-[1.25] [text-wrap:balance]"
               >
-                {data.verdict}
+                &ldquo;{data.verdict}&rdquo;
               </h1>
 
-              <p className="text-xs sm:text-sm text-[#526078] font-normal leading-relaxed">
+              <p className="text-xs sm:text-sm text-[#526078] mt-2.5 font-normal">
                 {data.verdictSubtext}
-              </p>
-
-              {data.websiteMessage && (
-                <div className="mt-4 bg-[#f8fafc] border border-slate-200/80 rounded-xl p-3.5 sm:p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#246bfd] inline-flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-[#246bfd]" />
-                      What a first-time visitor understands
-                    </span>
-                    {data.websiteMessage.confidence && (
-                      <span className="text-[11px] text-slate-500 font-medium capitalize">
-                        Confidence: <strong className="text-slate-700">{data.websiteMessage.confidence}</strong>
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs sm:text-[13px] font-semibold text-slate-900 leading-relaxed">
-                    {data.websiteMessage.summary}
-                  </p>
-                </div>
-              )}
-
-              <p className="text-[11px] text-slate-400 font-normal leading-relaxed mt-3">
-                StrangerLens provides an AI-estimated first-impression score based on accessible homepage content. It does not measure actual visitor behavior or conversions.
               </p>
             </div>
           </div>
 
           {/* Expandable Score Calculation & Analysis Limitations Disclosure */}
-          <AnimatePresence>
-            {activeInfoTooltip && (
-              <motion.div
-                id="score-calculation-disclosure"
-                role="region"
-                aria-label="How the overall first-impression score is calculated and analysis limitations"
-                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-                transition={{ duration: 0.18, ease: "easeOut" }}
-                className="pt-5 border-t border-slate-200/80"
-              >
-                <div className="bg-[#f8fafc] border border-[#e3eaf5] rounded-2xl p-4 sm:p-5 md:p-6 space-y-5">
+          <div
+            id="score-calculation-disclosure"
+            role="region"
+            aria-label="How the overall first-impression score is calculated and analysis limitations"
+            className={activeInfoTooltip ? "pt-5 border-t border-slate-200/80 block" : "hidden print:block"}
+          >
+            <div className="bg-[#f8fafc] border border-[#e3eaf5] rounded-2xl p-4 sm:p-5 md:p-6 space-y-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1d68f5] block mb-1">
@@ -2804,7 +2749,7 @@ export default function ResultsScreen({
                         SCORING INTERPRETATION
                       </span>
                       <p className="text-xs text-[#526078] leading-relaxed">
-                        StrangerLens provides an AI-estimated first-impression score based on accessible homepage content. It summarizes the five signals above to highlight communication strengths and weaknesses, and does not measure actual visitor behavior or conversions.
+                        StrangerLens provides an AI-estimated first-impression score based on accessible homepage content. It does not measure actual visitor behavior or conversions.
                       </p>
                     </div>
 
@@ -2821,34 +2766,21 @@ export default function ResultsScreen({
                     </div>
                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          </div>
 
-          {/* Five Signals Row (Shown once inside Card 01) */}
+          {/* Five Signals in ONE compact row below on Desktop, responsive grid on mobile */}
           <div className="pt-5 border-t border-slate-100">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-                  Five First-Impression Signals
-                </span>
-                {overviewStats.strongest && overviewStats.weakest && (
-                  <span className="hidden sm:inline text-xs text-slate-400">
-                    · Strongest: <strong className="text-emerald-700 font-semibold">{overviewStats.strongest.title}</strong> · Focus area: <strong className="text-amber-700 font-semibold">{overviewStats.weakest.title}</strong>
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={onOpenFaq}
-                className="text-xs font-semibold text-slate-500 hover:text-[#246bfd] transition-colors inline-flex items-center gap-1 cursor-pointer print:hidden"
-              >
-                <span>How signals are scored</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                Five Signal Scores
+              </span>
+              <span className="text-xs text-slate-400 font-medium">
+                {overviewStats.clearSignalsCount} of 5 clear
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-              {phase6DetailedData.detailedSignals.map((sig, index) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {phase6DetailedData.detailedSignals.map((sig) => {
                 const barColor =
                   sig.badgeType === "clear"
                     ? "bg-emerald-500"
@@ -2856,80 +2788,49 @@ export default function ResultsScreen({
                     ? "bg-amber-500"
                     : "bg-rose-500";
 
-                const iconTone =
+                const badgeStyle =
                   sig.badgeType === "clear"
-                    ? "bg-emerald-50 text-emerald-600"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200/80"
                     : sig.badgeType === "amber"
-                    ? "bg-amber-50 text-amber-600"
-                    : "bg-rose-50 text-rose-600";
+                    ? "bg-amber-50 text-amber-700 border-amber-200/80"
+                    : "bg-rose-50 text-rose-700 border-rose-200/80";
 
                 return (
                   <div
                     key={sig.id}
-                    className="border border-[#e3eaf5] rounded-2xl p-4 flex flex-col justify-between bg-white shadow-2xs"
+                    className="bg-[#f8fafc] border border-slate-200/80 rounded-xl p-3 flex flex-col justify-between"
                   >
                     <div>
-                      <div className="flex items-center justify-between gap-2 mb-2.5">
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconTone}`}>
-                          {sig.icon === "eye" && <Eye className="w-3.5 h-3.5" />}
-                          {sig.icon === "users" && <Users className="w-3.5 h-3.5" />}
-                          {sig.icon === "sparkles" && <Sparkles className="w-3.5 h-3.5" />}
-                          {sig.icon === "shield" && <Shield className="w-3.5 h-3.5" />}
-                          {sig.icon === "arrow" && <ArrowRight className="w-3.5 h-3.5" />}
-                        </div>
-
-                        {sig.badgeType === "clear" ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#dcfce7] text-[#15803d]">
-                            {sig.badgeText}
-                          </span>
-                        ) : sig.badgeType === "amber" ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#fef3c7] text-[#b45309]">
-                            {sig.badgeText}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#fee2e2] text-[#b91c1c]">
-                            {sig.badgeText}
-                          </span>
-                        )}
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className="text-xs font-bold text-[#101828] truncate" title={sig.title}>
+                          {sig.title}
+                        </span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${badgeStyle}`}>
+                          {sig.badgeText}
+                        </span>
                       </div>
 
-                      <h3 className="font-bold text-[#101828] text-sm leading-snug">
-                        {sig.title}
-                      </h3>
-                      <p className="text-[11px] text-slate-400 font-medium mb-2.5">
-                        {sig.shortQuestion}
-                      </p>
-
-                      <div className="mb-2.5">
-                        <div className="flex items-baseline justify-between gap-1 mb-1 tabular-nums">
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-xl font-extrabold text-[#101828] leading-none">
-                              {sig.score}
-                            </span>
-                            <span className="text-[11px] text-slate-400 font-medium">/ 100</span>
-                          </div>
-                        </div>
-                        <div
-                          className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"
-                          role="progressbar"
-                          aria-valuenow={sig.score}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-label={`${sig.title} score: ${sig.score} out of 100`}
-                        >
-                          <motion.div
-                            initial={prefersReducedMotion ? { width: `${sig.score}%` } : { width: 0 }}
-                            animate={{ width: `${Math.max(4, Math.min(100, sig.score))}%` }}
-                            transition={{ duration: 0.65, delay: 0.1 + index * 0.05, ease: "easeOut" }}
-                            className={`h-full rounded-full ${barColor}`}
-                          />
-                        </div>
+                      <div className="flex items-baseline gap-1 tabular-nums mb-2">
+                        <span className="text-lg font-black text-[#101828] leading-none">
+                          {sig.score}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-medium">/ 100</span>
                       </div>
                     </div>
 
-                    <p className="pt-2 border-t border-slate-100 text-[11px] text-[#526078] font-medium leading-snug line-clamp-2">
-                      {sig.overviewTakeaway}
-                    </p>
+                    <div
+                      className="w-full h-1 bg-slate-200/80 rounded-full overflow-hidden"
+                      role="progressbar"
+                      aria-valuenow={sig.score}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={`${sig.title}: ${sig.score}/100`}
+                    >
+                      <div
+                        style={{ width: `${Math.max(4, Math.min(100, sig.score))}%` }}
+                        className={`h-full rounded-full ${barColor}`}
+                      />
+                    </div>
                   </div>
                 );
               })}
@@ -2937,376 +2838,247 @@ export default function ResultsScreen({
           </div>
         </motion.section>
 
-        {/* 02. BIGGEST ISSUE + ACTUAL EVIDENCE */}
+        {/* 02. THE STRANGER VIEW */}
         <section
           id="biggest-issue-section"
-          aria-labelledby="biggest-issue-heading"
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24"
+          aria-labelledby="stranger-view-heading"
+          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24 space-y-5"
         >
-          {/* Section Header */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
             <div>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-rose-700 uppercase bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200/80">
-                  <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
-                  02 · BIGGEST ISSUE + ACTUAL EVIDENCE
-                </span>
-                {phase6DetailedData.primaryIssueTargetSignal && (
-                  <span className="text-[11px] font-semibold text-slate-500">
-                    · {phase6DetailedData.primaryIssueTargetSignal.id === overviewStats.weakest?.id
-                      ? "Lowest signal:"
-                      : "Impacted signal:"}{" "}
-                    <strong className="text-slate-800">
-                      {phase6DetailedData.primaryIssueTargetSignal.title} ({phase6DetailedData.primaryIssueTargetSignal.score}/100)
-                    </strong>
-                  </span>
-                )}
-              </div>
+              <span className="text-[10px] font-bold tracking-widest text-[#246bfd] uppercase block mb-1">
+                02 · THE STRANGER VIEW
+              </span>
               <h2
-                id="biggest-issue-heading"
+                id="stranger-view-heading"
                 className="text-lg sm:text-xl font-extrabold text-[#101828] tracking-tight"
               >
-                Biggest issue holding back your first impression
+                What a stranger sees vs. what they understand
               </h2>
-              <p className="text-xs sm:text-sm text-[#526078] mt-0.5">
-                The primary comprehension or conversion barrier identified on {data.domain}, paired with the exact homepage evidence behind it.
+            </div>
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+              <span className="text-xs text-slate-500 font-medium">Impacted signal:</span>
+              <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                {phase6DetailedData.primaryIssueTargetSignal
+                  ? `${phase6DetailedData.primaryIssueTargetSignal.title} (${phase6DetailedData.primaryIssueTargetSignal.score}/100)`
+                  : "Clarity (60/100)"}
+              </span>
+            </div>
+          </div>
+
+          {/* Desktop side-by-side, mobile stacked */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+            {/* Left: YOUR WEBSITE SAYS */}
+            <div className="bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <span className="text-[11px] font-extrabold tracking-wider text-slate-600 uppercase">
+                    YOUR WEBSITE SAYS
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200/80 px-2 py-0.5 rounded">
+                    {data.evidence.locationTag || "Homepage"}
+                  </span>
+                </div>
+                {visitorUnderstandingAndEvidence.primaryRecQuote ||
+                visitorUnderstandingAndEvidence.verifiedExcerptText ? (
+                  <p className="text-sm sm:text-base font-semibold text-[#101828] italic leading-relaxed break-words">
+                    &ldquo;
+                    {(visitorUnderstandingAndEvidence.isPrimaryRecQuoteAligned
+                      ? visitorUnderstandingAndEvidence.primaryRecQuote
+                      : visitorUnderstandingAndEvidence.verifiedExcerptText) ||
+                      visitorUnderstandingAndEvidence.primaryRecQuote}
+                    &rdquo;
+                  </p>
+                ) : (
+                  <p className="text-xs sm:text-sm text-slate-500 leading-relaxed italic">
+                    No distinct headline text verified in the initial HTML response.
+                  </p>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-200/60">
+                Exact text extracted from your public homepage
+              </p>
+            </div>
+
+            {/* Right: A STRANGER MAY THINK */}
+            <div className="bg-[#f0f6ff] border border-blue-200/80 rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <span className="text-[11px] font-extrabold tracking-wider text-[#1d68f5] uppercase">
+                    A STRANGER MAY THINK
+                  </span>
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-100/90 px-2 py-0.5 rounded uppercase">
+                    Simulated Reaction
+                  </span>
+                </div>
+                {data.visitorThought && data.visitorThought !== "No simulated visitor thought available for this scan." ? (
+                  <p className="text-sm sm:text-base font-semibold text-slate-900 leading-relaxed break-words">
+                    &ldquo;{data.visitorThought}&rdquo;
+                  </p>
+                ) : data.websiteMessage?.summary ? (
+                  <p className="text-sm sm:text-base font-semibold text-slate-900 leading-relaxed break-words">
+                    {data.websiteMessage.summary}
+                  </p>
+                ) : (
+                  <p className="text-xs sm:text-sm text-slate-500 leading-relaxed italic">
+                    First-time visitor thought interpretation unavailable for this scan.
+                  </p>
+                )}
+              </div>
+              <p className="text-[11px] text-blue-600/80 mt-3 pt-2.5 border-t border-blue-200/60">
+                AI simulation based on first-time cognitive load
               </p>
             </div>
           </div>
 
-          {/* Main 2-Column Diagnostic + Evidence Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
-            {/* Left Column (7 cols): Primary Issue Diagnosis */}
-            <div className="lg:col-span-7 flex flex-col justify-between">
-              {phase6DetailedData.primaryRisk ? (
-                <div
-                  className={`h-full border rounded-2xl p-5 sm:p-6 flex flex-col justify-between transition-all ${
-                    phase6DetailedData.primaryRisk.severity === "high"
-                      ? "bg-rose-50/50 border-rose-200/90"
-                      : phase6DetailedData.primaryRisk.severity === "medium"
-                      ? "bg-amber-50/50 border-amber-200/90"
-                      : "bg-slate-50/80 border-slate-200/90"
-                  }`}
-                >
-                  <div className="space-y-3.5">
-                    {/* Severity & Category Badges */}
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
-                            phase6DetailedData.primaryRisk.severity === "high"
-                              ? "bg-rose-600 text-white"
-                              : phase6DetailedData.primaryRisk.severity === "medium"
-                              ? "bg-amber-500 text-white"
-                              : "bg-slate-600 text-white"
-                          }`}
-                        >
-                          {phase6DetailedData.primaryRisk.severity} severity issue
-                        </span>
-                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-slate-200/80">
-                          {phase6DetailedData.primaryRisk.categoryLabel}
-                        </span>
-                      </div>
-                      <span className="text-[11px] font-semibold text-slate-400">
-                        Primary Bottleneck #1
-                      </span>
-                    </div>
-
-                    {/* Issue Title */}
-                    <h3 className="text-base sm:text-lg md:text-[19px] font-extrabold text-[#101828] tracking-tight leading-snug">
-                      {phase6DetailedData.primaryRisk.title}
-                    </h3>
-
-                    {/* Issue Description */}
-                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
-                      {phase6DetailedData.primaryRisk.description}
-                    </p>
-                  </div>
-
-                  {/* Why It Matters Box */}
-                  <div className="mt-5 pt-4 border-t border-slate-200/70">
-                    <div className="bg-white/90 border border-slate-200/70 rounded-xl p-3.5 sm:p-4">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">
-                        WHY THIS MATTERS TO FIRST-TIME VISITORS
-                      </span>
-                      <p className="text-xs sm:text-[13px] text-slate-800 font-medium leading-relaxed">
-                        {phase6DetailedData.primaryRisk.why_it_matters}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : overviewStats.weakest ? (
-                <div className="h-full bg-amber-50/40 border border-amber-200/80 rounded-2xl p-5 sm:p-6 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-500 text-white">
-                        Primary focus area
-                      </span>
-                      <span className="text-[11px] font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-full border border-slate-200/80 tabular-nums">
-                        {overviewStats.weakest.title}: {overviewStats.weakest.score}/100 ({overviewStats.weakest.badgeText})
-                      </span>
-                    </div>
-                    <h3 className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight leading-snug">
-                      {overviewStats.weakest.title} is the lowest-scoring signal on {data.domain}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
-                      {overviewStats.weakest.description}
-                    </p>
-                  </div>
-
-                  <div className="mt-5 pt-4 border-t border-amber-200/60">
-                    <div className="bg-white/90 border border-amber-200/60 rounded-xl p-3.5">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">
-                        DIAGNOSTIC NOTE
-                      </span>
-                      <p className="text-xs text-slate-700 leading-relaxed">
-                        Strengthening {overviewStats.weakest.title.toLowerCase()} provides the highest-leverage opportunity to improve overall visitor comprehension.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-full bg-slate-50 border border-slate-200/80 rounded-2xl p-5 flex items-center justify-center text-center text-xs sm:text-sm text-slate-600">
-                  No major communication risk identified from the available homepage evidence.
-                </div>
+          {/* Full-Width Bottom Box: WHAT'S MISSING */}
+          <div className="bg-[#fff9f5] border border-amber-200/80 rounded-2xl p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[11px] font-extrabold tracking-wider text-amber-900 uppercase inline-flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                WHAT&apos;S MISSING
+              </span>
+              {phase6DetailedData.primaryRisk?.severity && (
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                  {phase6DetailedData.primaryRisk.severity} priority gap
+                </span>
               )}
             </div>
 
-            {/* Right Column (5 cols): Focused Evidence for the #1 Issue */}
-            <div className="lg:col-span-5 bg-[#f8fafc] border border-[#e3eaf5] rounded-2xl p-5 sm:p-6 flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                    EVIDENCE BEHIND THIS ISSUE
-                  </span>
-                  <span className="text-[11px] font-semibold text-slate-600 bg-white border border-slate-200/80 px-2.5 py-0.5 rounded-md shrink-0">
-                    {data.evidence.locationTag}
-                  </span>
-                </div>
+            {phase6DetailedData.primaryRisk?.title && (
+              <h3 className="text-sm sm:text-base font-extrabold text-[#101828] mb-1.5 leading-snug">
+                {phase6DetailedData.primaryRisk.title}
+              </h3>
+            )}
 
-                {/* Extracted Verbatim Quote Relevant to Primary Issue */}
-                <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    {visitorUnderstandingAndEvidence.isPrimaryRecQuoteAligned
-                      ? "CURRENT WORDING TIED TO THIS ISSUE"
-                      : "EXTRACTED HOMEPAGE CONTEXT"}
-                  </span>
-                  {visitorUnderstandingAndEvidence.primaryRecQuote ||
-                  visitorUnderstandingAndEvidence.verifiedExcerptText ? (
-                    <p className="text-xs sm:text-[13px] text-slate-800 italic leading-relaxed font-medium break-words">
-                      &ldquo;
-                      {(visitorUnderstandingAndEvidence.isPrimaryRecQuoteAligned
-                        ? visitorUnderstandingAndEvidence.primaryRecQuote
-                        : visitorUnderstandingAndEvidence.verifiedExcerptText) ||
-                        visitorUnderstandingAndEvidence.primaryRecQuote}
-                      &rdquo;
-                    </p>
-                  ) : (
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      No distinct homepage headline text was verified in the initial HTML for {data.domain}.
-                    </p>
-                  )}
-                </div>
+            <p className="text-xs sm:text-sm font-semibold text-[#101828] leading-relaxed">
+              {visitorUnderstandingAndEvidence.primaryFocusedMissingFinding ||
+                phase6DetailedData.primaryRisk?.description ||
+                data.evidence.missingFindings?.[0] ||
+                "Clear proof or specific outcome details that immediately explain who this is for and why they should care."}
+            </p>
 
-                {/* Primary Gap Driving the #1 Issue */}
-                <div>
-                  <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wider block mb-2">
-                    PRIMARY EVIDENCE GAP
-                  </span>
-                  {visitorUnderstandingAndEvidence.primaryFocusedMissingFinding ? (
-                    <div className="flex items-start gap-2 text-xs text-slate-700 leading-snug bg-white/90 border border-rose-100 rounded-lg px-3.5 py-2.5">
-                      <X className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5 stroke-[2.5]" />
-                      <span>
-                        {visitorUnderstandingAndEvidence.primaryFocusedMissingFinding}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-slate-600 bg-white/90 border border-slate-200/80 rounded-lg px-3.5 py-2.5">
-                      Opportunity to sharpen phrasing clarity and reduce visitor hesitation above the fold.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Jump Link to Section 06 Detailed Evidence & Insights */}
-              <div className="mt-5 pt-3.5 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[11px] text-slate-500">
-                  {phase6DetailedData.secondaryRisks.length > 0
-                    ? `+ ${phase6DetailedData.secondaryRisks.length} more risk${
-                        phase6DetailedData.secondaryRisks.length > 1 ? "s" : ""
-                      } in Detailed Evidence & Insights`
-                    : "Full clear vs. missing breakdown below"}
-                </span>
-                <div className="flex items-center gap-3 print:hidden">
-                  <a
-                    href="#detailed-evidence-insights-section"
-                    onClick={(e) =>
-                      handleJumpLinkClick(e, "06", "Detailed Evidence & Insights")
-                    }
-                    className="text-xs font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded"
-                  >
-                    <span>Detailed evidence &amp; risks</span>
-                    <ArrowDown className="w-3 h-3 shrink-0" />
-                  </a>
-                </div>
-              </div>
-            </div>
+            {phase6DetailedData.primaryRisk?.why_it_matters && (
+              <p className="text-xs text-amber-900/80 mt-2 font-normal leading-relaxed pt-2 border-t border-amber-200/60">
+                <strong className="font-semibold text-amber-950">Why it matters:</strong>{" "}
+                {phase6DetailedData.primaryRisk.why_it_matters}
+              </p>
+            )}
           </div>
         </section>
 
-        {/* 03. YOUR #1 PRIORITY FIX */}
+        {/* 03. THE ONE FIX */}
         <section
           id="priority-fix-section"
           aria-labelledby="priority-fix-heading"
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24 relative overflow-hidden"
+          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24 space-y-4"
         >
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
-            {/* Left Column (7 cols): Primary Priority Fix Diagnosis */}
-            <div className="lg:col-span-7 flex flex-col justify-between">
-              <div>
-                {/* Top Badges */}
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-extrabold tracking-widest text-[#246bfd] bg-[#eaf2ff] border border-blue-100 px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 uppercase">
-                      <Zap className="w-3 h-3 fill-[#246bfd] text-[#246bfd]" />
-                      03 · YOUR #1 PRIORITY FIX
-                    </span>
-                    <span className="text-[10px] font-bold tracking-wider text-amber-800 bg-amber-100/90 px-2.5 py-1 rounded-full uppercase">
-                      IF YOU CHANGE ONLY ONE THING
-                    </span>
-                  </div>
-                  {data.recommendation.impact && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-900 text-white">
-                      {data.recommendation.impact} impact
-                    </span>
-                  )}
-                </div>
-
-                {/* Actionable Fix Headline */}
-                <h2
-                  id="priority-fix-heading"
-                  className="text-lg sm:text-xl md:text-[22px] font-extrabold text-[#101828] tracking-tight leading-snug mb-2.5"
-                >
-                  {data.recommendation.subhead}
-                </h2>
-
-                {/* Why this fix works */}
-                <p className="text-xs sm:text-sm text-[#526078] leading-relaxed font-normal">
-                  {data.recommendation.explanation}
-                </p>
-              </div>
-
-              {/* Footer Action Bar */}
-              <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <p className="text-[11px] text-slate-500">
-                  {copyReadyImprovements.length > 0
-                    ? "Exact replacement wording is ready to copy in Section 05 below."
-                    : priorityFixPlan.length > 0
-                    ? "Review your Prioritized Action Plan below to sequence your updates."
-                    : "Apply this priority change above the fold, then re-check your homepage."}
-                </p>
-                <div className="flex flex-wrap items-center gap-2 print:hidden">
-                  {copyReadyImprovements.length > 0 ? (
-                    <a
-                      href="#copy-ready-improvements-section"
-                      onClick={(e) =>
-                        handleJumpLinkClick(e, "05", "Copy-Ready Improvements")
-                      }
-                      className="w-full sm:w-auto rounded-full bg-[#eaf2ff] hover:bg-blue-100/80 text-[#1d68f5] text-xs font-bold px-4 py-2 transition-all inline-flex items-center justify-center gap-1.5 shrink-0 min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
-                    >
-                      <span>See copy-ready wording</span>
-                      <ArrowDown className="w-3.5 h-3.5 shrink-0" />
-                    </a>
-                  ) : priorityFixPlan.length > 0 ? (
-                    <a
-                      href="#priority-fix-plan-section"
-                      onClick={(e) =>
-                        handleJumpLinkClick(e, "04", "Prioritized Action Plan")
-                      }
-                      className="w-full sm:w-auto rounded-full bg-[#eaf2ff] hover:bg-blue-100/80 text-[#1d68f5] text-xs font-bold px-4 py-2 transition-all inline-flex items-center justify-center gap-1.5 shrink-0 min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
-                    >
-                      <span>View Action Plan</span>
-                      <ArrowDown className="w-3.5 h-3.5 shrink-0" />
-                    </a>
-                  ) : null}
-                </div>
-              </div>
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-100">
+            <div>
+              <span className="text-[10px] font-bold tracking-widest text-[#246bfd] uppercase block mb-1">
+                03 · THE ONE FIX
+              </span>
+              <h2
+                id="priority-fix-heading"
+                className="text-lg sm:text-xl md:text-[22px] font-extrabold text-[#101828] tracking-tight leading-snug"
+              >
+                {data.recommendation.subhead || data.recommendation.title || "Clarify your primary homepage headline"}
+              </h2>
             </div>
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+              {phase6DetailedData.priorityFixTargetSignal && (
+                <span className="text-xs text-slate-500 font-medium">
+                  Targeted signal: <strong className="text-slate-800 font-bold">{phase6DetailedData.priorityFixTargetSignal.score} / 100</strong>
+                </span>
+              )}
+              {data.recommendation.impact && (
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-900 text-white">
+                  {data.recommendation.impact} impact
+                </span>
+              )}
+            </div>
+          </div>
 
-            {/* Right Column (5 cols): Specific Website-Grounded Action Guidance */}
-            <div className="lg:col-span-5 bg-[#f8fbff] border border-blue-200/80 rounded-2xl p-5 sm:p-6 flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1d68f5]">
-                    SPECIFIC CHANGE FOR {data.domain.toUpperCase()}
+          {/* Side-by-side: WHAT VISITORS SEE NOW vs RECOMMENDED DIRECTION */}
+          {(data.recommendation.currentDirection || data.recommendation.strongerDirection) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
+              {data.recommendation.currentDirection && (
+                <div className="bg-[#f8fafc] border border-slate-200/80 rounded-xl p-3.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">
+                    WHAT VISITORS SEE NOW
                   </span>
-                  {priorityFixPlan[0]?.where && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-white border border-slate-200/80 px-2.5 py-0.5 rounded-full">
-                      WHERE: <span className="text-[#101828] font-semibold normal-case">{priorityFixPlan[0].where}</span>
-                    </span>
-                  )}
+                  <p className="text-xs sm:text-sm text-slate-700 italic font-medium break-words">
+                    {data.recommendation.currentDirection}
+                  </p>
                 </div>
-
-                {/* Current Homepage Wording / Context */}
-                {phase6DetailedData.priorityFixCurrentText && (
-                  <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                      WHAT VISITORS SEE NOW
-                    </span>
-                    <p className="text-xs text-slate-700 italic leading-relaxed break-words">
-                      &ldquo;{phase6DetailedData.priorityFixCurrentText}&rdquo;
-                    </p>
-                  </div>
-                )}
-
-                {/* Recommended Direction */}
-                {phase6DetailedData.priorityFixDirectionText && (
-                  <div className="bg-white border border-blue-200/90 rounded-xl p-3 shadow-2xs">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1d68f5] block mb-1">
-                      RECOMMENDED DIRECTION
-                    </span>
-                    <p className="text-xs sm:text-[13px] font-semibold text-[#101828] leading-relaxed break-words">
-                      {phase6DetailedData.priorityFixDirectionText}
-                    </p>
-                  </div>
-                )}
-
-                {phase6DetailedData.priorityFixTargetSignal && (
-                  <div className="bg-white border border-blue-100 rounded-xl p-3 flex items-center justify-between gap-3">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                        PRIMARY SIGNAL TARGETED
-                      </span>
-                      <span className="text-xs sm:text-sm font-bold text-[#101828]">
-                        {phase6DetailedData.priorityFixTargetSignal.title}
-                      </span>
-                    </div>
-                    <span className="text-xs font-extrabold text-amber-800 bg-amber-100/80 border border-amber-200/80 px-2.5 py-1 rounded-lg tabular-nums">
-                      {phase6DetailedData.priorityFixTargetSignal.score} / 100
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {phase6DetailedData.deduplicatedImprovements.length > 0 && (
-                <div className="mt-4 pt-3.5 border-t border-blue-200/60 flex items-center justify-between gap-2 text-xs">
-                  <span className="text-slate-600 font-medium">
-                    +{phase6DetailedData.deduplicatedImprovements.length} secondary improvement
-                    {phase6DetailedData.deduplicatedImprovements.length > 1 ? "s" : ""} in Action Plan
+              )}
+              {data.recommendation.strongerDirection && (
+                <div className="bg-[#f0fdf4] border border-emerald-200/80 rounded-xl p-3.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 block mb-1">
+                    RECOMMENDED DIRECTION
                   </span>
-                  <a
-                    href="#priority-fix-plan-section"
-                    onClick={(e) =>
-                      handleJumpLinkClick(e, "04", "Prioritized Action Plan")
-                    }
-                    className="font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded print:hidden"
-                  >
-                    <span>Action plan</span>
-                    <ArrowDown className="w-3 h-3 shrink-0" />
-                  </a>
+                  <p className="text-xs sm:text-sm text-[#101828] font-semibold break-words">
+                    {data.recommendation.strongerDirection}
+                  </p>
                 </div>
               )}
             </div>
+          )}
+
+          {/* Three structured rows: WHERE, WHAT, WHY */}
+          <div className="space-y-3 pt-1">
+            {/* WHERE */}
+            <div className="bg-[#f8fafc] border border-slate-200/80 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-baseline gap-1.5 sm:gap-4">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 shrink-0 w-20">
+                WHERE:
+              </span>
+              <span className="text-xs sm:text-sm font-semibold text-[#101828]">
+                {priorityFixPlan[0]?.where || data.evidence.locationTag || "Homepage hero section (above the fold)"}
+              </span>
+            </div>
+
+            {/* WHAT */}
+            <div className="bg-[#f8fafc] border border-slate-200/80 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-baseline gap-1.5 sm:gap-4">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#1d68f5] shrink-0 w-20">
+                WHAT:
+              </span>
+              <span className="text-xs sm:text-sm text-slate-800 leading-relaxed font-normal">
+                {data.recommendation.explanation || priorityFixPlan[0]?.title || "State clearly what the product is, who it serves, and the main outcome visitors achieve."}
+              </span>
+            </div>
+
+            {/* WHY */}
+            <div className="bg-[#f8fafc] border border-slate-200/80 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-baseline gap-1.5 sm:gap-4">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 shrink-0 w-20">
+                WHY:
+              </span>
+              <span className="text-xs sm:text-sm text-[#526078] leading-relaxed font-normal">
+                {priorityFixPlan[0]?.why || phase6DetailedData.primaryRisk?.why_it_matters || "First-time visitors evaluate whether the product is relevant to them in the first 5 seconds."}
+              </span>
+            </div>
+          </div>
+
+          {/* Navigation CTA: See copy-ready wording OR View Action Plan */}
+          <div className="pt-2 flex items-center justify-end text-xs">
+            {copyReadyImprovements.length > 0 ? (
+              <a
+                href="#copy-ready-improvements-section"
+                className="font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1.5"
+              >
+                <span>See copy-ready wording</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            ) : (
+              <a
+                href="#priority-fix-plan-section"
+                className="font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1.5"
+              >
+                <span>View Action Plan</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            )}
           </div>
         </section>
 
@@ -4140,7 +3912,7 @@ export default function ResultsScreen({
                           {row.question}
                         </h3>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md">
-                          {row.dimensionLabel}
+                          {row.dimensionLabel}:
                         </span>
                       </div>
                       {(row.quickSignalNote || row.verifiedSnippet) && (

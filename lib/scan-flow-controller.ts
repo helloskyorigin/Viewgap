@@ -1,4 +1,5 @@
 import { validateClientUrl } from "./url-client-validator";
+import { mapBackendToFrontend } from "./mapper";
 
 export interface ScanFlowState {
   url: string;
@@ -144,8 +145,13 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
       const verifyJson = await verifyRes.json().catch(() => null);
       if (currentReqId !== activeRequestId) return;
 
-      if (!verifyRes.ok || !verifyJson?.ok) {
+      const isVerifySuccess =
+        verifyRes.ok &&
+        Boolean(verifyJson?.success || verifyJson?.reachable || verifyJson?.ok);
+
+      if (!isVerifySuccess) {
         const errMsg =
+          verifyJson?.message ||
           verifyJson?.error ||
           "We couldn't reach that website. Please check the URL and try again.";
         emit({
@@ -157,7 +163,8 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
         return;
       }
 
-      const finalTargetUrl = verifyJson.normalizedUrl || validation.normalizedUrl;
+      const finalTargetUrl =
+        verifyJson?.finalUrl || verifyJson?.normalizedUrl || validation.normalizedUrl;
       emit({
         submittedUrl: finalTargetUrl,
         isVerifying: false,
@@ -176,8 +183,30 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
       const checkJson = await checkRes.json().catch(() => null);
       if (currentReqId !== activeRequestId) return;
 
-      if (!checkRes.ok || !checkJson || typeof checkJson.score !== "number") {
+      let resolvedAnalysisData: any = null;
+      if (checkRes.ok && checkJson) {
+        if (checkJson.analysis && typeof checkJson.analysis.overall_score === "number") {
+          const mapped = mapBackendToFrontend(
+            checkJson.analysis,
+            checkJson.domain || finalTargetUrl,
+            checkJson.snapshot,
+            checkJson.supportingContext
+          );
+          resolvedAnalysisData = {
+            ...mapped,
+            isFreeTierOnly: !checkJson?.entitlement?.unlocked,
+            ...(checkJson.lockedPreviewCounts
+              ? { lockedPreviewCounts: checkJson.lockedPreviewCounts }
+              : {}),
+          };
+        } else if (typeof checkJson.score === "number") {
+          resolvedAnalysisData = checkJson;
+        }
+      }
+
+      if (!checkRes.ok || !resolvedAnalysisData) {
         const errMsg =
+          checkJson?.message ||
           checkJson?.error ||
           "Couldn't complete the analysis right now. Please try again.";
         emit({
@@ -193,7 +222,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
         isVerifying: false,
         isPending: false,
         backendError: null,
-        analysisData: checkJson,
+        analysisData: resolvedAnalysisData,
         currentView: "results",
       });
     } catch (err: any) {

@@ -838,32 +838,40 @@ describe("Multi-Page Expansion — Phase 2 Regression & Integration Tests (Tests
   });
 
   test("TEST L: Feature disabled by default — performs 0 supporting-page fetches and 0 additional AI calls when disabled", async () => {
-    // Verify default feature flag state is OFF (false)
-    expect(isSupportingPagesEnabled()).toBe(false);
+    const prevEnv = process.env.ENABLE_SUPPORTING_PAGES_ANALYSIS;
+    delete process.env.ENABLE_SUPPORTING_PAGES_ANALYSIS;
+    try {
+      // Verify default feature flag state is OFF (false)
+      expect(isSupportingPagesEnabled()).toBe(false);
 
-    const homepageSnapshot = extractWebsiteSnapshot(HOMEPAGE_HTML_WITH_3_PAGES, {
-      baseUrl: HOMEPAGE_URL,
-    });
-    const { fetcher, getFetchCalls } = createDeterministicMockFetcher();
-    let aiCallCount = 0;
+      const homepageSnapshot = extractWebsiteSnapshot(HOMEPAGE_HTML_WITH_3_PAGES, {
+        baseUrl: HOMEPAGE_URL,
+      });
+      const { fetcher, getFetchCalls } = createDeterministicMockFetcher();
+      let aiCallCount = 0;
 
-    // Call without `enabled: true` (uses default OFF state)
-    const defaultResult = await generateSupportingPageContext(
-      homepageSnapshot,
-      HOMEPAGE_URL,
-      HOMEPAGE_HTML_WITH_3_PAGES,
-      {
-        fetcher,
-        aiRunner: async () => {
-          aiCallCount++;
-          return {};
-        },
+      // Call without `enabled: true` (uses default OFF state)
+      const defaultResult = await generateSupportingPageContext(
+        homepageSnapshot,
+        HOMEPAGE_URL,
+        HOMEPAGE_HTML_WITH_3_PAGES,
+        {
+          fetcher,
+          aiRunner: async () => {
+            aiCallCount++;
+            return {};
+          },
+        }
+      );
+
+      expect(getFetchCalls()).toBe(0);
+      expect(aiCallCount).toBe(0);
+      expect(defaultResult.supportingContext).toBe(undefined);
+      expect(defaultResult.supportingPagesBundle).toBe(undefined);
+    } finally {
+      if (prevEnv !== undefined) {
+        process.env.ENABLE_SUPPORTING_PAGES_ANALYSIS = prevEnv;
       }
-    );
-
-    expect(getFetchCalls()).toBe(0);
-    expect(aiCallCount).toBe(0);
-    expect(defaultResult.supportingContext).toBe(undefined);
-    expect(defaultResult.supportingPagesBundle).toBe(undefined);
+    }
   });
 });

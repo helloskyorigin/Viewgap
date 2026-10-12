@@ -284,16 +284,24 @@ function renderResultsMarkup(supportingContext?: SupportingContext) {
 
 describe("Multi-Page Expansion — Phase 3 Results Integration & Final Verification", () => {
   test("1. Feature flag remains disabled (false) by default and homepage-only ResultsScreen omits Supporting Pages Insights", () => {
-    expect(isSupportingPagesEnabled()).toBe(false);
+    const prevEnv = process.env.ENABLE_SUPPORTING_PAGES_ANALYSIS;
+    delete process.env.ENABLE_SUPPORTING_PAGES_ANALYSIS;
+    try {
+      expect(isSupportingPagesEnabled()).toBe(false);
 
-    const { html, mapped } = renderResultsMarkup(undefined);
-    expect(mapped.supportingContext).toBe(undefined);
-    expect(html.includes('id="supporting-pages-insights-section"')).toBe(false);
-    expect(html.includes("Supporting Pages Insights")).toBe(false);
-    // Core homepage sections remain intact
-    expect(html.includes('id="complete-homepage-evidence-section"')).toBe(true);
-    expect(html.includes('id="five-detailed-signals-section"')).toBe(true);
-    expect(html.includes('id="recheck-compare-section"')).toBe(true);
+      const { html, mapped } = renderResultsMarkup(undefined);
+      expect(mapped.supportingContext).toBe(undefined);
+      expect(html.includes('id="supporting-pages-insights-section"')).toBe(false);
+      expect(html.includes("Supporting Pages Insights")).toBe(false);
+      // Core homepage sections remain intact
+      expect(html.includes('id="complete-homepage-evidence-section"')).toBe(true);
+      expect(html.includes('id="five-detailed-signals-section"')).toBe(true);
+      expect(html.includes('id="recheck-compare-section"')).toBe(true);
+    } finally {
+      if (prevEnv !== undefined) {
+        process.env.ENABLE_SUPPORTING_PAGES_ANALYSIS = prevEnv;
+      }
+    }
   });
 
   test("2. Renders Supporting Pages Insights in Level 3 strictly after Complete Homepage Evidence and before Five Detailed Signals", () => {

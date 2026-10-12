@@ -263,23 +263,29 @@ export async function POST(req: NextRequest) {
       err?.code === "AI_PROVIDER_NOT_CONFIGURED" ||
       err?.code === "AI_PROVIDER_AUTH_ERROR" ||
       (typeof err?.message === "string" &&
-        err.message.includes("Analysis is temporarily unavailable"));
+        (err.message.includes("Analysis is temporarily unavailable") ||
+         err.message.includes("high demand") ||
+         err.message.includes("503") ||
+         err.message.includes("429") ||
+         err.message.includes("RESOURCE_EXHAUSTED") ||
+         err.message.includes("Quota exceeded") ||
+         err.message.includes("rate-limits")));
 
     if (isAiConfigError) {
       return NextResponse.json(
         {
           success: false,
-          error: "AI_PROVIDER_NOT_CONFIGURED",
-          message: "Analysis is temporarily unavailable. Please try again later.",
+          error: "AI_QUOTA_EXCEEDED",
+          message: "AI model API quota or rate limit has been exceeded. Please try again later or check API configuration.",
         },
-        { status: 503 }
+        { status: 429 }
       );
     }
 
     return NextResponse.json(
       {
         success: false,
-        error: "FETCH_FAILED",
+        error: "SERVER_ERROR",
         message: "An unexpected server error occurred while processing the website check. Please try again.",
       },
       { status: 500 }
