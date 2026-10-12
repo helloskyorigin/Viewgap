@@ -13,7 +13,7 @@ import {
 import { SIGNAL_WEIGHTS } from "@/services/scoring/scoringConfig";
 import { calculateOverallScore } from "@/services/scoring/calculateOverallScore";
 import ResultsScreen, { buildReportSummaryForExport } from "@/components/ResultsScreen";
-import ScanScreen from "@/components/ScanScreen";
+import ScanScreen, { SCAN_FOCUS_MESSAGES } from "@/components/ScanScreen";
 import LandingPage from "@/app/page";
 import { LEGAL_CONFIG } from "@/lib/legal-config";
 import PrivacyPolicyPage from "@/app/privacy/page";
@@ -643,9 +643,9 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     assert.ok(sec06Html.includes("RECOMMENDED DIRECTION"));
     assert.ok(sec06Html.includes("45 / 100"));
 
-    // 4. When copyReadyImprovements is empty, "See copy-ready wording" CTA is hidden and replaced with Priority Fix Plan link
+    // 4. When copyReadyImprovements is empty, "See copy-ready wording" CTA is hidden and replaced with Action Plan link
     assert.ok(!sec06Html.includes("See copy-ready wording"));
-    assert.ok(sec06Html.includes("View Priority Fix Plan"));
+    assert.ok(sec06Html.includes("View Action Plan"));
 
     // Case B: When valid copy-ready wording exists, "See copy-ready wording" CTA is rendered
     const htmlWithCopy = renderToStaticMarkup(
@@ -694,26 +694,26 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     const idxEmailInput = html.indexOf('id="paywall-email-input"');
     const idxCheckoutCta = html.indexOf("Unlock Full Report — $5");
     const idxPremiumPreview = html.indexOf('id="premium-sections-preview"');
-    const idxLevel2 = html.indexOf('id="level-2-actionable-improvements"');
+    const idxActionPlan = html.indexOf('id="priority-fix-plan-section"');
 
-    // 1. Paywall is positioned right after Free Preview (Section 06) and before Full Report Level 2
-    assert.ok(idxPaywall > idxPriorityFix, "Expected paywall after Section 06");
-    assert.ok(idxLevel2 > idxPaywall, "Expected Level 2 after paywall");
+    // 1. Paywall is positioned right after Free Preview (Section 03) and before Full Report Section 04
+    assert.ok(idxPaywall > idxPriorityFix, "Expected paywall after Section 03");
+    assert.ok(idxActionPlan > idxPaywall, "Expected Section 04 Action Plan after paywall");
 
-    // 2. Mobile conversion order: Email input & Primary Checkout CTA appear BEFORE the 9-section preview in DOM order
+    // 2. Mobile conversion order: Email input & Primary Checkout CTA appear BEFORE the full-report preview in DOM order
     assert.ok(idxEmailInput > idxPaywall && idxEmailInput < idxPremiumPreview);
     assert.ok(idxCheckoutCta > idxEmailInput && idxCheckoutCta < idxPremiumPreview);
 
-    // 3. Both $5 Full Report and $12 3-Report Pack remain clearly available
-    const paywallSlice = html.slice(idxPaywall, idxLevel2);
+    // 3. Both $5 Full Report and $12 3 Reports remain clearly available
+    const paywallSlice = html.slice(idxPaywall, idxActionPlan);
     assert.ok(paywallSlice.includes("$5"));
     assert.ok(paywallSlice.includes("Full Report"));
     assert.ok(paywallSlice.includes("$12"));
-    assert.ok(paywallSlice.includes("3-Report Pack"));
+    assert.ok(paywallSlice.includes("3 Reports"));
     assert.ok(paywallSlice.includes("Save $3"));
 
-    // 4. Compact 9-Section Premium Preview includes all 9 sections (07-15)
-    for (const num of ["07", "08", "09", "10", "11", "12", "13", "14", "15"]) {
+    // 4. Compact 4-Section Full Report Preview includes all 4 locked full-report sections (04-07)
+    for (const num of ["04", "05", "06", "07"]) {
       assert.ok(
         paywallSlice.includes(`>${num}<`),
         `Expected compact premium preview to include section ${num}`
@@ -755,8 +755,10 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     assert.ok(refundHtml.includes(LEGAL_CONFIG.supportEmail));
 
     // Contact Support checks
+    assert.strictEqual(LEGAL_CONFIG.supportEmail, "hello.skyorigin@gmail.com");
+    assert.strictEqual("operatorLegalName" in LEGAL_CONFIG, false);
     assert.ok(contactHtml.includes("Contact Support"));
-    assert.ok(contactHtml.includes(LEGAL_CONFIG.supportEmail));
+    assert.ok(contactHtml.includes("hello.skyorigin@gmail.com"));
     assert.ok(contactHtml.includes("24–48 business hours"));
   });
 
@@ -778,14 +780,14 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     );
 
     const idxPaywall = html.indexOf('id="paid-report-paywall-section"');
-    const idxLevel2 = html.indexOf('id="level-2-actionable-improvements"');
-    const paywallSlice = html.slice(idxPaywall, idxLevel2);
+    const idxActionPlan = html.indexOf('id="priority-fix-plan-section"');
+    const paywallSlice = html.slice(idxPaywall, idxActionPlan);
 
     // 1. Locked preview items in paywall do NOT contain anchor hrefs that jump past the paywall
     assert.ok(!paywallSlice.includes('href="#priority-fix-plan-section"'));
     assert.ok(!paywallSlice.includes('href="#copy-ready-improvements-section"'));
     assert.ok(!paywallSlice.includes('href="#recheck-compare-section"'));
-    assert.ok(paywallSlice.includes("Locked section 07: Priority Fix Plan"));
+    assert.ok(paywallSlice.includes("Locked section 04: Prioritized Action Plan"));
 
     // 2. Paywall states honest one-time payment disclosure and does not claim instant paid receipt delivery
     assert.ok(paywallSlice.includes("One-time payment · No subscription"));
@@ -1067,4 +1069,49 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     assert.ok(landingHtml.includes('aria-expanded="false"'));
     assert.ok(landingHtml.includes('aria-controls="faq-answer-0"'));
   });
+
+  test("TEST 20: Phase 1 Scanning Screen Implementation — Minimal centered UI structure, actual domain display, Cancel header action, and no fake stages or percentages", () => {
+    const scanHtml = renderToStaticMarkup(
+      React.createElement(ScanScreen, {
+        rawUrl: "https://www.areyourare.ai.studio/pricing?ref=test",
+        isBackendReady: false,
+        backendError: null,
+        onBackToLanding: () => {},
+        onGoToResults: () => {},
+      })
+    );
+
+    // Header: StrangerLens + Cancel
+    assert.ok(scanHtml.includes("StrangerLens"));
+    assert.ok(scanHtml.includes("Cancel"));
+
+    // Heading, Description, Domain, Progress line, and rotating Focus Message
+    assert.ok(scanHtml.includes("Analyzing your website"));
+    assert.ok(
+      scanHtml.includes(
+        "Checking how clearly your website communicates its purpose, value, and next steps."
+      )
+    );
+    assert.ok(scanHtml.includes("areyourare.ai.studio"));
+    assert.ok(scanHtml.includes('role="progressbar"'));
+    assert.ok(scanHtml.includes("Analysis in progress"));
+    assert.ok(scanHtml.includes("Understanding your website&#x27;s message"));
+    assert.ok(scanHtml.includes("w-[100px] h-[100px] sm:w-[116px] sm:h-[116px]"));
+    assert.deepEqual(SCAN_FOCUS_MESSAGES, [
+      "Understanding your website's message",
+      "Evaluating clarity and value",
+      "Reviewing trust and next steps",
+      "Connecting findings to page evidence",
+    ]);
+
+    // Desktop max-width 520px centered container & no old simulated step cards or percentages
+    const visibleText = scanHtml.replace(/<[^>]+>/g, " ");
+    assert.ok(scanHtml.includes("max-w-[520px]"));
+    assert.ok(!visibleText.includes("LIVE ACTIVITY"));
+    assert.ok(!visibleText.includes("1/3"));
+    assert.ok(!visibleText.includes("2/3"));
+    assert.ok(!visibleText.includes("3/3"));
+    assert.ok(!visibleText.includes("%"));
+  });
 });
+

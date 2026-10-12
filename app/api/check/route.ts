@@ -12,6 +12,15 @@ import {
   releaseConcurrencySlot,
 } from "@/server/security/rateLimiter";
 import { isSupportingPagesEnabled, SERVER_LIMITS } from "@/server/config/limits";
+import {
+  saveServerReport,
+  redactAnalysisForFreeTier,
+  computeLockedPreviewCounts,
+  extractEntitlementTokenFromHeaders,
+  verifyServerEntitlement,
+  isPaymentInfrastructureConfigured,
+  PAYMENT_INFRASTRUCTURE_BLOCKER,
+} from "@/server/security/reportAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -177,6 +186,43 @@ export async function POST(req: NextRequest) {
       // memory pressure, and sensitive DOM leakage over the wire
       const { html: _omittedHtml, ...safeFetchMetadata } = fetchResult;
 
+      const storedReport = saveServerReport({
+        normalizedUrl: fetchResult.finalUrl,
+        domain: fetchResult.domain,
+        snapshot,
+        fullAnalysis: finalValidatedAnalysis,
+        supportingContext: optionalSupportingResult.supportingContext,
+      });
+
+      const lockedPreviewCounts = computeLockedPreviewCounts(finalValidatedAnalysis);
+      const requestedReportId =
+        typeof (body as any).reportId === "string"
+          ? (body as any).reportId
+          : storedReport.reportId;
+      const token = extractEntitlementTokenFromHeaders(req.headers);
+      const entitlement = verifyServerEntitlement(requestedReportId, token);
+
+      if (!entitlement.authorized) {
+        return NextResponse.json(
+          {
+            ...safeFetchMetadata,
+            reportId: storedReport.reportId,
+            entitlement: {
+              unlocked: false,
+              tier: "free",
+              checkoutEnabled: isPaymentInfrastructureConfigured(),
+              blocker: isPaymentInfrastructureConfigured()
+                ? null
+                : PAYMENT_INFRASTRUCTURE_BLOCKER,
+            },
+            lockedPreviewCounts,
+            snapshot,
+            analysis: redactAnalysisForFreeTier(finalValidatedAnalysis),
+          },
+          { status: 200 }
+        );
+      }
+
       const analysisPayload = optionalSupportingResult.supportingContext
         ? {
             ...finalValidatedAnalysis,
@@ -187,8 +233,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ...safeFetchMetadata,
+          reportId: storedReport.reportId,
+          entitlement: {
+            unlocked: true,
+            tier: "paid",
+            checkoutEnabled: true,
+            blocker: null,
+          },
+          lockedPreviewCounts,
           snapshot,
-          aiAnalysis: rawAiAnalysis,
           analysis: analysisPayload,
           ...(optionalSupportingResult.supportingContext
             ? { supportingContext: optionalSupportingResult.supportingContext }

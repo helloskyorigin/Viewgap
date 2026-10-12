@@ -10,6 +10,14 @@ import {
   releaseConcurrencySlot,
 } from "@/server/security/rateLimiter";
 import { SERVER_LIMITS } from "@/server/config/limits";
+import {
+  saveServerReport,
+  redactAnalysisForFreeTier,
+  extractEntitlementTokenFromHeaders,
+  verifyServerEntitlement,
+  isPaymentInfrastructureConfigured,
+  PAYMENT_INFRASTRUCTURE_BLOCKER,
+} from "@/server/security/reportAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +94,29 @@ export async function POST(req: NextRequest) {
 
     const aiAnalysis = await analyzeWebsite(snapshot);
     const validated = validateAndScoreAnalysis(aiAnalysis, snapshot);
+
+    const stored = saveServerReport({
+      normalizedUrl: fetchResult.finalUrl,
+      domain: fetchResult.domain,
+      snapshot,
+      fullAnalysis: validated,
+    });
+
+    const token = extractEntitlementTokenFromHeaders(req.headers);
+    const entitlement = verifyServerEntitlement(stored.reportId, token);
+
+    if (!entitlement.authorized) {
+      return NextResponse.json({
+        ...redactAnalysisForFreeTier(validated),
+        reportId: stored.reportId,
+        entitlement: {
+          unlocked: false,
+          tier: "free",
+          checkoutEnabled: isPaymentInfrastructureConfigured(),
+          blocker: isPaymentInfrastructureConfigured() ? null : PAYMENT_INFRASTRUCTURE_BLOCKER,
+        },
+      });
+    }
 
     return NextResponse.json(validated);
   } catch (error: any) {

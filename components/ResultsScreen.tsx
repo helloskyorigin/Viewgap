@@ -28,6 +28,7 @@ import {
   ExternalLink,
   Lock,
   Mail,
+  Menu,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -160,7 +161,7 @@ export function buildReportSummaryForExport(
       `${cleanStrongerDirection || data.recommendation.explanation}`,
       ``,
       `---`,
-      `Free Preview Summary (Sections 01–06). Unlock the Full 15-Section Report ($5) for Priority Fix Plan, Copy-Ready Improvements, Other Recommended Improvements, First Few Seconds Comprehension, First-Time Visitor Impression, Complete Homepage Evidence, Five Detailed Signal Breakdown, Communication Risks, and Recheck & Compare.`,
+      `Free Preview Summary (Sections 01–03). Unlock the Full Report ($5) for Prioritized Action Plan, Copy-Ready Improvements, Detailed Evidence & Insights, and Recheck & Compare.`,
     ].join("\n");
   }
 
@@ -217,9 +218,9 @@ export default function ResultsScreen({
   const [toastTone, setToastTone] = useState<"success" | "warning">("success");
   const [activeInfoTooltip, setActiveInfoTooltip] = useState<boolean>(false);
   const [activeCompareModal, setActiveCompareModal] = useState<boolean>(false);
-  const [expandedImprovementId, setExpandedImprovementId] = useState<string | null>(
-    customData?.otherImprovements?.[0]?.id ?? null
-  );
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [showDetailedSignalInsights, setShowDetailedSignalInsights] = useState<boolean>(false);
+  const [expandedImprovementId, setExpandedImprovementId] = useState<string | null>(null);
 
   // Paywall & Premium Preview States
   const [selectedPaywallPlan, setSelectedPaywallPlan] = useState<"single" | "pack">("single");
@@ -228,7 +229,6 @@ export default function ResultsScreen({
   const [paywallCheckoutState, setPaywallCheckoutState] = useState<
     "idle" | "processing" | "coming_soon"
   >("idle");
-  const [showCompactPreviewDetails, setShowCompactPreviewDetails] = useState<boolean>(false);
   const isReportUnlocked = Boolean(isUnlocked);
 
   // Async Button States
@@ -2351,16 +2351,17 @@ export default function ResultsScreen({
             </button>
           </div>
 
-          <div className="flex items-center gap-3 sm:gap-6 md:gap-8 print:hidden">
+          {/* Desktop Navigation */}
+          <div className="hidden sm:flex items-center gap-5 md:gap-8 print:hidden">
             <button
               onClick={onOpenFaq}
-              className="text-xs sm:text-[15px] font-medium text-slate-700 hover:text-blue-600 transition-colors cursor-pointer min-h-[44px] inline-flex items-center px-1 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded-md"
+              className="text-sm sm:text-[15px] font-medium text-slate-700 hover:text-blue-600 transition-colors cursor-pointer min-h-[44px] inline-flex items-center px-1 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded-md"
             >
               FAQ
             </button>
             <button
               onClick={onOpenPricing}
-              className="text-xs sm:text-[15px] font-medium text-slate-700 hover:text-blue-600 transition-colors cursor-pointer min-h-[44px] inline-flex items-center px-1 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded-md"
+              className="text-sm sm:text-[15px] font-medium text-slate-700 hover:text-blue-600 transition-colors cursor-pointer min-h-[44px] inline-flex items-center px-1 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded-md"
             >
               Pricing
             </button>
@@ -2372,7 +2373,50 @@ export default function ResultsScreen({
               <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-0.5 shrink-0" />
             </button>
           </div>
+
+          {/* Mobile Navigation Controls */}
+          <div className="flex sm:hidden items-center gap-2 print:hidden">
+            <button
+              onClick={onBackToLanding}
+              className="rounded-full bg-[#1d68f5] hover:bg-blue-600 text-white text-xs font-medium px-3.5 py-2 transition inline-flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap min-h-[40px]"
+            >
+              <span>Check website</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              aria-expanded={mobileMenuOpen}
+              aria-label="Toggle navigation menu"
+              className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 flex items-center justify-center cursor-pointer transition"
+            >
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
+
+        {/* Clean Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <div className="sm:hidden bg-white border-t border-slate-100 px-4 py-3 space-y-1 shadow-md print:hidden">
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenFaq();
+              }}
+              className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+            >
+              FAQ
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenPricing();
+              }}
+              className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+            >
+              Pricing
+            </button>
+          </div>
+        )}
       </header>
 
       {/* MAIN CONTENT AREA */}
@@ -2415,27 +2459,7 @@ export default function ResultsScreen({
           </motion.div>
         )}
 
-        {/* LEVEL 1 — INSTANT UNDERSTANDING */}
-        <div
-          id="level-1-instant-understanding"
-          className="flex items-center justify-between gap-3 pt-0.5"
-          aria-label="Level 1: Instant Understanding"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-blue-50 border border-blue-200/80 text-[10px] font-extrabold tracking-widest uppercase text-[#1d68f5] shrink-0">
-              Level 1
-            </span>
-            <span className="text-xs sm:text-[13px] font-bold tracking-tight text-slate-800 uppercase">
-              Instant Understanding
-            </span>
-            <span className="hidden sm:inline text-xs text-slate-400 truncate">
-              — Score, verdict, five signals, biggest issue &amp; #1 priority fix
-            </span>
-          </div>
-          <div className="h-px flex-1 bg-slate-200/80 hidden md:block" aria-hidden="true" />
-        </div>
-
-        {/* 01. WEBSITE + ANALYSIS DATE (Result Top Bar) */}
+        {/* WEBSITE + ANALYSIS DATE (Result Top Bar) */}
         <motion.div
           initial={prefersReducedMotion ? {} : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -2547,18 +2571,20 @@ export default function ResultsScreen({
           </div>
         </motion.div>
 
-        {/* 3. RESULTS HERO: VALUE CLARITY VERDICT & QUICK SIGNALS */}
+        {/* 01. WEBSITE SCORE + MAIN VERDICT + FIVE SIGNALS */}
         <motion.section
+          id="five-signal-overview-section"
+          aria-labelledby="five-signal-overview-heading"
           initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-[0_14px_34px_-15px_rgba(16,24,40,0.07)] relative scroll-mt-24 bg-gradient-to-b from-white to-[#f8faff]/50"
+          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-[0_14px_34px_-15px_rgba(16,24,40,0.07)] relative scroll-mt-24 bg-gradient-to-b from-white to-[#f8faff]/50 space-y-6"
         >
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
-            {/* Zone 1: Score Visualization Ring (Left - 3 cols) */}
+            {/* Zone 1: Score Visualization Ring (Left - 4 cols) */}
             <div
               data-score-section="VALUE CLARITY SCORE"
-              className="lg:col-span-3 flex flex-col items-center lg:items-center text-center border-b lg:border-b-0 lg:border-r border-slate-100 pb-6 lg:pb-0 lg:pr-6 shrink-0"
+              className="lg:col-span-4 flex flex-col items-center text-center border-b lg:border-b-0 lg:border-r border-slate-100 pb-6 lg:pb-0 lg:pr-6 shrink-0"
             >
               <div className="flex items-center justify-center gap-1.5 mb-2.5 text-[11px] font-bold tracking-wider text-slate-500 uppercase">
                 <span>OVERALL FIRST-IMPRESSION SCORE</span>
@@ -2567,7 +2593,6 @@ export default function ResultsScreen({
               {/* Clean Circular Gauge */}
               <div className="relative w-[136px] h-[136px] sm:w-[148px] sm:h-[148px] flex items-center justify-center my-1">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
-                  {/* Background Track */}
                   <circle
                     cx="50"
                     cy="50"
@@ -2576,7 +2601,6 @@ export default function ResultsScreen({
                     strokeWidth="8"
                     fill="transparent"
                   />
-                  {/* Animated Score Arc */}
                   <circle
                     cx="50"
                     cy="50"
@@ -2591,7 +2615,6 @@ export default function ResultsScreen({
                   />
                 </svg>
 
-                {/* Animated Score Center Text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none tabular-nums">
                   <span className="text-4xl sm:text-[44px] font-extrabold text-slate-950 tracking-tight leading-none">
                     {displayScore}
@@ -2602,12 +2625,10 @@ export default function ResultsScreen({
                 </div>
               </div>
 
-              {/* Subtle Score Tier Legend */}
               <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-slate-500 font-medium tabular-nums">
                 <span>{overviewStats.clearSignalsCount} of 5 signals strong</span>
               </div>
 
-              {/* Accessible Score Calculation Disclosure Trigger */}
               <button
                 type="button"
                 onClick={() => setActiveInfoTooltip((prev) => !prev)}
@@ -2620,9 +2641,8 @@ export default function ResultsScreen({
               </button>
             </div>
 
-            {/* Zone 2: Main Verdict Text (Center - 5 cols) */}
-            <div className="lg:col-span-5 border-b lg:border-b-0 lg:border-r border-slate-100 pb-6 lg:pb-0 lg:pr-6 flex flex-col justify-center">
-              {/* Status Badge + Eyebrow */}
+            {/* Zone 2: Main Verdict & Stranger Interpretation (Right - 8 cols) */}
+            <div className="lg:col-span-8 flex flex-col justify-center">
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <motion.div
                   initial={prefersReducedMotion ? {} : { opacity: 0, y: 4 }}
@@ -2641,74 +2661,43 @@ export default function ResultsScreen({
                 </motion.div>
 
                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  First-Impression Diagnosis
+                  01 · Website Score &amp; Verdict
                 </span>
               </div>
 
-              {/* Main Verdict Headline */}
-              <h1 className="text-xl sm:text-2xl lg:text-[24px] font-extrabold text-[#101828] tracking-tight leading-[1.3] mb-3 max-w-xl [text-wrap:balance]">
+              <h1
+                id="five-signal-overview-heading"
+                className="text-xl sm:text-2xl lg:text-[26px] font-extrabold text-[#101828] tracking-tight leading-[1.28] mb-2.5 [text-wrap:balance]"
+              >
                 {data.verdict}
               </h1>
 
-              <p className="text-xs sm:text-[13px] text-[#526078] font-normal leading-relaxed">
+              <p className="text-xs sm:text-sm text-[#526078] font-normal leading-relaxed">
                 {data.verdictSubtext}
               </p>
 
-              {/* Concise AI First-Impression Score Disclosure */}
-              <p className="text-[11px] sm:text-xs text-slate-500 font-normal leading-relaxed mt-2">
-                StrangerLens provides an AI-estimated first-impression score based on accessible homepage content. It does not measure actual visitor behavior or conversions.
-              </p>
-
-              {/* Strongest vs Primary Bottleneck Callout */}
-              {overviewStats.strongest && overviewStats.weakest && (
-                <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
-                  <div className="inline-flex items-center gap-1.5 text-slate-600">
-                    <span className="font-semibold text-emerald-700">Strongest:</span>
-                    <span className="font-medium text-slate-900">
-                      {overviewStats.strongest.title} ({overviewStats.strongest.score}/100)
+              {data.websiteMessage && (
+                <div className="mt-4 bg-[#f8fafc] border border-slate-200/80 rounded-xl p-3.5 sm:p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#246bfd] inline-flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-[#246bfd]" />
+                      What a first-time visitor understands
                     </span>
+                    {data.websiteMessage.confidence && (
+                      <span className="text-[11px] text-slate-500 font-medium capitalize">
+                        Confidence: <strong className="text-slate-700">{data.websiteMessage.confidence}</strong>
+                      </span>
+                    )}
                   </div>
-                  <span className="text-slate-300 hidden sm:inline">·</span>
-                  <div className="inline-flex items-center gap-1.5 text-slate-600">
-                    <span className="font-semibold text-amber-700">Focus area:</span>
-                    <span className="font-medium text-slate-900">
-                      {overviewStats.weakest.title} ({overviewStats.weakest.score}/100)
-                    </span>
-                  </div>
+                  <p className="text-xs sm:text-[13px] font-semibold text-slate-900 leading-relaxed">
+                    {data.websiteMessage.summary}
+                  </p>
                 </div>
               )}
-            </div>
 
-            {/* Zone 3: Quick Signals Summary (Right - 4 cols) */}
-            <div className="lg:col-span-4 pt-1 lg:pt-0">
-              <div className="bg-[#f8fafc] border border-slate-200/70 rounded-2xl p-4 sm:p-4.5">
-                <span className="text-[10px] font-bold tracking-wider uppercase text-slate-400 block mb-3">
-                  5-SIGNAL SNAPSHOT AT A GLANCE
-                </span>
-                <div className="space-y-2.5">
-                  {data.quickSignals.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-2.5 text-xs sm:text-[13px] text-slate-800 font-medium leading-snug"
-                    >
-                      {item.type === "clear" ? (
-                        <div className="w-5 h-5 rounded-full bg-[#dcfce7] text-[#16a34a] flex items-center justify-center shrink-0">
-                          <Check className="w-3 h-3 stroke-[3]" />
-                        </div>
-                      ) : item.type === "amber" ? (
-                        <div className="w-5 h-5 rounded-full bg-[#fef3c7] text-[#b45309] flex items-center justify-center shrink-0">
-                          <MinusCircle className="w-3 h-3 stroke-[2.5]" />
-                        </div>
-                      ) : (
-                        <div className="w-5 h-5 rounded-full bg-[#fee2e2] text-[#b91c1c] flex items-center justify-center shrink-0">
-                          <X className="w-3 h-3 stroke-[3]" />
-                        </div>
-                      )}
-                      <span>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <p className="text-[11px] text-slate-400 font-normal leading-relaxed mt-3">
+                StrangerLens provides an AI-estimated first-impression score based on accessible homepage content. It does not measure actual visitor behavior or conversions.
+              </p>
             </div>
           </div>
 
@@ -2723,7 +2712,7 @@ export default function ResultsScreen({
                 animate={{ opacity: 1, y: 0 }}
                 exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
                 transition={{ duration: 0.18, ease: "easeOut" }}
-                className="mt-6 pt-5 border-t border-slate-200/80"
+                className="pt-5 border-t border-slate-200/80"
               >
                 <div className="bg-[#f8fafc] border border-[#e3eaf5] rounded-2xl p-4 sm:p-5 md:p-6 space-y-5">
                   <div className="flex items-start justify-between gap-3">
@@ -2835,213 +2824,120 @@ export default function ResultsScreen({
               </motion.div>
             )}
           </AnimatePresence>
-        </motion.section>
 
-        {/* WHAT YOUR WEBSITE IS ACTUALLY SAYING (Executive Interpretation Banner) */}
-        {data.websiteMessage && (
-          <motion.section
-            initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.08, ease: "easeOut" }}
-            className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-6 md:p-7 shadow-xs relative overflow-hidden scroll-mt-24"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-extrabold tracking-wider text-[#246bfd] bg-[#eaf2ff] border border-blue-100 px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 uppercase">
-                  <Sparkles className="w-3 h-3 text-[#246bfd]" />
-                  WHAT YOUR WEBSITE IS ACTUALLY SAYING
+          {/* Five Signals Row (Shown once inside Card 01) */}
+          <div className="pt-5 border-t border-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                  Five First-Impression Signals
                 </span>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  · Unbiased stranger interpretation
-                </span>
+                {overviewStats.strongest && overviewStats.weakest && (
+                  <span className="hidden sm:inline text-xs text-slate-400">
+                    · Strongest: <strong className="text-emerald-700 font-semibold">{overviewStats.strongest.title}</strong> · Focus area: <strong className="text-amber-700 font-semibold">{overviewStats.weakest.title}</strong>
+                  </span>
+                )}
               </div>
-              {data.websiteMessage.confidence && (
-                <span className="text-[11px] text-slate-500 font-medium capitalize">
-                  Clarity confidence: <strong className="text-slate-800">{data.websiteMessage.confidence}</strong>
-                </span>
-              )}
-            </div>
-            <p className="text-sm sm:text-[17px] font-semibold text-[#101828] leading-relaxed mb-2">
-              {data.websiteMessage.summary}
-            </p>
-            <p className="text-xs text-[#526078] font-normal">
-              If an unbiased first-time visitor landed on <strong className="font-medium text-slate-700">{data.domain}</strong> without prior context, this is the message the homepage communicates.
-            </p>
-          </motion.section>
-        )}
-
-        {/* 04. FIVE FIRST-IMPRESSION SIGNALS OVERVIEW */}
-        <section
-          id="five-signal-overview-section"
-          aria-labelledby="five-signal-overview-heading"
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
-            <div>
-              <span className="inline-block text-[10px] font-bold tracking-widest text-[#246bfd] uppercase bg-[#eaf2ff] px-2.5 py-0.5 rounded-full border border-blue-100 mb-2">
-                FIVE SIGNAL OVERVIEW
-              </span>
-              <h2
-                id="five-signal-overview-heading"
-                className="text-lg sm:text-xl font-extrabold text-[#101828] tracking-tight"
-              >
-                Your five first-impression signals
-              </h2>
-              <p className="text-xs sm:text-sm text-[#526078] mt-0.5">
-                At-a-glance scorecard across the five core dimensions that shape visitor comprehension and conversion.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 self-start sm:self-auto shrink-0 print:hidden">
-              <a
-                href="#five-detailed-signals-section"
-                onClick={(e) =>
-                  handleJumpLinkClick(e, "13", "Five Detailed Signal Breakdown")
-                }
-                className="text-xs font-bold text-[#1d68f5] hover:text-blue-700 transition-colors inline-flex items-center gap-1 min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded"
-              >
-                <span>Detailed breakdown</span>
-                <ArrowDown className="w-3.5 h-3.5" />
-              </a>
-              <span className="text-slate-300" aria-hidden="true">·</span>
               <button
                 onClick={onOpenFaq}
-                className="text-xs font-semibold text-slate-600 hover:text-[#246bfd] transition-colors inline-flex items-center gap-1 cursor-pointer min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded"
+                className="text-xs font-semibold text-slate-500 hover:text-[#246bfd] transition-colors inline-flex items-center gap-1 cursor-pointer print:hidden"
               >
                 <span>How signals are scored</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
-          </div>
 
-          {/* 5 Equal Cards Grid — Responsive on Mobile (1 col), Tablet (2-3 cols), Desktop (5 cols) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {phase6DetailedData.detailedSignals.map((sig, index) => {
-              const barColor =
-                sig.badgeType === "clear"
-                  ? "bg-emerald-500"
-                  : sig.badgeType === "amber"
-                  ? "bg-amber-500"
-                  : "bg-rose-500";
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+              {phase6DetailedData.detailedSignals.map((sig, index) => {
+                const barColor =
+                  sig.badgeType === "clear"
+                    ? "bg-emerald-500"
+                    : sig.badgeType === "amber"
+                    ? "bg-amber-500"
+                    : "bg-rose-500";
 
-              const cardBorderHover =
-                sig.badgeType === "clear"
-                  ? "hover:border-emerald-300"
-                  : sig.badgeType === "amber"
-                  ? "hover:border-amber-300"
-                  : "hover:border-rose-300";
+                const iconTone =
+                  sig.badgeType === "clear"
+                    ? "bg-emerald-50 text-emerald-600"
+                    : sig.badgeType === "amber"
+                    ? "bg-amber-50 text-amber-600"
+                    : "bg-rose-50 text-rose-600";
 
-              const iconTone =
-                sig.badgeType === "clear"
-                  ? "bg-emerald-50 text-emerald-600"
-                  : sig.badgeType === "amber"
-                  ? "bg-amber-50 text-amber-600"
-                  : "bg-rose-50 text-rose-600";
-
-              return (
-                <motion.div
-                  key={sig.id}
-                  initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05, duration: 0.28, ease: "easeOut" }}
-                  className={`border border-[#e3eaf5] ${cardBorderHover} rounded-2xl p-4 sm:p-5 flex flex-col justify-between bg-white shadow-2xs hover:shadow-md transition-all duration-200`}
-                >
-                  <div>
-                    {/* Top Row: Icon + Status Pill */}
-                    <div className="flex items-center justify-between gap-2 mb-3.5">
-                      <div
-                        className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${iconTone}`}
-                      >
-                        {sig.icon === "eye" && <Eye className="w-4 h-4" />}
-                        {sig.icon === "users" && <Users className="w-4 h-4" />}
-                        {sig.icon === "sparkles" && <Sparkles className="w-4 h-4" />}
-                        {sig.icon === "shield" && <Shield className="w-4 h-4" />}
-                        {sig.icon === "arrow" && <ArrowRight className="w-4 h-4" />}
-                      </div>
-
-                      {sig.badgeType === "clear" ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#dcfce7] text-[#15803d]">
-                          {sig.badgeText}
-                        </span>
-                      ) : sig.badgeType === "amber" ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#fef3c7] text-[#b45309]">
-                          {sig.badgeText}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#fee2e2] text-[#b91c1c]">
-                          {sig.badgeText}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Signal Title & Core Question */}
-                    <h3 className="font-bold text-[#101828] text-sm sm:text-[15px] leading-snug">
-                      {sig.title}
-                    </h3>
-                    <p className="text-[11px] text-slate-400 font-medium mb-3">
-                      {sig.shortQuestion}
-                    </p>
-
-                    {/* Numeric Score + Visual Progress Bar */}
-                    <div className="mb-3.5">
-                      <div className="flex items-baseline justify-between gap-1 mb-1.5 tabular-nums">
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl sm:text-[26px] font-extrabold text-[#101828] leading-none">
-                            {sig.score}
-                          </span>
-                          <span className="text-xs text-slate-400 font-medium">/ 100</span>
+                return (
+                  <div
+                    key={sig.id}
+                    className="border border-[#e3eaf5] rounded-2xl p-4 flex flex-col justify-between bg-white shadow-2xs"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2.5">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconTone}`}>
+                          {sig.icon === "eye" && <Eye className="w-3.5 h-3.5" />}
+                          {sig.icon === "users" && <Users className="w-3.5 h-3.5" />}
+                          {sig.icon === "sparkles" && <Sparkles className="w-3.5 h-3.5" />}
+                          {sig.icon === "shield" && <Shield className="w-3.5 h-3.5" />}
+                          {sig.icon === "arrow" && <ArrowRight className="w-3.5 h-3.5" />}
                         </div>
-                        {sig.isStrongest && (
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                            Strongest
+
+                        {sig.badgeType === "clear" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#dcfce7] text-[#15803d]">
+                            {sig.badgeText}
                           </span>
-                        )}
-                        {sig.isWeakest && (
-                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded">
-                            Focus area
+                        ) : sig.badgeType === "amber" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#fef3c7] text-[#b45309]">
+                            {sig.badgeText}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#fee2e2] text-[#b91c1c]">
+                            {sig.badgeText}
                           </span>
                         )}
                       </div>
-                      <div
-                        className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"
-                        role="progressbar"
-                        aria-valuenow={sig.score}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-label={`${sig.title} score: ${sig.score} out of 100`}
-                      >
-                        <motion.div
-                          initial={prefersReducedMotion ? { width: `${sig.score}%` } : { width: 0 }}
-                          animate={{ width: `${Math.max(4, Math.min(100, sig.score))}%` }}
-                          transition={{ duration: 0.65, delay: 0.1 + index * 0.05, ease: "easeOut" }}
-                          className={`h-full rounded-full ${barColor}`}
-                        />
+
+                      <h3 className="font-bold text-[#101828] text-sm leading-snug">
+                        {sig.title}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-medium mb-2.5">
+                        {sig.shortQuestion}
+                      </p>
+
+                      <div className="mb-2.5">
+                        <div className="flex items-baseline justify-between gap-1 mb-1 tabular-nums">
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-xl font-extrabold text-[#101828] leading-none">
+                              {sig.score}
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-medium">/ 100</span>
+                          </div>
+                        </div>
+                        <div
+                          className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"
+                          role="progressbar"
+                          aria-valuenow={sig.score}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`${sig.title} score: ${sig.score} out of 100`}
+                        >
+                          <motion.div
+                            initial={prefersReducedMotion ? { width: `${sig.score}%` } : { width: 0 }}
+                            animate={{ width: `${Math.max(4, Math.min(100, sig.score))}%` }}
+                            transition={{ duration: 0.65, delay: 0.1 + index * 0.05, ease: "easeOut" }}
+                            className={`h-full rounded-full ${barColor}`}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Concise Snapshot Takeaway (Full paragraph is in Section 12 below) */}
-                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <span className="text-xs text-[#526078] font-medium leading-snug truncate">
+                    <p className="pt-2 border-t border-slate-100 text-[11px] text-[#526078] font-medium leading-snug line-clamp-2">
                       {sig.overviewTakeaway}
-                    </span>
-                    <a
-                      href={`#detailed-signal-${sig.id}`}
-                      onClick={(e) =>
-                        handleJumpLinkClick(e, "13", "Five Detailed Signal Breakdown")
-                      }
-                      aria-label={`Jump to ${sig.title} detailed analysis`}
-                      className="text-[11px] font-bold text-[#1d68f5] hover:text-blue-700 shrink-0 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded print:hidden"
-                    >
-                      Details ↓
-                    </a>
+                    </p>
                   </div>
-                </motion.div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </section>
+        </motion.section>
 
-        {/* 05. BIGGEST ISSUE + EVIDENCE */}
+        {/* 02. BIGGEST ISSUE + ACTUAL EVIDENCE */}
         <section
           id="biggest-issue-section"
           aria-labelledby="biggest-issue-heading"
@@ -3053,7 +2949,7 @@ export default function ResultsScreen({
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-rose-700 uppercase bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200/80">
                   <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
-                  BIGGEST ISSUE + EVIDENCE
+                  02 · BIGGEST ISSUE + ACTUAL EVIDENCE
                 </span>
                 {phase6DetailedData.primaryIssueTargetSignal && (
                   <span className="text-[11px] font-semibold text-slate-500">
@@ -3232,36 +3128,24 @@ export default function ResultsScreen({
                 </div>
               </div>
 
-              {/* Jump Links to Section 12 Complete Homepage Evidence & Section 14 Communication Risks */}
+              {/* Jump Link to Section 06 Detailed Evidence & Insights */}
               <div className="mt-5 pt-3.5 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[11px] text-slate-500">
                   {phase6DetailedData.secondaryRisks.length > 0
                     ? `+ ${phase6DetailedData.secondaryRisks.length} more risk${
                         phase6DetailedData.secondaryRisks.length > 1 ? "s" : ""
-                      } in Section 14`
+                      } in Detailed Evidence & Insights`
                     : "Full clear vs. missing breakdown below"}
                 </span>
                 <div className="flex items-center gap-3 print:hidden">
-                  {phase6DetailedData.secondaryRisks.length > 0 && (
-                    <a
-                      href="#communication-risks-section"
-                      onClick={(e) =>
-                        handleJumpLinkClick(e, "14", "Communication Risks")
-                      }
-                      className="text-xs font-semibold text-slate-600 hover:text-[#1d68f5] inline-flex items-center gap-1 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded"
-                    >
-                      <span>All risks</span>
-                      <ArrowDown className="w-3 h-3 shrink-0" />
-                    </a>
-                  )}
                   <a
-                    href="#complete-homepage-evidence-section"
+                    href="#detailed-evidence-insights-section"
                     onClick={(e) =>
-                      handleJumpLinkClick(e, "12", "Complete Homepage Evidence")
+                      handleJumpLinkClick(e, "06", "Detailed Evidence & Insights")
                     }
                     className="text-xs font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded"
                   >
-                    <span>Full evidence</span>
+                    <span>Detailed evidence &amp; risks</span>
                     <ArrowDown className="w-3 h-3 shrink-0" />
                   </a>
                 </div>
@@ -3270,7 +3154,7 @@ export default function ResultsScreen({
           </div>
         </section>
 
-        {/* 06. YOUR #1 PRIORITY FIX */}
+        {/* 03. YOUR #1 PRIORITY FIX */}
         <section
           id="priority-fix-section"
           aria-labelledby="priority-fix-heading"
@@ -3285,7 +3169,7 @@ export default function ResultsScreen({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-extrabold tracking-widest text-[#246bfd] bg-[#eaf2ff] border border-blue-100 px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 uppercase">
                       <Zap className="w-3 h-3 fill-[#246bfd] text-[#246bfd]" />
-                      YOUR #1 PRIORITY FIX
+                      03 · YOUR #1 PRIORITY FIX
                     </span>
                     <span className="text-[10px] font-bold tracking-wider text-amber-800 bg-amber-100/90 px-2.5 py-1 rounded-full uppercase">
                       IF YOU CHANGE ONLY ONE THING
@@ -3316,9 +3200,9 @@ export default function ResultsScreen({
               <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <p className="text-[11px] text-slate-500">
                   {copyReadyImprovements.length > 0
-                    ? "Exact replacement wording is ready to copy in Section 08 below."
+                    ? "Exact replacement wording is ready to copy in Section 05 below."
                     : priorityFixPlan.length > 0
-                    ? "Review your ordered Priority Fix Plan below to sequence your updates."
+                    ? "Review your Prioritized Action Plan below to sequence your updates."
                     : "Apply this priority change above the fold, then re-check your homepage."}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 print:hidden">
@@ -3326,7 +3210,7 @@ export default function ResultsScreen({
                     <a
                       href="#copy-ready-improvements-section"
                       onClick={(e) =>
-                        handleJumpLinkClick(e, "08", "Copy-Ready Improvements")
+                        handleJumpLinkClick(e, "05", "Copy-Ready Improvements")
                       }
                       className="w-full sm:w-auto rounded-full bg-[#eaf2ff] hover:bg-blue-100/80 text-[#1d68f5] text-xs font-bold px-4 py-2 transition-all inline-flex items-center justify-center gap-1.5 shrink-0 min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
                     >
@@ -3337,11 +3221,11 @@ export default function ResultsScreen({
                     <a
                       href="#priority-fix-plan-section"
                       onClick={(e) =>
-                        handleJumpLinkClick(e, "07", "Priority Fix Plan")
+                        handleJumpLinkClick(e, "04", "Prioritized Action Plan")
                       }
                       className="w-full sm:w-auto rounded-full bg-[#eaf2ff] hover:bg-blue-100/80 text-[#1d68f5] text-xs font-bold px-4 py-2 transition-all inline-flex items-center justify-center gap-1.5 shrink-0 min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
                     >
-                      <span>View Priority Fix Plan</span>
+                      <span>View Action Plan</span>
                       <ArrowDown className="w-3.5 h-3.5 shrink-0" />
                     </a>
                   ) : null}
@@ -3408,16 +3292,16 @@ export default function ResultsScreen({
                 <div className="mt-4 pt-3.5 border-t border-blue-200/60 flex items-center justify-between gap-2 text-xs">
                   <span className="text-slate-600 font-medium">
                     +{phase6DetailedData.deduplicatedImprovements.length} secondary improvement
-                    {phase6DetailedData.deduplicatedImprovements.length > 1 ? "s" : ""} identified
+                    {phase6DetailedData.deduplicatedImprovements.length > 1 ? "s" : ""} in Action Plan
                   </span>
                   <a
-                    href="#other-improvements-section"
+                    href="#priority-fix-plan-section"
                     onClick={(e) =>
-                      handleJumpLinkClick(e, "09", "Other Recommended Improvements")
+                      handleJumpLinkClick(e, "04", "Prioritized Action Plan")
                     }
                     className="font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded print:hidden"
                   >
-                    <span>Other improvements</span>
+                    <span>Action plan</span>
                     <ArrowDown className="w-3 h-3 shrink-0" />
                   </a>
                 </div>
@@ -3426,7 +3310,7 @@ export default function ResultsScreen({
           </div>
         </section>
 
-        {/* PAID REPORT PAYWALL & COMPACT 9-SECTION PREMIUM PREVIEW */}
+        {/* PAID REPORT PAYWALL & COMPACT 4-SECTION FULL REPORT PREVIEW */}
         <section
           id="paid-report-paywall-section"
           aria-labelledby="paid-report-paywall-heading"
@@ -3450,7 +3334,7 @@ export default function ResultsScreen({
                 id="paid-report-paywall-heading"
                 className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight leading-snug mb-3"
               >
-                Get the complete 15-section action plan for {data.domain}
+                Get the complete action plan &amp; copy-ready fixes for {data.domain}
               </h2>
 
               {/* Compact 2-Plan Selector: $5 Full Report (Primary) & $12 Three-Report Pack */}
@@ -3500,7 +3384,7 @@ export default function ResultsScreen({
                 >
                   <div className="flex items-center justify-between gap-1 mb-1">
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700">
-                      3-Report Pack
+                      3 Reports
                     </span>
                     <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
                       Save $3
@@ -3562,7 +3446,7 @@ export default function ResultsScreen({
                       ? "Checking availability…"
                       : selectedPaywallPlan === "single"
                       ? "Unlock Full Report — $5"
-                      : "Unlock 3-Report Pack — $12"}
+                      : "3 Reports — $12"}
                   </span>
                   <ArrowRight className="w-4 h-4 shrink-0" />
                 </button>
@@ -3631,128 +3515,83 @@ export default function ResultsScreen({
               </form>
             </div>
 
-            {/* Compact 9-Section Premium Content Preview (Left 7 cols on Desktop, Appears 2nd on Mobile) */}
+            {/* Compact 4-Section Full Report Preview (Left 7 cols on Desktop, Appears 2nd on Mobile) */}
             <div
               id="premium-sections-preview"
               className="lg:col-span-7 lg:order-1 flex flex-col justify-between space-y-3.5"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#1d68f5] block">
-                    INCLUDED IN YOUR FULL REPORT
-                  </span>
-                  <h3 className="text-sm sm:text-base font-extrabold text-[#101828] tracking-tight mt-0.5">
-                    9 Premium Diagnostic &amp; Action Sections (Sections 07–15)
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowCompactPreviewDetails((prev) => !prev)}
-                  aria-expanded={showCompactPreviewDetails}
-                  className="sm:hidden text-[11px] font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1 py-1 px-2.5 rounded-full bg-white border border-blue-200/80 cursor-pointer"
-                >
-                  <span>{showCompactPreviewDetails ? "Compact view" : "View all 9 details"}</span>
-                </button>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#1d68f5] block">
+                  INCLUDED IN YOUR FULL REPORT
+                </span>
+                <h3 className="text-sm sm:text-base font-extrabold text-[#101828] tracking-tight mt-0.5">
+                  Full Report Sections (04–07)
+                </h3>
+                <p className="text-xs text-[#526078] mt-1">
+                  Unlock the complete prioritized action plan, copy-ready rewrites, deep evidence breakdown, and before/after comparison tracking.
+                </p>
               </div>
 
-              {/* Compact 9-Item Grid: Replaces 9 tall locked cards with a scannable compact preview */}
+              {/* Clean 4-Item Grid for Full Report Sections 04-07 */}
               <div
-                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2"
+                className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
                 role="list"
-                aria-label="Nine premium report sections preview"
+                aria-label="Full report sections preview"
               >
                 {[
                   {
-                    num: "07",
-                    title: "Priority Fix Plan",
-                    meta: `${priorityFixPlan.length || 1} ordered steps`,
+                    num: "04",
+                    title: "Prioritized Action Plan",
+                    meta: `${priorityFixPlan.length || 1} ordered steps + ${phase6DetailedData.deduplicatedImprovements.length} secondary fixes`,
                   },
                   {
-                    num: "08",
+                    num: "05",
                     title: "Copy-Ready Improvements",
                     meta:
                       copyReadyImprovements.length > 0
                         ? `${copyReadyImprovements.length} verified ${
                             copyReadyImprovements.length === 1 ? "rewrite" : "rewrites"
                           }`
-                        : "Actionable wording",
+                        : "Actionable homepage wording",
                   },
                   {
-                    num: "09",
-                    title: "Other Recommended Improvements",
-                    meta: `${phase6DetailedData.deduplicatedImprovements.length} secondary fixes`,
-                  },
-                  {
-                    num: "10",
-                    title: "First Few Seconds Comprehension",
-                    meta: `${overviewStats.clearQuestionsCount}/5 clear immediately`,
-                  },
-                  {
-                    num: "11",
-                    title: "First-Time Visitor Impression",
-                    meta: "Stranger reaction",
-                  },
-                  {
-                    num: "12",
-                    title: "Complete Homepage Evidence",
-                    meta: `${data.evidence.clearFindings.length + data.evidence.missingFindings.length} findings`,
-                  },
-                  {
-                    num: "13",
-                    title: "Five Detailed Signal Breakdown",
-                    meta: "5 signal breakdowns",
-                  },
-                  {
-                    num: "14",
-                    title: "Communication Risks",
-                    meta: `${phase6DetailedData.totalRisksCount} ${
+                    num: "06",
+                    title: "Detailed Evidence & Insights",
+                    meta: `5-second comprehension, visitor impression & ${phase6DetailedData.totalRisksCount} ${
                       phase6DetailedData.totalRisksCount === 1 ? "risk" : "risks"
-                    } flagged`,
+                    }`,
                   },
                   {
-                    num: "15",
+                    num: "07",
                     title: "Recheck & Compare",
-                    meta: "Before → After delta",
+                    meta: "Before → After score & signal delta",
                   },
-                ].map((sec, idx) => (
+                ].map((sec) => (
                   <button
                     key={sec.num}
                     type="button"
                     role="listitem"
                     onClick={() => handleLockedSectionClick(sec.num, sec.title)}
                     aria-label={`Locked section ${sec.num}: ${sec.title}. Click to focus unlock options.`}
-                    className={`w-full text-left group rounded-xl bg-white/95 hover:bg-white border border-slate-200/80 hover:border-blue-300 px-3 py-2.5 flex items-center justify-between gap-2 transition-all shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none ${
-                      !showCompactPreviewDetails && idx >= 4 ? "hidden sm:flex" : "flex"
-                    }`}
+                    className="w-full text-left group rounded-xl bg-white/95 hover:bg-white border border-slate-200/80 hover:border-blue-300 px-3.5 py-3 flex items-center justify-between gap-2.5 transition-all shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-6 h-6 rounded-lg bg-[#eaf2ff] text-[#1d68f5] text-[10px] font-black inline-flex items-center justify-center shrink-0 tabular-nums">
+                      <span className="w-7 h-7 rounded-lg bg-[#eaf2ff] text-[#1d68f5] text-[11px] font-black inline-flex items-center justify-center shrink-0 tabular-nums">
                         {sec.num}
                       </span>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-[#101828] group-hover:text-[#1d68f5] transition-colors block truncate">
+                        <span className="text-xs sm:text-[13px] font-bold text-[#101828] group-hover:text-[#1d68f5] transition-colors block truncate">
                           {sec.title}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-medium block truncate">
+                        <span className="text-[11px] text-slate-500 font-medium block truncate">
                           {sec.meta}
                         </span>
                       </div>
                     </div>
-                    <Lock className="w-3 h-3 text-slate-400 group-hover:text-[#1d68f5] shrink-0" aria-hidden="true" />
+                    <Lock className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#1d68f5] shrink-0" aria-hidden="true" />
                   </button>
                 ))}
               </div>
-
-              {!showCompactPreviewDetails && (
-                <button
-                  type="button"
-                  onClick={() => setShowCompactPreviewDetails(true)}
-                  className="sm:hidden w-full py-2 px-3 rounded-xl bg-white/80 border border-slate-200/80 text-xs font-semibold text-slate-700 hover:text-[#1d68f5] inline-flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span>+5 more premium sections included (11–15)</span>
-                  <ArrowDown className="w-3 h-3 shrink-0" />
-                </button>
-              )}
 
               {/* Concise Value Summary Strip */}
               <div className="pt-1 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-slate-600">
@@ -3766,68 +3605,46 @@ export default function ResultsScreen({
                 </span>
                 <span className="inline-flex items-center gap-1.5 font-medium">
                   <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5] shrink-0" />
-                  <span>Full 5-signal evidence &amp; recheck tracking</span>
+                  <span>Full evidence &amp; recheck tracking</span>
                 </span>
               </div>
             </div>
           </div>
         </section>
 
-        {/* LEVEL 2 — ACTIONABLE IMPROVEMENTS */}
-        <div
-          id="level-2-actionable-improvements"
-          className="pt-3 sm:pt-5 pb-0.5"
-          aria-label="Level 2: Actionable Improvements"
+        {/* 04. PRIORITIZED ACTION PLAN (Includes Priority Fix Plan + Other Recommended Improvements) */}
+        <section
+          id="priority-fix-plan-section"
+          aria-labelledby="priority-fix-plan-heading"
+          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24 space-y-6"
         >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-blue-50 border border-blue-200/80 text-[10px] font-extrabold tracking-widest uppercase text-[#1d68f5] shrink-0">
-                Level 2
-              </span>
-              <span className="text-xs sm:text-[13px] font-bold tracking-tight text-slate-800 uppercase">
-                Actionable Improvements
-              </span>
-              <span className="hidden sm:inline text-xs text-slate-400 truncate">
-                — Priority fix plan, copy-ready wording &amp; other recommended improvements
-              </span>
-            </div>
-            <div className="h-px flex-1 bg-slate-200/80 hidden md:block" aria-hidden="true" />
-          </div>
-        </div>
-
-        {/* 07. PRIORITY FIX PLAN */}
-        {priorityFixPlan.length > 0 && (
-          <section
-            id="priority-fix-plan-section"
-            aria-labelledby="priority-fix-plan-heading"
-            className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24"
-          >
-            {/* Section Header */}
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5 mb-5 sm:mb-6 border-b border-slate-100">
-              <div>
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#246bfd] border border-blue-100">
-                    YOUR PRIORITY FIX PLAN
-                  </span>
-                  <span className="text-[11px] font-semibold text-slate-500">
-                    {priorityFixPlan.length === 1
-                      ? "1 priority action"
-                      : `${priorityFixPlan.length} ordered steps`}
-                  </span>
-                </div>
-                <h2
-                  id="priority-fix-plan-heading"
-                  className="text-lg sm:text-xl md:text-2xl font-extrabold text-[#101828] tracking-tight"
-                >
-                  What to fix first, second, and third
-                </h2>
-                <p className="text-xs sm:text-sm text-[#526078] mt-1 font-normal">
-                  Start in this order to improve clarity with the least wasted effort.
-                </p>
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5 border-b border-slate-100">
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <span className="text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#246bfd] border border-blue-100">
+                  04 · PRIORITIZED ACTION PLAN
+                </span>
+                <span className="text-[11px] font-semibold text-slate-500">
+                  {priorityFixPlan.length === 1
+                    ? "1 priority action"
+                    : `${priorityFixPlan.length} ordered steps`}
+                </span>
               </div>
+              <h2
+                id="priority-fix-plan-heading"
+                className="text-lg sm:text-xl md:text-2xl font-extrabold text-[#101828] tracking-tight"
+              >
+                What to fix first, second, and third
+              </h2>
+              <p className="text-xs sm:text-sm text-[#526078] mt-1 font-normal">
+                Start in this order to improve clarity with the least wasted effort.
+              </p>
             </div>
+          </div>
 
-            {/* Ordered Action Steps */}
+          {/* Ordered Action Steps */}
+          {priorityFixPlan.length > 0 && (
             <ol className="space-y-3.5 sm:space-y-4" aria-label="Ordered priority fix steps">
               {priorityFixPlan.map((step, index) => {
                 const isFirstStep = index === 0;
@@ -3912,10 +3729,137 @@ export default function ResultsScreen({
                 );
               })}
             </ol>
-          </section>
-        )}
+          )}
 
-        {/* 08. COPY-READY IMPROVEMENTS */}
+          {/* Secondary Recommendations (Collapsed by default inside Section 04) */}
+          <div
+            id="other-improvements-section"
+            className="pt-5 border-t border-slate-100 space-y-3.5"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3
+                  id="other-improvements-heading"
+                  className="text-sm sm:text-base font-extrabold text-[#101828] tracking-tight"
+                >
+                  Other improvements worth making
+                </h3>
+                <p className="text-xs text-[#526078]">
+                  Additional recommendations after you address your primary priority steps.
+                </p>
+              </div>
+              {phase6DetailedData.deduplicatedImprovements.length > 0 && (
+                <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full tabular-nums">
+                  {phase6DetailedData.deduplicatedImprovements.length}{" "}
+                  {phase6DetailedData.deduplicatedImprovements.length === 1
+                    ? "recommendation"
+                    : "recommendations"}
+                </span>
+              )}
+            </div>
+
+            {phase6DetailedData.deduplicatedImprovements.length > 0 ? (
+              <div className="space-y-3" role="list" aria-label="Other recommended improvements">
+                {phase6DetailedData.deduplicatedImprovements.map((item) => {
+                  const isExpanded = expandedImprovementId === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      role="listitem"
+                      className="border border-slate-200/90 rounded-2xl overflow-hidden hover:border-slate-300 transition-all bg-[#f8fafc]"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleImprovementRow(item.id)}
+                        aria-expanded={isExpanded}
+                        aria-controls={`improvement-body-${item.id}`}
+                        className="w-full text-left flex items-center justify-between gap-3.5 p-4 cursor-pointer group min-h-[52px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${item.color}`}
+                          >
+                            {item.icon === "shield" && <Shield className="w-4 h-4" />}
+                            {item.icon === "users" && <Users className="w-4 h-4" />}
+                            {item.icon === "zap" && <Zap className="w-4 h-4" />}
+                            {item.icon === "sparkles" && <Sparkles className="w-4 h-4" />}
+                            {item.icon === "eye" && <Eye className="w-4 h-4" />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="text-sm font-extrabold text-[#101828] group-hover:text-[#246bfd] transition-colors leading-snug">
+                                {item.title}
+                              </h4>
+                              {item.relatedPlanStep && (
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-[#1d68f5] bg-blue-50 border border-blue-200/70 px-2 py-0.5 rounded-full">
+                                  Priority {item.relatedPlanStep}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-[#526078] leading-relaxed mt-0.5 font-normal">
+                              {item.description}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="hidden sm:inline text-[11px] font-semibold text-slate-400 group-hover:text-slate-600">
+                            {isExpanded ? "Hide details" : "View details"}
+                          </span>
+                          <ChevronRight
+                            className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 shrink-0 ${
+                              isExpanded ? "rotate-90 text-slate-700" : ""
+                            }`}
+                          />
+                        </div>
+                      </button>
+
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            id={`improvement-body-${item.id}`}
+                            initial={prefersReducedMotion ? { opacity: 1 } : { height: 0, opacity: 0 }}
+                            animate={prefersReducedMotion ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+                            exit={prefersReducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                            transition={{ duration: 0.22, ease: "easeInOut" }}
+                            className="overflow-hidden bg-white border-t border-slate-200/70 p-4 sm:p-5"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs sm:text-[13px]">
+                              <div className="bg-[#f8fafc] border border-slate-200/80 rounded-xl p-3.5">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">
+                                  WHY THIS MATTERS
+                                </span>
+                                <p className="text-slate-700 leading-relaxed font-normal">
+                                  {item.whyItMatters}
+                                </p>
+                              </div>
+
+                              <div className="bg-[#f8fbff] border border-blue-200/70 rounded-xl p-3.5">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1d68f5] block mb-1">
+                                  WHAT TO IMPROVE
+                                </span>
+                                <p className="text-slate-800 leading-relaxed font-medium">
+                                  {item.whatToImprove}
+                                </p>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-4 text-center">
+                <p className="text-xs font-semibold text-[#101828]">
+                  No additional secondary improvements needed beyond your primary priority steps.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* 05. COPY-READY IMPROVEMENTS */}
         <section
           id="copy-ready-improvements-section"
           aria-labelledby="copy-ready-improvements-heading"
@@ -3926,7 +3870,7 @@ export default function ResultsScreen({
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#246bfd] border border-blue-100">
-                  COPY-READY IMPROVEMENTS
+                  05 · COPY-READY IMPROVEMENTS
                 </span>
                 {copyReadyImprovements.length > 0 && (
                   <span className="text-[11px] font-semibold text-slate-500">
@@ -4117,211 +4061,57 @@ export default function ResultsScreen({
           )}
         </section>
 
-        {/* 09. OTHER RECOMMENDED IMPROVEMENTS */}
+        {/* 06. DETAILED EVIDENCE & INSIGHTS */}
         <section
-          id="other-improvements-section"
-          aria-labelledby="other-improvements-heading"
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24"
+          id="detailed-evidence-insights-section"
+          aria-labelledby="detailed-evidence-insights-heading"
+          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24 space-y-8"
         >
-          {/* Section Header */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5 mb-5 sm:mb-6 border-b border-slate-100">
+          {/* Section 06 Header */}
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5 border-b border-slate-100">
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#246bfd] border border-blue-100">
-                  OTHER RECOMMENDED IMPROVEMENTS
-                </span>
-                {phase6DetailedData.deduplicatedImprovements.length > 0 && (
-                  <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full tabular-nums">
-                    {phase6DetailedData.deduplicatedImprovements.length}{" "}
-                    {phase6DetailedData.deduplicatedImprovements.length === 1
-                      ? "recommendation"
-                      : "recommendations"}
-                  </span>
-                )}
-              </div>
-              <h2
-                id="other-improvements-heading"
-                className="text-lg sm:text-xl md:text-2xl font-extrabold text-[#101828] tracking-tight"
-              >
-                Other improvements worth making
-              </h2>
-              <p className="text-xs sm:text-sm text-[#526078] mt-1 font-normal">
-                Additional high-leverage improvements to strengthen clarity, proof, and conversion after you address your #1 priority fix.
-              </p>
-            </div>
-          </div>
-
-          {phase6DetailedData.deduplicatedImprovements.length > 0 ? (
-            <div className="space-y-3.5" role="list" aria-label="Other recommended improvements">
-              {phase6DetailedData.deduplicatedImprovements.map((item) => {
-                const isExpanded = expandedImprovementId === item.id;
-                return (
-                  <div
-                    key={item.id}
-                    role="listitem"
-                    className="border border-slate-200/90 rounded-2xl overflow-hidden hover:border-slate-300 transition-all bg-[#f8fafc]"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleImprovementRow(item.id)}
-                      aria-expanded={isExpanded}
-                      aria-controls={`improvement-body-${item.id}`}
-                      className="w-full text-left flex items-center justify-between gap-3.5 p-4 sm:p-5 cursor-pointer group min-h-[56px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
-                    >
-                      <div className="flex items-start gap-3.5 min-w-0">
-                        <div
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${item.color}`}
-                        >
-                          {item.icon === "shield" && <Shield className="w-4 h-4" />}
-                          {item.icon === "users" && <Users className="w-4 h-4" />}
-                          {item.icon === "zap" && <Zap className="w-4 h-4" />}
-                          {item.icon === "sparkles" && <Sparkles className="w-4 h-4" />}
-                          {item.icon === "eye" && <Eye className="w-4 h-4" />}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-sm sm:text-base font-extrabold text-[#101828] group-hover:text-[#246bfd] transition-colors leading-snug">
-                              {item.title}
-                            </h3>
-                            {item.relatedPlanStep && (
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-[#1d68f5] bg-blue-50 border border-blue-200/70 px-2 py-0.5 rounded-full">
-                                Priority {item.relatedPlanStep}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs sm:text-[13px] text-[#526078] leading-relaxed mt-1 font-normal">
-                            {item.description}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="hidden sm:inline text-[11px] font-semibold text-slate-400 group-hover:text-slate-600">
-                          {isExpanded ? "Hide details" : "View details"}
-                        </span>
-                        <ChevronRight
-                          className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 shrink-0 ${
-                            isExpanded ? "rotate-90 text-slate-700" : ""
-                          }`}
-                        />
-                      </div>
-                    </button>
-
-                    {/* Smooth Inline Expandable Body */}
-                    <AnimatePresence>
-                      {isExpanded && (
-                        <motion.div
-                          id={`improvement-body-${item.id}`}
-                          initial={prefersReducedMotion ? { opacity: 1 } : { height: 0, opacity: 0 }}
-                          animate={prefersReducedMotion ? { opacity: 1 } : { height: "auto", opacity: 1 }}
-                          exit={prefersReducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
-                          transition={{ duration: 0.22, ease: "easeInOut" }}
-                          className="overflow-hidden bg-white border-t border-slate-200/70 p-4 sm:p-5"
-                        >
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs sm:text-[13px]">
-                            <div className="bg-[#f8fafc] border border-slate-200/80 rounded-xl p-3.5 sm:p-4">
-                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">
-                                WHY THIS MATTERS
-                              </span>
-                              <p className="text-slate-700 leading-relaxed font-normal">
-                                {item.whyItMatters}
-                              </p>
-                            </div>
-
-                            <div className="bg-[#f8fbff] border border-blue-200/70 rounded-xl p-3.5 sm:p-4">
-                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1d68f5] block mb-1">
-                                WHAT TO IMPROVE
-                              </span>
-                              <p className="text-slate-800 leading-relaxed font-medium">
-                                {item.whatToImprove}
-                              </p>
-                            </div>
-                          </div>
-
-                          {item.hasCopyReadyCard && (
-                            <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs print:hidden">
-                              <span className="text-slate-500">
-                                Verified copy-ready wording for this improvement is available above.
-                              </span>
-                              <a
-                                href="#copy-ready-improvements-section"
-                                className="font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded"
-                              >
-                                <span>See copy-ready wording ↑</span>
-                              </a>
-                            </div>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-5 sm:p-6 text-center">
-              <p className="text-xs sm:text-sm font-semibold text-[#101828] mb-1">
-                No additional secondary improvements needed
-              </p>
-              <p className="text-xs text-[#526078] max-w-xl mx-auto leading-relaxed">
-                Focus on applying your #1 Priority Fix in Section 06 and re-checking {data.domain} to measure the impact on visitor comprehension.
-              </p>
-            </div>
-          )}
-        </section>
-
-        {/* LEVEL 3 — DEEP ANALYSIS */}
-        <div
-          id="level-3-deep-analysis"
-          className="pt-3 sm:pt-5 pb-0.5"
-          aria-label="Level 3: Deep Analysis"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-200/90 text-[10px] font-extrabold tracking-widest uppercase text-slate-700 shrink-0">
-                Level 3
-              </span>
-              <span className="text-xs sm:text-[13px] font-bold tracking-tight text-slate-800 uppercase">
-                Deep Analysis
-              </span>
-              <span className="hidden sm:inline text-xs text-slate-400 truncate">
-                — First few seconds, visitor impression, homepage evidence, detailed signals &amp; risks
-              </span>
-            </div>
-            <div className="h-px flex-1 bg-slate-200/80 hidden md:block" aria-hidden="true" />
-          </div>
-        </div>
-
-        {/* 10. IN THE FIRST FEW SECONDS */}
-        <section
-          id="first-seconds-section"
-          aria-labelledby="first-seconds-heading"
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24"
-        >
-          {/* Section Header */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5 mb-5 sm:mb-6 border-b border-slate-100">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className="text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#246bfd] border border-blue-100">
-                  IN THE FIRST FEW SECONDS
+                  06 · DETAILED EVIDENCE &amp; INSIGHTS
                 </span>
                 <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full tabular-nums">
-                  {overviewStats.clearQuestionsCount} of 5 clear immediately
+                  {overviewStats.clearQuestionsCount} of 5 core questions clear
                 </span>
               </div>
               <h2
-                id="first-seconds-heading"
+                id="detailed-evidence-insights-heading"
                 className="text-lg sm:text-xl md:text-2xl font-extrabold text-[#101828] tracking-tight"
               >
-                What a visitor understands immediately
+                Detailed Evidence &amp; Visitor Comprehension Insights
               </h2>
               <p className="text-xs sm:text-sm text-[#526078] mt-1 font-normal">
-                How quickly a first-time visitor can answer the core questions on your homepage.
+                Five-second comprehension, visitor impression, extracted homepage evidence, signal diagnostics, and communication risks on {data.domain}.
               </p>
             </div>
-            <span className="text-[11px] font-medium text-slate-400 self-start sm:self-end shrink-0">
-              Based on accessible homepage content
-            </span>
           </div>
+
+          {/* 6A. IN THE FIRST FEW SECONDS */}
+          <div
+            id="first-seconds-section"
+            aria-labelledby="first-seconds-heading"
+            className="space-y-4 scroll-mt-24"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+              <div>
+                <span className="text-[10px] font-extrabold tracking-widest uppercase text-[#246bfd] block mb-1">
+                  IN THE FIRST FEW SECONDS
+                </span>
+                <h3
+                  id="first-seconds-heading"
+                  className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight"
+                >
+                  What a visitor understands immediately
+                </h3>
+              </div>
+              <span className="text-[11px] font-medium text-slate-400 shrink-0">
+                {overviewStats.clearQuestionsCount} of 5 clear immediately · Based on accessible homepage content
+              </span>
+            </div>
 
           {/* 5 Core Comprehension Questions in Canonical Order */}
           <div className="space-y-3" role="list" aria-label="Five-second visitor comprehension questions">
@@ -4392,90 +4182,71 @@ export default function ResultsScreen({
               );
             })}
           </div>
-        </section>
+          </div>
 
-        {/* 11. FIRST-TIME VISITOR IMPRESSION */}
-        <section
-          id="visitor-impression-section"
-          aria-labelledby="visitor-impression-heading"
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24"
-        >
-          {/* Section Header */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5 mb-5 border-b border-slate-100">
+          {/* 6B. FIRST-TIME VISITOR IMPRESSION */}
+          <div
+            id="visitor-impression-section"
+            aria-labelledby="visitor-impression-heading"
+            className="pt-6 border-t border-slate-100 space-y-4 scroll-mt-24"
+          >
             <div>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#246bfd] border border-blue-100">
-                  <Users className="w-3 h-3 text-[#246bfd] shrink-0" />
-                  FIRST-TIME VISITOR IMPRESSION
-                </span>
-                <span className="text-[11px] font-medium text-slate-400">
-                  · AI-simulated first-time visitor reaction
-                </span>
-              </div>
-              <h2
+              <span className="text-[10px] font-extrabold tracking-widest uppercase text-[#246bfd] block mb-1">
+                FIRST-TIME VISITOR IMPRESSION
+              </span>
+              <h3
                 id="visitor-impression-heading"
-                className="text-lg sm:text-xl md:text-2xl font-extrabold text-[#101828] tracking-tight"
+                className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight"
               >
                 A first-time visitor would probably think
-              </h2>
+              </h3>
             </div>
+
+            {visitorUnderstandingAndEvidence.cleanVisitorThought ? (
+              <div className="bg-[#f5f8ff] border border-[#dce6f7] rounded-2xl p-5 sm:p-6 relative">
+                <blockquote className="text-sm sm:text-base font-medium text-[#101828] leading-relaxed italic break-words">
+                  &ldquo;{visitorUnderstandingAndEvidence.cleanVisitorThought}&rdquo;
+                </blockquote>
+                <div className="mt-3.5 pt-3 border-t border-blue-200/60 flex flex-wrap items-center justify-between gap-2 text-xs text-[#526078]">
+                  <span>
+                    Grounded in {data.domain}&apos;s accessible homepage content
+                  </span>
+                  <span className="font-semibold text-slate-700 tabular-nums">
+                    {overviewStats.clearQuestionsCount} of 5 core questions answered immediately
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-5 text-center">
+                <p className="text-xs sm:text-sm font-semibold text-[#101828] mb-1">
+                  Visitor impression summary unavailable for this scan
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Analytical Quote / Monologue Card */}
-          {visitorUnderstandingAndEvidence.cleanVisitorThought ? (
-            <div className="bg-[#f5f8ff] border border-[#dce6f7] rounded-2xl p-5 sm:p-6 md:p-7 relative">
-              <blockquote className="text-sm sm:text-base md:text-[17px] font-medium text-[#101828] leading-relaxed italic break-words">
-                &ldquo;{visitorUnderstandingAndEvidence.cleanVisitorThought}&rdquo;
-              </blockquote>
-              <div className="mt-4 pt-3.5 border-t border-blue-200/60 flex flex-wrap items-center justify-between gap-2 text-xs text-[#526078]">
-                <span>
-                  Grounded in {data.domain}&apos;s accessible homepage content and {data.score}/100 clarity score
-                </span>
-                <span className="font-semibold text-slate-700 tabular-nums">
-                  {overviewStats.clearQuestionsCount} of 5 core questions answered immediately
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-5 sm:p-6 text-center">
-              <p className="text-xs sm:text-sm font-semibold text-[#101828] mb-1">
-                Visitor impression summary unavailable for this scan
-              </p>
-              <p className="text-xs text-[#526078] max-w-xl mx-auto leading-relaxed">
-                Refer to the five-second question breakdown above and the extracted homepage evidence below to inspect what a first-time visitor sees on {data.domain}.
-              </p>
-            </div>
-          )}
-        </section>
-
-        {/* 12. COMPLETE HOMEPAGE EVIDENCE */}
-        <section
-          id="complete-homepage-evidence-section"
-          aria-labelledby="homepage-evidence-heading"
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24"
-        >
-          {/* Section Header */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5 mb-5 sm:mb-6 border-b border-slate-100">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className="text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#246bfd] border border-blue-100">
+          {/* 6C. COMPLETE HOMEPAGE EVIDENCE */}
+          <div
+            id="complete-homepage-evidence-section"
+            aria-labelledby="homepage-evidence-heading"
+            className="pt-6 border-t border-slate-100 space-y-4 scroll-mt-24"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="text-[10px] font-extrabold tracking-widest uppercase text-[#246bfd] block mb-1">
                   HOMEPAGE EVIDENCE
                 </span>
-                <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md">
-                  {data.evidence.locationTag}
-                </span>
+                <h3
+                  id="homepage-evidence-heading"
+                  className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight"
+                >
+                  What on your website led to this result
+                </h3>
               </div>
-              <h2
-                id="homepage-evidence-heading"
-                className="text-lg sm:text-xl md:text-2xl font-extrabold text-[#101828] tracking-tight"
-              >
-                What on your website led to this result
-              </h2>
-              <p className="text-xs sm:text-sm text-[#526078] mt-1 font-normal">
-                Direct evidence extracted from your homepage during this analysis.
-              </p>
+              <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                {data.evidence.locationTag}
+              </span>
             </div>
-          </div>
 
           {/* 2-Column Evidence Grid: Extracted Homepage Excerpt (Left) + Clear vs Missing Findings (Right) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
@@ -4635,15 +4406,15 @@ export default function ResultsScreen({
               </div>
             </div>
           </div>
-        </section>
+          </div>
 
-        {/* OPTIONAL SUPPORTING PAGES INSIGHTS (Rendered ONLY when validated supporting-page context is available) */}
-        {supportingPagesInsights && (
-          <section
-            id="supporting-pages-insights-section"
-            aria-labelledby="supporting-pages-insights-heading"
-            className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24 space-y-6"
-          >
+          {/* OPTIONAL SUPPORTING PAGES INSIGHTS (Rendered ONLY when validated supporting-page context is available) */}
+          {supportingPagesInsights && (
+            <div
+              id="supporting-pages-insights-section"
+              aria-labelledby="supporting-pages-insights-heading"
+              className="pt-6 border-t border-slate-100 scroll-mt-24 space-y-6"
+            >
             {/* Section Header & Score Isolation Notice */}
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-5 border-b border-slate-100">
               <div className="min-w-0">
@@ -5015,386 +4786,292 @@ export default function ResultsScreen({
                 </ul>
               </div>
             )}
-          </section>
+          </div>
         )}
 
-        {/* 13. FIVE DETAILED SIGNALS */}
-        <section
-          id="five-detailed-signals-section"
-          aria-labelledby="five-detailed-signals-heading"
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24"
-        >
-          {/* Section Header */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5 mb-5 sm:mb-6 border-b border-slate-100">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className="text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#246bfd] border border-blue-100">
-                  FIVE DETAILED SIGNALS
+          {/* 6D. FIVE DETAILED SIGNALS (Scores shown once in Card 01; collapsible diagnostic assessment & grounded evidence) */}
+          <div
+            id="five-detailed-signals-section"
+            aria-labelledby="five-detailed-signals-heading"
+            className="pt-6 border-t border-slate-100 space-y-4 scroll-mt-24"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-extrabold tracking-widest uppercase text-[#246bfd] block mb-1">
+                  SIGNAL DIAGNOSTICS
                 </span>
-                <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full tabular-nums">
-                  {overviewStats.clearSignalsCount} of 5 signals strong
-                </span>
-              </div>
-              <h2
-                id="five-detailed-signals-heading"
-                className="text-lg sm:text-xl md:text-2xl font-extrabold text-[#101828] tracking-tight"
-              >
-                Detailed breakdown of your five signals
-              </h2>
-              <p className="text-xs sm:text-sm text-[#526078] mt-1 font-normal">
-                Complete diagnostic evaluation for each first-impression dimension on {data.domain}, paired with visitor comprehension and homepage evidence.
-              </p>
-            </div>
-          </div>
-
-          {/* 5 Detailed Signal Cards in Canonical Order */}
-          <div className="space-y-4" role="list" aria-label="Detailed five-signal diagnostic breakdown">
-            {phase6DetailedData.detailedSignals.map((sig) => {
-              const barColor =
-                sig.badgeType === "clear"
-                  ? "bg-emerald-500"
-                  : sig.badgeType === "amber"
-                  ? "bg-amber-500"
-                  : "bg-rose-500";
-
-              const iconTone =
-                sig.badgeType === "clear"
-                  ? "bg-emerald-50 text-emerald-600 border-emerald-200/70"
-                  : sig.badgeType === "amber"
-                  ? "bg-amber-50 text-amber-600 border-amber-200/70"
-                  : "bg-rose-50 text-rose-600 border-rose-200/70";
-
-              const cardBorderTone = sig.isWeakest
-                ? "border-amber-200/90 bg-amber-50/15"
-                : sig.isStrongest
-                ? "border-emerald-200/80 bg-emerald-50/10"
-                : "border-slate-200/80 bg-[#f8fafc]";
-
-              return (
-                <div
-                  key={sig.id}
-                  id={`detailed-signal-${sig.id}`}
-                  role="listitem"
-                  className={`rounded-2xl border ${cardBorderTone} p-4 sm:p-6 transition-colors scroll-mt-24`}
+                <h3
+                  id="five-detailed-signals-heading"
+                  className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight"
                 >
-                  {/* Top Row: Index + Icon + Signal Title + Score & Status */}
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 pb-4 border-b border-slate-200/70">
-                    <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                      <span className="w-8 h-8 rounded-lg bg-white border border-slate-200/90 text-xs font-black text-slate-600 inline-flex items-center justify-center shrink-0 tabular-nums shadow-2xs">
-                        {sig.indexLabel}
-                      </span>
-                      <div
-                        className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${iconTone}`}
-                      >
-                        {sig.icon === "eye" && <Eye className="w-4 h-4" />}
-                        {sig.icon === "users" && <Users className="w-4 h-4" />}
-                        {sig.icon === "sparkles" && <Sparkles className="w-4 h-4" />}
-                        {sig.icon === "shield" && <Shield className="w-4 h-4" />}
-                        {sig.icon === "arrow" && <ArrowRight className="w-4 h-4" />}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight leading-snug">
-                            {sig.title}
-                          </h3>
-                          {sig.isStrongest && (
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              Strongest Signal
-                            </span>
-                          )}
-                          {sig.isWeakest && (
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
-                              Lowest-Scoring Signal
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-[#526078] mt-0.5">
-                          {sig.detailedQuestion}
-                        </p>
-                      </div>
-                    </div>
+                  Detailed breakdown of your five signals
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDetailedSignalInsights((prev) => !prev)}
+                aria-expanded={showDetailedSignalInsights}
+                aria-controls="detailed-signals-collapsible-list"
+                className="self-start sm:self-center inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#f8fafc] hover:bg-slate-100 border border-slate-200/90 text-xs font-bold text-[#1d68f5] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
+              >
+                <span>
+                  {showDetailedSignalInsights
+                    ? "Hide signal diagnostics"
+                    : "View signal-by-signal diagnostics"}
+                </span>
+                <ChevronRight
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    showDetailedSignalInsights ? "rotate-90" : ""
+                  }`}
+                />
+              </button>
+            </div>
 
-                    {/* Right: Score + Progress Bar + Status Badge */}
-                    <div className="flex items-center justify-between md:justify-end gap-4 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/60 shrink-0">
-                      <div className="w-32 sm:w-36">
-                        <div className="flex items-baseline justify-between gap-1 mb-1 tabular-nums">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                            Score
-                          </span>
-                          <div>
-                            <span className="text-lg sm:text-xl font-extrabold text-[#101828]">
-                              {sig.score}
-                            </span>
-                            <span className="text-xs text-slate-400 font-semibold">/100</span>
-                          </div>
-                        </div>
+            <AnimatePresence>
+              {showDetailedSignalInsights && (
+                <motion.div
+                  id="detailed-signals-collapsible-list"
+                  initial={prefersReducedMotion ? { opacity: 1 } : { height: 0, opacity: 0 }}
+                  animate={prefersReducedMotion ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+                  exit={prefersReducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                  transition={{ duration: 0.22, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="space-y-3.5 pt-1" role="list" aria-label="Detailed five-signal diagnostic breakdown">
+                    {phase6DetailedData.detailedSignals.map((sig) => {
+                      const iconTone =
+                        sig.badgeType === "clear"
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-200/70"
+                          : sig.badgeType === "amber"
+                          ? "bg-amber-50 text-amber-600 border-amber-200/70"
+                          : "bg-rose-50 text-rose-600 border-rose-200/70";
+
+                      const cardBorderTone = sig.isWeakest
+                        ? "border-amber-200/90 bg-amber-50/15"
+                        : sig.isStrongest
+                        ? "border-emerald-200/80 bg-emerald-50/10"
+                        : "border-slate-200/80 bg-[#f8fafc]";
+
+                      return (
                         <div
-                          className="w-full h-1.5 bg-slate-200/80 rounded-full overflow-hidden"
-                          role="progressbar"
-                          aria-valuenow={sig.score}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-label={`${sig.title} detailed score: ${sig.score} out of 100`}
+                          key={sig.id}
+                          id={`detailed-signal-${sig.id}`}
+                          role="listitem"
+                          className={`rounded-2xl border ${cardBorderTone} p-4 sm:p-5 transition-colors scroll-mt-24`}
                         >
-                          <div
-                            style={{ width: `${Math.max(4, Math.min(100, sig.score))}%` }}
-                            className={`h-full rounded-full ${barColor}`}
-                          />
-                        </div>
-                      </div>
-
-                      {sig.badgeType === "clear" ? (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-[#dcfce7] text-[#15803d] border border-emerald-200/80 shrink-0">
-                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                          <span>{sig.badgeText}</span>
-                        </span>
-                      ) : sig.badgeType === "amber" ? (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-[#fef3c7] text-[#b45309] border border-amber-200/80 shrink-0">
-                          <MinusCircle className="w-3.5 h-3.5 stroke-[2.5]" />
-                          <span>{sig.badgeText}</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-[#fee2e2] text-[#b91c1c] border border-rose-200/80 shrink-0">
-                          <X className="w-3.5 h-3.5 stroke-[2.5]" />
-                          <span>{sig.badgeText}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Bottom 2-Column Details: Full Diagnostic Explanation (Left) + Grounded Evidence & Visitor Question (Right) */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-4 items-stretch">
-                    {/* Full Diagnostic Assessment */}
-                    <div className="lg:col-span-7 bg-white border border-slate-200/80 rounded-xl p-4 flex flex-col justify-center">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1.5">
-                        DIAGNOSTIC ASSESSMENT
-                      </span>
-                      <p className="text-xs sm:text-sm text-[#101828] leading-relaxed font-normal">
-                        {sig.description}
-                      </p>
-                    </div>
-
-                    {/* Grounded Signal Evidence & Visitor Comprehension Status */}
-                    <div className="lg:col-span-5 bg-white border border-slate-200/80 rounded-xl p-4 flex flex-col justify-between gap-2.5">
-                      <div>
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1.5">
-                          GROUNDED HOMEPAGE SIGNAL
-                        </span>
-                        {sig.verifiedClearFinding || sig.verifiedMissingFinding ? (
-                          <div className="space-y-1.5">
-                            {sig.verifiedClearFinding && (
-                              <div className="flex items-start gap-2 text-xs text-slate-800 leading-relaxed">
-                                <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5 stroke-[2.5]" />
-                                <span className="break-words">{sig.verifiedClearFinding}</span>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-200/70">
+                            <div className="flex items-start sm:items-center gap-3 min-w-0">
+                              <div
+                                className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${iconTone}`}
+                              >
+                                {sig.icon === "eye" && <Eye className="w-4 h-4" />}
+                                {sig.icon === "users" && <Users className="w-4 h-4" />}
+                                {sig.icon === "sparkles" && <Sparkles className="w-4 h-4" />}
+                                {sig.icon === "shield" && <Shield className="w-4 h-4" />}
+                                {sig.icon === "arrow" && <ArrowRight className="w-4 h-4" />}
                               </div>
-                            )}
-                            {sig.verifiedMissingFinding && (
-                              <div className="flex items-start gap-2 text-xs text-slate-800 leading-relaxed">
-                                <X className="w-4 h-4 text-rose-600 shrink-0 mt-0.5 stroke-[2.5]" />
-                                <span className="break-words">{sig.verifiedMissingFinding}</span>
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="text-sm sm:text-base font-extrabold text-[#101828] tracking-tight leading-snug">
+                                    {sig.title}
+                                  </h4>
+                                  {sig.isStrongest && (
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                      Strongest Signal
+                                    </span>
+                                  )}
+                                  {sig.isWeakest && (
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                                      Focus Area
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-[#526078] mt-0.5">
+                                  {sig.detailedQuestion}
+                                </p>
                               </div>
-                            )}
+                            </div>
+
+                            <div className="flex items-center self-start sm:self-center shrink-0">
+                              {sig.badgeType === "clear" ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-[#dcfce7] text-[#15803d] border border-emerald-200/80 shrink-0">
+                                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  <span>{sig.badgeText}</span>
+                                </span>
+                              ) : sig.badgeType === "amber" ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-[#fef3c7] text-[#b45309] border border-amber-200/80 shrink-0">
+                                  <MinusCircle className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  <span>{sig.badgeText}</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-[#fee2e2] text-[#b91c1c] border border-rose-200/80 shrink-0">
+                                  <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  <span>{sig.badgeText}</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        ) : (
-                          <p className="text-xs text-slate-600 leading-relaxed">
-                            Based on accessible homepage content and page structure on {data.domain}.
-                          </p>
-                        )}
-                      </div>
 
-                      {sig.comprehensionRow && (
-                        <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px]">
-                          <span className="text-slate-500">
-                            Visitor question: <strong className="text-slate-700 font-semibold">&ldquo;{sig.comprehensionRow.question}&rdquo;</strong>
-                          </span>
-                          <span
-                            className={`font-bold px-2 py-0.5 rounded-full ${
-                              sig.comprehensionRow.type === "clear"
-                                ? "bg-emerald-50 text-emerald-700"
-                                : sig.comprehensionRow.type === "partly"
-                                ? "bg-amber-50 text-amber-800"
-                                : "bg-rose-50 text-rose-700"
-                            }`}
-                          >
-                            {sig.comprehensionRow.label}
-                          </span>
+                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 pt-3.5 items-stretch">
+                            <div className="lg:col-span-7 bg-white border border-slate-200/80 rounded-xl p-3.5 flex flex-col justify-center">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
+                                DIAGNOSTIC ASSESSMENT
+                              </span>
+                              <p className="text-xs sm:text-sm text-[#101828] leading-relaxed font-normal">
+                                {sig.description}
+                              </p>
+                            </div>
+
+                            <div className="lg:col-span-5 bg-white border border-slate-200/80 rounded-xl p-3.5 flex flex-col justify-center">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
+                                GROUNDED HOMEPAGE SIGNAL
+                              </span>
+                              {sig.verifiedClearFinding || sig.verifiedMissingFinding ? (
+                                <div className="space-y-1.5">
+                                  {sig.verifiedClearFinding && (
+                                    <div className="flex items-start gap-2 text-xs text-slate-800 leading-relaxed">
+                                      <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5 stroke-[2.5]" />
+                                      <span className="break-words">{sig.verifiedClearFinding}</span>
+                                    </div>
+                                  )}
+                                  {sig.verifiedMissingFinding && (
+                                    <div className="flex items-start gap-2 text-xs text-slate-800 leading-relaxed">
+                                      <X className="w-4 h-4 text-rose-600 shrink-0 mt-0.5 stroke-[2.5]" />
+                                      <span className="break-words">{sig.verifiedMissingFinding}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-slate-600 leading-relaxed">
+                                  Based on accessible homepage content and page structure on {data.domain}.
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
+                      );
+                    })}
                   </div>
-                </div>
-              );
-            })}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        </section>
 
-        {/* 14. COMMUNICATION RISKS */}
-        <section
-          id="communication-risks-section"
-          aria-labelledby="communication-risks-heading"
-          className="bg-white border border-[#e3eaf5] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs scroll-mt-24"
-        >
-          {/* Section Header */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5 mb-5 sm:mb-6 border-b border-slate-100">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80">
-                  <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
+          {/* 6E. COMMUNICATION RISKS */}
+          <div
+            id="communication-risks-section"
+            aria-labelledby="communication-risks-heading"
+            className="pt-6 border-t border-slate-100 space-y-4 scroll-mt-24"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="text-[10px] font-extrabold tracking-widest uppercase text-rose-700 block mb-1">
                   COMMUNICATION RISKS
                 </span>
-                <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full tabular-nums">
-                  {phase6DetailedData.totalRisksCount === 0
-                    ? "0 risks flagged"
-                    : phase6DetailedData.totalRisksCount === 1
-                    ? "1 risk identified"
-                    : `${phase6DetailedData.totalRisksCount} risks identified`}
-                </span>
+                <h3
+                  id="communication-risks-heading"
+                  className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight"
+                >
+                  Communication risks that could cost you visitors
+                </h3>
               </div>
-              <h2
-                id="communication-risks-heading"
-                className="text-lg sm:text-xl md:text-2xl font-extrabold text-[#101828] tracking-tight"
-              >
-                Communication risks that could cost you visitors
-              </h2>
-              <p className="text-xs sm:text-sm text-[#526078] mt-1 font-normal">
-                Messaging, positioning, or trust gaps on {data.domain} that may cause first-time visitors to hesitate or leave.
-              </p>
+              <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full tabular-nums">
+                {phase6DetailedData.totalRisksCount === 0
+                  ? "0 risks flagged"
+                  : phase6DetailedData.totalRisksCount === 1
+                  ? "1 risk identified"
+                  : `${phase6DetailedData.totalRisksCount} risks identified`}
+              </span>
             </div>
-          </div>
 
-          {phase6DetailedData.primaryRisk ? (
-            <div className="space-y-4">
-              {/* Compact Reference to Primary Bottleneck #1 (Avoids duplicating the full Section 05 card) */}
-              <div className="bg-[#f8fafc] border border-slate-200/90 rounded-2xl p-4 sm:px-5 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-start sm:items-center gap-3 min-w-0">
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0 ${
-                      phase6DetailedData.primaryRisk.severity === "high"
-                        ? "bg-rose-600 text-white"
-                        : phase6DetailedData.primaryRisk.severity === "medium"
-                        ? "bg-amber-500 text-white"
-                        : "bg-slate-600 text-white"
-                    }`}
+            {phase6DetailedData.primaryRisk ? (
+              <div className="space-y-4">
+                {phase6DetailedData.secondaryRisks.length > 0 ? (
+                  <div
+                    className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                    role="list"
+                    aria-label="Additional communication risks"
                   >
-                    #1 · {phase6DetailedData.primaryRisk.severity} risk
-                  </span>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-xs sm:text-sm font-extrabold text-[#101828] truncate">
-                        {phase6DetailedData.primaryRisk.title}
-                      </h3>
-                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider bg-white px-2 py-0.5 rounded border border-slate-200/80">
-                        {phase6DetailedData.primaryRisk.categoryLabel}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Primary bottleneck analyzed with focused homepage evidence in Section 05.
-                    </p>
-                  </div>
-                </div>
-                <a
-                  href="#biggest-issue-section"
-                  className="text-xs font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1 shrink-0 self-start sm:self-center focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none rounded print:hidden"
-                >
-                  <span>Review primary issue ↑</span>
-                </a>
-              </div>
+                    {phase6DetailedData.secondaryRisks.map((risk, idx) => {
+                      const severityBadge =
+                        risk.severity === "high"
+                          ? "bg-rose-600 text-white"
+                          : risk.severity === "medium"
+                          ? "bg-amber-500 text-white"
+                          : "bg-slate-600 text-white";
 
-              {/* Secondary / Additional Communication Risks Cards */}
-              {phase6DetailedData.secondaryRisks.length > 0 ? (
-                <div
-                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
-                  role="list"
-                  aria-label="Additional communication risks"
-                >
-                  {phase6DetailedData.secondaryRisks.map((risk, idx) => {
-                    const severityBadge =
-                      risk.severity === "high"
-                        ? "bg-rose-600 text-white"
-                        : risk.severity === "medium"
-                        ? "bg-amber-500 text-white"
-                        : "bg-slate-600 text-white";
+                      const cardBorder =
+                        risk.severity === "high"
+                          ? "bg-rose-50/35 border-rose-200/90"
+                          : risk.severity === "medium"
+                          ? "bg-amber-50/35 border-amber-200/90"
+                          : "bg-[#f8fafc] border-slate-200/90";
 
-                    const cardBorder =
-                      risk.severity === "high"
-                        ? "bg-rose-50/35 border-rose-200/90"
-                        : risk.severity === "medium"
-                        ? "bg-amber-50/35 border-amber-200/90"
-                        : "bg-[#f8fafc] border-slate-200/90";
-
-                    return (
-                      <div
-                        key={idx}
-                        role="listitem"
-                        className={`rounded-2xl border p-5 flex flex-col justify-between gap-4 ${cardBorder}`}
-                      >
-                        <div className="space-y-2.5">
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${severityBadge}`}
-                              >
-                                {risk.severity} risk
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-slate-200/80">
-                                {risk.categoryLabel}
+                      return (
+                        <div
+                          key={idx}
+                          role="listitem"
+                          className={`rounded-2xl border p-5 flex flex-col justify-between gap-4 ${cardBorder}`}
+                        >
+                          <div className="space-y-2.5">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${severityBadge}`}
+                                >
+                                  {risk.severity} risk
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-slate-200/80">
+                                  {risk.categoryLabel}
+                                </span>
+                              </div>
+                              <span className="text-[11px] font-bold text-slate-400 tabular-nums">
+                                Risk #{risk.riskNumber}
                               </span>
                             </div>
-                            <span className="text-[11px] font-bold text-slate-400 tabular-nums">
-                              Risk #{risk.riskNumber}
-                            </span>
-                          </div>
 
-                          <h3 className="text-sm sm:text-base font-extrabold text-[#101828] leading-snug">
-                            {risk.title}
-                          </h3>
+                            <h4 className="text-sm sm:text-base font-extrabold text-[#101828] leading-snug">
+                              {risk.title}
+                            </h4>
 
-                          <p className="text-xs sm:text-[13px] text-slate-700 leading-relaxed font-normal">
-                            {risk.description}
-                          </p>
-                        </div>
-
-                        <div className="pt-3 border-t border-slate-200/70">
-                          <div className="bg-white/90 border border-slate-200/70 rounded-xl p-3">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-0.5">
-                              WHY THIS MATTERS TO VISITORS
-                            </span>
-                            <p className="text-xs text-slate-800 font-medium leading-relaxed">
-                              {risk.why_it_matters}
+                            <p className="text-xs sm:text-[13px] text-slate-700 leading-relaxed font-normal">
+                              {risk.description}
                             </p>
                           </div>
+
+                          <div className="pt-3 border-t border-slate-200/70">
+                            <div className="bg-white/90 border border-slate-200/70 rounded-xl p-3">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-0.5">
+                                WHY THIS MATTERS TO VISITORS
+                              </span>
+                              <p className="text-xs text-slate-800 font-medium leading-relaxed">
+                                {risk.why_it_matters}
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-5 text-center">
-                  <p className="text-xs sm:text-sm font-semibold text-[#101828] mb-1">
-                    No additional secondary communication risks flagged
-                  </p>
-                  <p className="text-xs text-[#526078] max-w-xl mx-auto leading-relaxed">
-                    Beyond the primary bottleneck identified in Section 05, no other major messaging or credibility risks were detected on {data.domain}.
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-5 sm:p-6 text-center">
-              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2.5">
-                <Check className="w-4 h-4 stroke-[2.5]" />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-4 text-center">
+                    <p className="text-xs sm:text-sm font-semibold text-[#101828]">
+                      Beyond the primary issue in Section 02, no additional communication risks were detected on {data.domain}.
+                    </p>
+                  </div>
+                )}
               </div>
-              <p className="text-xs sm:text-sm font-bold text-[#101828] mb-1">
-                No major communication risks identified on {data.domain}
-              </p>
-              <p className="text-xs text-[#526078] max-w-xl mx-auto leading-relaxed">
-                Your accessible homepage content did not trigger any high or medium severity comprehension risk flags during this check.
-              </p>
-            </div>
-          )}
+            ) : (
+              <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-5 text-center">
+                <p className="text-xs sm:text-sm font-bold text-[#101828]">
+                  No major communication risks identified on {data.domain}
+                </p>
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* 15. RECHECK & COMPARE */}
+        {/* 07. RECHECK & COMPARE */}
         <section
           id="recheck-compare-section"
           aria-labelledby="recheck-compare-heading"
@@ -5406,7 +5083,7 @@ export default function ResultsScreen({
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#246bfd] border border-blue-100">
                   <RefreshCw className="w-3 h-3 text-[#246bfd] shrink-0" />
-                  RECHECK &amp; COMPARE
+                  07 · RECHECK &amp; COMPARE
                 </span>
                 <span className="text-[11px] font-medium text-slate-500">
                   · {data.domain}
@@ -5724,9 +5401,9 @@ export default function ResultsScreen({
         {/* RESULTS SCREEN LEGAL & SUPPORT FOOTER */}
         <footer className="pt-4 pb-6 border-t border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 print:hidden">
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-            <span className="font-bold text-slate-800">{LEGAL_CONFIG.productName}</span>
+            <span className="font-bold text-slate-800">{LEGAL_CONFIG.brandName}</span>
             <span>·</span>
-            <span>© {new Date().getFullYear()} {LEGAL_CONFIG.operatorLegalName}</span>
+            <span>© {new Date().getFullYear()} {LEGAL_CONFIG.brandName}</span>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5">
             {LEGAL_CONFIG.links.map((item) => (

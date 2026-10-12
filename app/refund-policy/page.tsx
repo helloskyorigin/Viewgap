@@ -2,10 +2,10 @@ import React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import LegalLayout from "@/components/LegalLayout";
-import { LEGAL_CONFIG } from "@/lib/legal-config";
+import { BRAND_NAME, LEGAL_CONFIG } from "@/lib/legal-config";
 
 export const metadata: Metadata = {
-  title: `Refund Policy — ${LEGAL_CONFIG.productName}`,
+  title: `Refund Policy — ${BRAND_NAME}`,
   description:
     "Refund Policy for StrangerLens one-time digital report purchases ($5 Full Report and $12 3-Report Pack), statutory consumer rights, and Paddle Merchant of Record refund terms.",
 };

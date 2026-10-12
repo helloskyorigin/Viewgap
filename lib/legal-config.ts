@@ -1,11 +1,11 @@
+export const BRAND_NAME = "StrangerLens";
+
 export const LEGAL_CONFIG = {
-  productName: "StrangerLens",
+  brandName: BRAND_NAME,
+  productName: BRAND_NAME,
   tagline: "AI-Powered Website First-Impression & Homepage Communication Analyzer",
-  // Update operatorLegalName and businessLocation with your exact registered entity or sole proprietor details if required during final Paddle account verification.
-  operatorLegalName:
-    process.env.NEXT_PUBLIC_OPERATOR_LEGAL_NAME || "StrangerLens",
-  supportEmail:
-    process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@strangerlens.com",
+  // Founder Completion Note: If formal operator legal identity or physical address disclosure is required in your jurisdiction prior to commercial publication, complete that disclosure before enabling live checkout.
+  supportEmail: "hello.skyorigin@gmail.com",
   billingSupportNote:
     "For order receipts, VAT/sales tax invoices, or payment inquiries, include the email address used at checkout and your order reference.",
   supportResponseWindow: "Within 24–48 business hours (Monday–Friday)",

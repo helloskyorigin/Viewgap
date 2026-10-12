@@ -2,10 +2,10 @@ import React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import LegalLayout from "@/components/LegalLayout";
-import { LEGAL_CONFIG } from "@/lib/legal-config";
+import { BRAND_NAME, LEGAL_CONFIG } from "@/lib/legal-config";
 
 export const metadata: Metadata = {
-  title: `Terms of Service — ${LEGAL_CONFIG.productName}`,
+  title: `Terms of Service — ${BRAND_NAME}`,
   description:
     "Terms of Service governing the use of StrangerLens AI website first-impression reviews and one-time report purchases.",
 };
@@ -18,15 +18,15 @@ export default function TermsOfServicePage() {
       title="Terms of Service"
       subtitle="Clear terms governing your use of StrangerLens free website previews, full 15-section diagnostic reports, and one-time report packs."
     >
-      {/* 1. Agreement & Operator */}
+      {/* 1. Agreement to Terms */}
       <section className="space-y-3">
         <h2 className="text-lg sm:text-xl font-extrabold text-[#101828] tracking-tight">
-          1. Agreement to Terms &amp; Service Operator
+          1. Agreement to Terms
         </h2>
+        {/* Founder Note: Insert registered business entity or sole proprietor legal name here prior to commercial publication if required by applicable jurisdiction. */}
         <p>
-          These Terms of Service (&ldquo;Terms&rdquo;) constitute a binding agreement between you and{" "}
-          <strong>{LEGAL_CONFIG.operatorLegalName}</strong>, the operator of{" "}
-          <strong>{LEGAL_CONFIG.productName}</strong> (&ldquo;StrangerLens&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;). By accessing {LEGAL_CONFIG.productName}, running a website scan, or purchasing a report pack, you agree to be bound by these Terms.
+          These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of{" "}
+          <strong>{BRAND_NAME}</strong> (&ldquo;StrangerLens&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;). By accessing {BRAND_NAME}, running a website scan, or purchasing a report pack, you agree to be bound by these Terms.
         </p>
       </section>
 
@@ -143,7 +143,7 @@ export default function TermsOfServicePage() {
           {LEGAL_CONFIG.productName} is provided on an &ldquo;as is&rdquo; and &ldquo;as available&rdquo; basis. While our pipeline validates extracted page evidence and uses deterministic scoring rules, AI-generated evaluations and copy suggestions are advisory only. We do not guarantee specific commercial outcomes, conversion rate increases, or uninterrupted availability of third-party websites being scanned.
         </p>
         <p>
-          To the maximum extent permitted by applicable law, {LEGAL_CONFIG.operatorLegalName}&apos;s total cumulative liability arising out of or relating to your use of {LEGAL_CONFIG.productName} shall not exceed the greater of (a) the total amount paid by you for {LEGAL_CONFIG.productName} reports in the twelve (12) months preceding the claim, or (b) $25 USD.
+          To the maximum extent permitted by applicable law, {BRAND_NAME}&apos;s total cumulative liability arising out of or relating to your use of {BRAND_NAME} shall not exceed the greater of (a) the total amount paid by you for {BRAND_NAME} reports in the twelve (12) months preceding the claim, or (b) $25 USD.
         </p>
       </section>
 

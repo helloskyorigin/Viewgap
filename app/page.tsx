@@ -17,8 +17,8 @@ import {
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import ScanScreen from "@/components/ScanScreen";
 import ResultsScreen from "@/components/ResultsScreen";
-import { mapBackendToFrontend } from "@/lib/mapper";
 import { validateClientUrl } from "@/lib/url-client-validator";
+import { createScanFlowController } from "@/lib/scan-flow-controller";
 import {
   Reveal,
   StaggerContainer,
@@ -27,6 +27,8 @@ import {
   EASE_OUT_EXPO,
 } from "@/components/motion/Reveal";
 import { LEGAL_CONFIG } from "@/lib/legal-config";
+
+const BRAND_NAME = "StrangerLens";
 
 // Controlled by actual payment availability; remains false until verified Paddle checkout is live
 const IS_CHECKOUT_ENABLED = false;
@@ -189,6 +191,38 @@ export default function LandingPage() {
 
   const ACTIVE_REPORT_SESSION_KEY = "strangerlens_active_report_v1";
 
+  const clearPersistedReportSession = () => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.removeItem(ACTIVE_REPORT_SESSION_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  const scrollToInputRef = useRef<() => void>(() => {});
+
+  const scanControllerRef = useRef<ReturnType<typeof createScanFlowController> | null>(
+    null
+  );
+  if (!scanControllerRef.current) {
+    scanControllerRef.current = createScanFlowController({
+      onStateChange: (nextState) => {
+        setUrl(nextState.url);
+        setSubmittedUrl(nextState.submittedUrl);
+        setCurrentView(nextState.currentView);
+        setIsVerifying(nextState.isVerifying);
+        setIsPending(nextState.isPending);
+        setErrorMessage(nextState.errorMessage);
+        setBackendError(nextState.backendError);
+        setAnalysisData(nextState.analysisData);
+      },
+      onValidationError: () => {
+        scrollToInputRef.current();
+      },
+    });
+  }
+
   // Restore active report from sessionStorage if user navigated to a legal/support page and returned
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -205,10 +239,10 @@ export default function LandingPage() {
         typeof parsed.analysisData.score === "number"
       ) {
         rafId = requestAnimationFrame(() => {
-          setSubmittedUrl(parsed.rawUrl);
-          setUrl(parsed.rawUrl);
-          setAnalysisData(parsed.analysisData);
-          setCurrentView("results");
+          scanControllerRef.current?.restoreSession(
+            parsed.rawUrl,
+            parsed.analysisData
+          );
         });
       }
     } catch {
@@ -238,15 +272,6 @@ export default function LandingPage() {
     }
   }, [currentView, analysisData, submittedUrl]);
 
-  const clearPersistedReportSession = () => {
-    if (typeof window === "undefined") return;
-    try {
-      window.sessionStorage.removeItem(ACTIVE_REPORT_SESSION_KEY);
-    } catch {
-      // Ignore storage errors
-    }
-  };
-
   const urlValidation = React.useMemo(() => validateClientUrl(url), [url]);
 
   const scrollToInput = () => {
@@ -255,7 +280,7 @@ export default function LandingPage() {
     const wasNotOnLanding = currentView !== "landing";
     if (wasNotOnLanding) {
       clearPersistedReportSession();
-      setCurrentView("landing");
+      scanControllerRef.current?.cancelScan();
     }
     setTimeout(() => {
       if (inputRef.current) {
@@ -267,6 +292,7 @@ export default function LandingPage() {
       }
     }, wasNotOnLanding ? 180 : 60);
   };
+  scrollToInputRef.current = scrollToInput;
 
   const handleSectionNavigate = (
     e: React.MouseEvent<HTMLAnchorElement>,
@@ -329,94 +355,7 @@ export default function LandingPage() {
 
   const handleAnalyze = async (e?: React.FormEvent, overrideUrl?: string) => {
     if (e) e.preventDefault();
-    const targetUrl = (overrideUrl || url || submittedUrl).trim();
-
-    if (!targetUrl) {
-      setErrorMessage("Please enter a website URL");
-      scrollToInput();
-      return;
-    }
-
-    const validation = validateClientUrl(targetUrl);
-    if (!validation.isValid || !validation.normalizedUrl) {
-      setErrorMessage(
-        validation.message || "Please enter a valid website URL (e.g. yourproduct.com)"
-      );
-      scrollToInput();
-      return;
-    }
-
-    const normalizedTargetUrl = validation.normalizedUrl;
-
-    setIsVerifying(true);
-    setErrorMessage(null);
-
-    try {
-      const verifyRes = await fetch("/api/check/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: normalizedTargetUrl }),
-      });
-
-      const verifyData = await verifyRes.json();
-
-      if (!verifyRes.ok || !verifyData.success) {
-        setIsVerifying(false);
-        setErrorMessage(
-          verifyData.message ||
-            "Website is unreachable. Please verify the domain and ensure the site is online."
-        );
-        return;
-      }
-    } catch (err: unknown) {
-      console.error("Reachability check network error:", err);
-      setIsVerifying(false);
-      setErrorMessage(
-        "Unable to verify website reachability. Please check your network and try again."
-      );
-      return;
-    }
-
-    setIsVerifying(false);
-    setSubmittedUrl(normalizedTargetUrl);
-    setBackendError(null);
-    setAnalysisData(null);
-    setErrorMessage(null);
-    setIsPending(true);
-    setCurrentView("scan");
-
-    try {
-      const res = await fetch("/api/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: normalizedTargetUrl }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        const mapped = mapBackendToFrontend(
-          data.analysis,
-          normalizedTargetUrl,
-          data.snapshot,
-          data.supportingContext
-        );
-        setAnalysisData(mapped);
-      } else {
-        const errorMsg =
-          data.message ||
-          data.error ||
-          "Failed to analyze website. Verify if the domain is reachable.";
-        setBackendError(errorMsg);
-      }
-    } catch (err: unknown) {
-      console.error("API error:", err);
-      setBackendError(
-        "An unexpected server or connection error occurred. Please try again."
-      );
-    } finally {
-      setIsPending(false);
-    }
+    await scanControllerRef.current?.startScan(overrideUrl);
   };
 
   return (
@@ -729,13 +668,12 @@ export default function LandingPage() {
                         <input
                           ref={inputRef}
                           type="text"
-                          disabled={isVerifying}
+                          disabled={isVerifying || isPending}
                           value={url}
                           onFocus={() => setIsInputFocused(true)}
                           onBlur={() => setIsInputFocused(false)}
                           onChange={(e) => {
-                            setUrl(e.target.value);
-                            if (errorMessage) setErrorMessage(null);
+                            scanControllerRef.current?.setUrl(e.target.value);
                           }}
                           placeholder="https://yourwebsite.com"
                           className="w-full min-w-0 bg-transparent text-slate-900 placeholder:text-slate-400 text-sm sm:text-base outline-none font-normal pr-2 disabled:opacity-75"
@@ -745,7 +683,7 @@ export default function LandingPage() {
                       <button
                         type="submit"
                         disabled={
-                          isVerifying || urlValidation.status === "invalid"
+                          isVerifying || isPending || urlValidation.status === "invalid"
                         }
                         className={`group mt-1.5 sm:mt-0 md:mt-1.5 lg:mt-0 w-full sm:w-auto md:w-full lg:w-auto min-h-[44px] sm:min-h-[46px] px-4 sm:px-5 py-2.5 rounded-full font-semibold text-xs sm:text-[13px] flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 ${
                           urlValidation.status === "invalid"
@@ -1507,10 +1445,10 @@ export default function LandingPage() {
                           S
                         </div>
                         <span className="font-bold text-slate-900 whitespace-nowrap">
-                          StrangerLens
+                          {BRAND_NAME}
                         </span>
                         <span>
-                          © {new Date().getFullYear()} {LEGAL_CONFIG.operatorLegalName}. All rights reserved.
+                          © {new Date().getFullYear()} {BRAND_NAME}. All rights reserved.
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center justify-center gap-6">
@@ -1565,14 +1503,19 @@ export default function LandingPage() {
           >
             <ScanScreen
               rawUrl={submittedUrl}
-              isBackendReady={!isPending && analysisData !== null}
+              isBackendReady={!isPending && !isVerifying && analysisData !== null}
+              isScanning={isPending || isVerifying}
               backendError={backendError}
               onRetry={() => {
-                handleAnalyze(undefined, submittedUrl || url);
+                scanControllerRef.current?.retryScan();
+              }}
+              onCancel={() => {
+                clearPersistedReportSession();
+                scanControllerRef.current?.cancelScan();
               }}
               onBackToLanding={() => {
                 clearPersistedReportSession();
-                setCurrentView("landing");
+                scanControllerRef.current?.cancelScan();
                 setTimeout(() => scrollToInput(), 100);
               }}
               onOpenFaq={() => {
@@ -1580,7 +1523,9 @@ export default function LandingPage() {
                 setActiveInfoModal("faq");
               }}
               onOpenPricing={() => setActiveInfoModal("pricing")}
-              onGoToResults={() => setCurrentView("results")}
+              onGoToResults={() => {
+                scanControllerRef.current?.completeScanToResults();
+              }}
             />
           </motion.div>
         ) : (
@@ -1597,11 +1542,11 @@ export default function LandingPage() {
               analysisData={analysisData || undefined}
               onBackToLanding={() => {
                 clearPersistedReportSession();
-                setCurrentView("landing");
+                scanControllerRef.current?.cancelScan();
                 setTimeout(() => scrollToInput(), 100);
               }}
               onRunNewCheck={() => {
-                handleAnalyze(undefined, submittedUrl || url);
+                scanControllerRef.current?.retryScan();
               }}
               onOpenFaq={() => {
                 setOpenFaqIndex(null);

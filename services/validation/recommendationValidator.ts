@@ -34,6 +34,111 @@ const GENERIC_RECOMMENDATION_TITLES = [
 ];
 
 /**
+ * Detects repetitive words, repeated phrases/sentences, nonsensical AI output,
+ * or accidentally leaked raw environment-variable tokens.
+ */
+export function hasRepetitiveOrNonsensicalText(rawText: string | undefined): boolean {
+  if (!rawText || typeof rawText !== "string") return true;
+  const text = rawText.replace(/\s+/g, " ").trim();
+  if (text.length < 8) return true;
+
+  // 1. Reject leaked environment variable names or code/JSON artifacts
+  if (
+    /\b(?:NEXT_PUBLIC_[A-Z0-9_]+|process\.env\.[A-Za-z0-9_]+|GEMINI_API_KEY|GROQ_API_KEY|PADDLE_[A-Z0-9_]+|OPENAI_API_KEY)\b/.test(
+      text
+    ) ||
+    /^(?:\{|\[|```|undefined|null|NaN\b)/i.test(text) ||
+    /\b(?:lorem ipsum|asdf|qwerty|placeholder text|insert text here)\b/i.test(text)
+  ) {
+    return true;
+  }
+
+  // 2. Reject immediate consecutive repeated words (e.g. "clarity clarity", "the the", "value value")
+  if (/\b([a-z]{3,})\s+\1\b/i.test(text)) {
+    return true;
+  }
+
+  // 3. Reject repeated 3-word phrases within the same text block
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (words.length >= 6) {
+    const trigrams = new Map<string, number>();
+    for (let i = 0; i <= words.length - 3; i++) {
+      const trigram = `${words[i]} ${words[i + 1]} ${words[i + 2]}`;
+      const nextCount = (trigrams.get(trigram) || 0) + 1;
+      if (nextCount >= 2) {
+        return true;
+      }
+      trigrams.set(trigram, nextCount);
+    }
+  }
+
+  // 4. Reject excessive single-word repetition in longer sentences
+  const contentWords = words.filter((w) => w.length >= 4);
+  if (contentWords.length >= 8) {
+    const counts = new Map<string, number>();
+    for (const w of contentWords) {
+      const c = (counts.get(w) || 0) + 1;
+      if (c >= 4 || c / contentWords.length > 0.35) {
+        return true;
+      }
+      counts.set(w, c);
+    }
+  }
+
+  // 5. Reject duplicate sentences
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim())
+    .filter((s) => s.length >= 12);
+  if (sentences.length >= 2) {
+    const uniqueSentences = new Set(sentences);
+    if (uniqueSentences.size < sentences.length) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Sanitizes an explanation to ensure it is non-repetitive, free of raw env var tokens,
+ * and concise (max 2 sentences / maxChars). Falls back to `fallbackText` if invalid.
+ */
+export function sanitizeConciseExplanation(
+  rawText: string | undefined,
+  fallbackText: string,
+  maxSentences = 2,
+  maxChars = 260
+): string {
+  if (!rawText || hasRepetitiveOrNonsensicalText(rawText)) {
+    return fallbackText;
+  }
+
+  const cleaned = rawText.replace(/\s+/g, " ").trim();
+  const sentences = cleaned
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  let concise = sentences.slice(0, maxSentences).join(" ");
+  if (concise.length > maxChars) {
+    if (sentences[0] && sentences[0].length <= maxChars) {
+      concise = sentences[0];
+    } else {
+      const truncated = concise.slice(0, maxChars - 1).replace(/\s+\S*$/, "").trim();
+      concise = /[.!?]$/.test(truncated) ? truncated : `${truncated}.`;
+    }
+  }
+
+  return /[.!?]$/.test(concise) ? concise : `${concise}.`;
+}
+
+/**
  * Checks whether a recommendation or suggested replacement introduces
  * unverified statistics, customer counts, ratings, certifications,
  * testimonials, or guarantees that do not exist in the WebsiteSnapshot.
@@ -72,14 +177,36 @@ export function containsUnverifiedFabricatedClaim(
     }
   }
 
-  // 2. Check written quantities (e.g., "thousands of customers", "millions of profiles", "hundreds of teams")
+  // 2. Check written quantities (e.g., "thousands of customers", "millions of profiles", "hundreds of teams", "X million", "5 million")
   const writtenQuantityRegex =
-    /\b(dozens|hundreds|thousands|tens\s+of\s+thousands|hundreds\s+of\s+thousands|millions|billions|trillions|countless)\s+of\b/gi;
+    /\b(?:(dozens|hundreds|thousands|tens\s+of\s+thousands|hundreds\s+of\s+thousands|millions|billions|trillions|countless)\s+of|(\d[\d,.]*|[xXnN])\s+(?:million|billion|thousand|trillion))\b/gi;
   let wMatch: RegExpExecArray | null;
   while ((wMatch = writtenQuantityRegex.exec(text)) !== null) {
     const phrase = wMatch[0].toLowerCase().replace(/\s+/g, " ").trim();
-    const qtyWord = (wMatch[1] || "").toLowerCase().replace(/\s+/g, " ").trim();
+    const qtyWord = (wMatch[1] || wMatch[2] || "").toLowerCase().replace(/\s+/g, " ").trim();
     if (!searchablePool.includes(phrase) && (!qtyWord || !searchablePool.includes(qtyWord))) {
+      return true;
+    }
+  }
+
+  // 2b. Check fabricated "verified database", revenue/conversion statistics, and unsupported capabilities
+  const unverifiedClaimPatterns: Array<{ pattern: RegExp; poolCheck: RegExp }> = [
+    {
+      pattern: /\b(?:verified\s+database|database\s+of\s+(?:[xXnN]|\d|millions|thousands|hundreds)|verified\s+(?:profiles|records|dataset|users|customers))\b/i,
+      poolCheck: /\b(?:verified\s+database|verified\s+profiles|verified\s+records|verified\s+dataset)\b/i,
+    },
+    {
+      pattern: /\b(?:increase\s+(?:conversions?|revenue|sales)\s+by|boost\s+(?:conversions?|revenue|sales)|double\s+your\s+(?:revenue|conversions?)|(?:\d+x|10x)\s+(?:roi|revenue|conversions?))\b/i,
+      poolCheck: /\b(?:increase\s+conversions|boost\s+conversions|increase\s+revenue|boost\s+revenue|roi)\b/i,
+    },
+    {
+      pattern: /\b(?:comparison\s+charts|real-time\s+predictive\s+analytics|ai-powered\s+forecasting\s+engine)\b/i,
+      poolCheck: /\b(?:comparison\s+charts|real-time\s+predictive\s+analytics|ai-powered\s+forecasting\s+engine)\b/i,
+    },
+  ];
+
+  for (const check of unverifiedClaimPatterns) {
+    if (check.pattern.test(text) && !check.poolCheck.test(searchablePool)) {
       return true;
     }
   }
@@ -273,6 +400,7 @@ export function validatePriorityFix(
   const rawTitle = (priorityFix?.title || "").trim();
   const isGenericTitle =
     !rawTitle ||
+    hasRepetitiveOrNonsensicalText(rawTitle) ||
     GENERIC_RECOMMENDATION_TITLES.some(
       (g) => rawTitle.toLowerCase() === g || rawTitle.toLowerCase().includes(g)
     );
@@ -339,9 +467,11 @@ export function validatePriorityFix(
     priorityFix.suggested_direction ||
     `Clarify main benefit for ${brand}`;
 
-  // Sanitize clearer_direction against fabricated statistics, testimonials, certifications, or guarantees
+  // Sanitize clearer_direction against fabricated statistics, testimonials, certifications, guarantees, or repetition
   let clearerDirection = rawClearerDirection.trim();
-  const sanitizedPrimaryCopy = sanitizeSuggestedCopy(clearerDirection, snapshot);
+  const sanitizedPrimaryCopy = !hasRepetitiveOrNonsensicalText(clearerDirection)
+    ? sanitizeSuggestedCopy(clearerDirection, snapshot)
+    : null;
   if (sanitizedPrimaryCopy) {
     clearerDirection = sanitizedPrimaryCopy;
   } else {
@@ -359,11 +489,16 @@ export function validatePriorityFix(
       ? "high"
       : priorityFix.impact || (weakestSignalKey ? "high" : "medium");
 
+  const sanitizedReason = sanitizeConciseExplanation(
+    priorityFix.reason && !containsUnverifiedFabricatedClaim(priorityFix.reason, snapshot)
+      ? priorityFix.reason
+      : undefined,
+    "Helps first-time visitors immediately classify the product value."
+  );
+
   return {
     title: rawTitle,
-    reason:
-      priorityFix.reason ||
-      "Helps first-time visitors immediately classify the product value.",
+    reason: sanitizedReason,
     impact,
     what_you_say_now: groundedWhatYouSay,
     clearer_direction: clearerDirection,
@@ -376,12 +511,13 @@ export function validatePriorityFix(
 
 /**
  * Validates array of Other Improvements. Filters out generic titles, avoids duplicating priority fix,
- * strips fabricated statistics/claims, and limits max count to 3.
+ * strips fabricated statistics/claims, prevents contradicting clear signals, and limits max count to 3.
  */
 export function validateOtherImprovements(
   improvements: OtherImprovementInput[] | undefined,
   snapshot: WebsiteSnapshot,
-  priorityFixTitle?: string
+  priorityFixTitle?: string,
+  allSignalScores?: Record<string, number>
 ): Array<{
   title: string;
   explanation: string;
@@ -410,13 +546,29 @@ export function validateOtherImprovements(
 
   for (const item of improvements) {
     if (validList.length >= 3) break; // Maximum 3 recommendations
-    if (!item || !item.title) continue;
+    if (!item || !item.title || hasRepetitiveOrNonsensicalText(item.title)) continue;
 
     const lowerTitle = item.title.toLowerCase().trim();
 
     // Skip generic recommendations
     if (GENERIC_RECOMMENDATION_TITLES.some((g) => lowerTitle === g || lowerTitle.includes(g))) {
       continue;
+    }
+
+    // Skip recommendations that claim a signal is missing/unclear when that signal is already strong (>= 85)
+    if (allSignalScores) {
+      if (
+        /\b(missing cta|no call to action|unclear cta|no primary button)\b/i.test(lowerTitle) &&
+        (allSignalScores.action ?? 0) >= 80
+      ) {
+        continue;
+      }
+      if (
+        /\b(no target audience|missing audience|unclear who it is for)\b/i.test(lowerTitle) &&
+        (allSignalScores.audience ?? 0) >= 80
+      ) {
+        continue;
+      }
     }
 
     // Skip duplicate or repetitive titles
@@ -435,8 +587,16 @@ export function validateOtherImprovements(
     const verifiedEv = validateEvidenceList(item.evidence_refs, snapshot, true);
 
     // Provide contextual defaults if missing (without fabricating claims or metrics)
-    let whyItMatters = item.why_it_matters;
-    let whatToImprove = item.what_to_improve;
+    let whyItMatters =
+      item.why_it_matters &&
+      !hasRepetitiveOrNonsensicalText(item.why_it_matters) &&
+      !containsUnverifiedFabricatedClaim(item.why_it_matters, snapshot)
+        ? sanitizeConciseExplanation(item.why_it_matters, "")
+        : undefined;
+    let whatToImprove =
+      item.what_to_improve && !hasRepetitiveOrNonsensicalText(item.what_to_improve)
+        ? item.what_to_improve
+        : undefined;
     let copyableSuggestion = item.copyable_suggestion;
 
     const lowerCombined = `${item.title} ${item.explanation}`.toLowerCase();
@@ -464,18 +624,32 @@ export function validateOtherImprovements(
       } else {
         whatToImprove = "Restate the primary message to emphasize the visitor's concrete outcome.";
       }
+    } else {
+      whatToImprove = sanitizeConciseExplanation(
+        whatToImprove,
+        "Restate the primary message to emphasize the visitor's concrete outcome."
+      );
     }
 
     // Never invent fallback copyable_suggestion templates with fake claims,
     // and strip or sanitize any AI-provided copyable_suggestion that contains unverified statistics/guarantees.
     if (copyableSuggestion) {
-      const sanitizedSuggestion = sanitizeSuggestedCopy(copyableSuggestion, snapshot);
+      const sanitizedSuggestion = !hasRepetitiveOrNonsensicalText(copyableSuggestion)
+        ? sanitizeSuggestedCopy(copyableSuggestion, snapshot)
+        : null;
       copyableSuggestion = sanitizedSuggestion || undefined;
     }
 
+    const cleanExplanation = sanitizeConciseExplanation(
+      item.explanation && !containsUnverifiedFabricatedClaim(item.explanation, snapshot)
+        ? item.explanation
+        : undefined,
+      "Improves visitor comprehension and reduces decision friction."
+    );
+
     validList.push({
       title: item.title,
-      explanation: item.explanation || "Improves visitor comprehension and reduces decision friction.",
+      explanation: cleanExplanation,
       why_it_matters: whyItMatters,
       what_to_improve: whatToImprove,
       copyable_suggestion: copyableSuggestion,

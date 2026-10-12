@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, Shield, FileText, RefreshCcw, Mail, ExternalLink } from "lucide-react";
-import { LEGAL_CONFIG } from "@/lib/legal-config";
+import { ArrowLeft, Shield, FileText, RefreshCcw, Mail } from "lucide-react";
+import { BRAND_NAME, LEGAL_CONFIG } from "@/lib/legal-config";
 
 interface LegalLayoutProps {
   activePage: "privacy" | "terms" | "refund" | "contact";
@@ -168,10 +168,10 @@ export default function LegalLayout({
               S
             </div>
             <span className="font-bold text-slate-900 whitespace-nowrap">
-              {LEGAL_CONFIG.productName}
+              {BRAND_NAME}
             </span>
             <span>
-              © {new Date().getFullYear()} {LEGAL_CONFIG.operatorLegalName}. All rights reserved.
+              © {new Date().getFullYear()} {BRAND_NAME}. All rights reserved.
             </span>
           </div>
 

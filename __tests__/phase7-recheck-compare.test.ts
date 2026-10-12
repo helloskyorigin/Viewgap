@@ -455,7 +455,7 @@ describe("Phase 7 — Recheck & Compare + Complete 15-Section Results QA", () =>
     assert.equal(secondSync.previousRecord?.domain, "acme.io");
   });
 
-  test("K & L. All 15 sections render in the exact intended sequence with zero automatic AI calls or forbidden tokens", () => {
+  test("K & L. All 7 logical sections render in the exact intended sequence with zero automatic AI calls or forbidden tokens", () => {
     let fetchCalled = false;
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () => {
@@ -479,26 +479,23 @@ describe("Phase 7 — Recheck & Compare + Complete 15-Section Results QA", () =>
       // K: Zero automatic network / AI calls on render
       assert.equal(fetchCalled, false);
 
-      // L: Verify all 3 visual hierarchy levels and 15 sections appear in exact DOM order
+      // L: Verify the 7 logical report sections and sub-blocks appear in exact DOM order
       const orderedMarkers = [
-        'id="level-1-instant-understanding"', // LEVEL 1 — INSTANT UNDERSTANDING
-        "First-impression report", // 01. Website + Analysis Date
-        "VALUE CLARITY SCORE", // 02. Overall Score + Status
-        "First-Impression Diagnosis", // 03. Main Verdict
-        'id="five-signal-overview-section"', // 04. Five Signal Overview
-        'id="biggest-issue-section"', // 05. Biggest Issue + Evidence
-        'id="priority-fix-section"', // 06. Your #1 Priority Fix
-        'id="level-2-actionable-improvements"', // LEVEL 2 — ACTIONABLE IMPROVEMENTS
-        'id="priority-fix-plan-section"', // 07. Priority Fix Plan
-        'id="copy-ready-improvements-section"', // 08. Copy-Ready Improvements
-        'id="other-improvements-section"', // 09. Other Recommended Improvements
-        'id="level-3-deep-analysis"', // LEVEL 3 — DEEP ANALYSIS
-        'id="first-seconds-section"', // 10. In the First Few Seconds
-        'id="visitor-impression-section"', // 11. First-Time Visitor Impression
-        'id="complete-homepage-evidence-section"', // 12. Complete Homepage Evidence
-        'id="five-detailed-signals-section"', // 13. Five Detailed Signals
-        'id="communication-risks-section"', // 14. Communication Risks
-        'id="recheck-compare-section"', // 15. Recheck & Compare
+        "First-impression report",
+        'id="five-signal-overview-section"', // 01. Website Score + Main Verdict + Five Signals
+        "OVERALL FIRST-IMPRESSION SCORE",
+        'id="biggest-issue-section"', // 02. Biggest Issue + Actual Evidence
+        'id="priority-fix-section"', // 03. Your #1 Priority Fix
+        'id="priority-fix-plan-section"', // 04. Prioritized Action Plan (includes Other Improvements)
+        'id="other-improvements-section"',
+        'id="copy-ready-improvements-section"', // 05. Copy-Ready Improvements
+        'id="detailed-evidence-insights-section"', // 06. Detailed Evidence & Insights
+        'id="first-seconds-section"',
+        'id="visitor-impression-section"',
+        'id="complete-homepage-evidence-section"',
+        'id="five-detailed-signals-section"',
+        'id="communication-risks-section"',
+        'id="recheck-compare-section"', // 07. Recheck & Compare
       ];
 
       let lastIndex = -1;
@@ -511,8 +508,13 @@ describe("Phase 7 — Recheck & Compare + Complete 15-Section Results QA", () =>
         lastIndex = idx;
       }
 
-      // Verify Section 10 clearly labels visitor impression as AI-simulated
-      assert.ok(html.includes("AI-simulated first-time visitor reaction"));
+      // Verify old LEVEL 1/2/3 headers are removed
+      assert.ok(!html.includes("LEVEL 1 — INSTANT UNDERSTANDING"));
+      assert.ok(!html.includes("LEVEL 2 — ACTIONABLE IMPROVEMENTS"));
+      assert.ok(!html.includes("LEVEL 3 — DEEP ANALYSIS"));
+
+      // Verify visitor impression heading renders inside Section 06
+      assert.ok(html.includes("A first-time visitor would probably think"));
 
       // Verify Phase 4 Score Transparency & AI Disclosure in Results Hero
       assert.ok(html.includes("OVERALL FIRST-IMPRESSION SCORE"));

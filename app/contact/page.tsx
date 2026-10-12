@@ -3,10 +3,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Mail, Clock, ShieldCheck, FileText, RefreshCcw, HelpCircle } from "lucide-react";
 import LegalLayout from "@/components/LegalLayout";
-import { LEGAL_CONFIG } from "@/lib/legal-config";
+import { BRAND_NAME, LEGAL_CONFIG } from "@/lib/legal-config";
 
 export const metadata: Metadata = {
-  title: `Contact Support — ${LEGAL_CONFIG.productName}`,
+  title: `Contact Support — ${BRAND_NAME}`,
   description:
     "Get customer support for StrangerLens website first-impression reports, billing, receipts, and refund inquiries.",
 };
@@ -163,14 +163,13 @@ export default function ContactSupportPage() {
         </ul>
       </section>
 
-      {/* Merchant & Operator Disclosure */}
+      {/* Merchant & Service Disclosure */}
       <section className="space-y-2 pt-4 border-t border-slate-100 text-xs sm:text-sm text-[#526078]">
         <h2 className="text-base font-extrabold text-[#101828] tracking-tight">
-          Service Operator &amp; Billing Information
+          Service &amp; Billing Information
         </h2>
         <p>
-          <strong>Service:</strong> {LEGAL_CONFIG.productName} ({LEGAL_CONFIG.tagline}) · Operated by{" "}
-          <strong>{LEGAL_CONFIG.operatorLegalName}</strong>.
+          <strong>Service:</strong> {BRAND_NAME} ({LEGAL_CONFIG.tagline}).
         </p>
         <p>{LEGAL_CONFIG.merchantOfRecord.disclosure}</p>
       </section>

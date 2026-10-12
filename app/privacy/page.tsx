@@ -2,10 +2,10 @@ import React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import LegalLayout from "@/components/LegalLayout";
-import { LEGAL_CONFIG } from "@/lib/legal-config";
+import { BRAND_NAME, LEGAL_CONFIG } from "@/lib/legal-config";
 
 export const metadata: Metadata = {
-  title: `Privacy Policy — ${LEGAL_CONFIG.productName}`,
+  title: `Privacy Policy — ${BRAND_NAME}`,
   description:
     "Learn how StrangerLens collects, processes, and protects information when you analyze a website or purchase a full report.",
 };
@@ -18,17 +18,16 @@ export default function PrivacyPolicyPage() {
       title="Privacy Policy"
       subtitle="How StrangerLens handles website URLs, publicly accessible homepage content, local browser storage, and checkout information."
     >
-      {/* 1. Overview & Controller */}
+      {/* 1. Overview & Scope */}
       <section className="space-y-3">
         <h2 className="text-lg sm:text-xl font-extrabold text-[#101828] tracking-tight">
           1. Overview &amp; Scope
         </h2>
         <p>
-          This Privacy Policy explains how <strong>{LEGAL_CONFIG.productName}</strong> (operated by{" "}
-          <strong>{LEGAL_CONFIG.operatorLegalName}</strong>, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;) collects, uses, and safeguards information when you use our website first-impression analysis service, preview free diagnostic results, or purchase a paid report.
+          This Privacy Policy explains how <strong>{BRAND_NAME}</strong> (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;) collects, uses, and safeguards information when you use our website first-impression analysis service, preview free diagnostic results, or purchase a paid report.
         </p>
         <p>
-          We design {LEGAL_CONFIG.productName} around data minimization: you can run a free homepage first-impression review without creating an account, and we only process the data necessary to deliver your website analysis and fulfill report purchases.
+          We design {BRAND_NAME} around data minimization: you can run a free homepage first-impression review without creating an account, and we only process the data necessary to deliver your website analysis and fulfill report purchases.
         </p>
       </section>
 
