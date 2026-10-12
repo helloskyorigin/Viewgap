@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import {
   Link2,
   ArrowRight,
@@ -25,6 +26,7 @@ import {
   AnimatedHamburgerIcon,
   EASE_OUT_EXPO,
 } from "@/components/motion/Reveal";
+import { LEGAL_CONFIG } from "@/lib/legal-config";
 
 // PRICING CONFIG (Preserves existing layout; paid checkout marked honestly as Coming soon)
 const PRICING_PLANS = [
@@ -65,10 +67,10 @@ const PRICING_PLANS = [
   },
   {
     id: "three_reports",
-    name: "3 Full Reports",
-    price: 10,
+    name: "Three-Report Pack",
+    price: 12,
     period: "one-time",
-    tagline: "Planned pack for multiple websites or iterations",
+    tagline: "Save $3 ($4 per report) for multiple sites or iterations",
     features: [
       "Three complete reports",
       "Full report capabilities for each",
@@ -111,7 +113,7 @@ const FAQ_ITEMS = [
   {
     question: "What do paid reports cost?",
     answer:
-      "One-time report packs ($5 for a single report or $10 for 3 reports, with no subscription) are planned and currently marked as coming soon. You can analyze your homepage for free right now.",
+      "One-time report packs ($5 for a single full report or $12 for a 3-report pack, with no subscription) are planned and currently marked as coming soon. You can analyze your homepage for free right now.",
   },
   {
     question: "Do I need to create an account?",
@@ -509,6 +511,19 @@ export default function LandingPage() {
                           <span>Try for free</span>
                           <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                         </button>
+
+                        <div className="pt-3 mt-3 border-t border-slate-100 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-slate-500">
+                          {LEGAL_CONFIG.links.map((item) => (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className="hover:text-slate-900 transition-colors"
+                            >
+                              {item.label}
+                            </Link>
+                          ))}
+                        </div>
                       </motion.div>
                     </motion.nav>
                   </motion.div>
@@ -1299,6 +1314,44 @@ export default function LandingPage() {
                     </StaggerItem>
                   ))}
                 </StaggerContainer>
+
+                <Reveal y={12} delay={0.16}>
+                  <div className="max-w-3xl mx-auto mt-7 text-center text-xs text-[#526078] space-y-1.5">
+                    <p>
+                      One-time purchases only · No recurring subscriptions · Covered by our{" "}
+                      <Link
+                        href="/refund-policy"
+                        className="font-semibold text-[#246BFD] hover:underline"
+                      >
+                        14-Day Refund Policy
+                      </Link>
+                      .
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Questions about plans or billing?{" "}
+                      <Link
+                        href="/contact"
+                        className="text-slate-600 hover:text-slate-900 underline underline-offset-2"
+                      >
+                        Contact Support
+                      </Link>{" "}
+                      ·{" "}
+                      <Link
+                        href="/terms"
+                        className="text-slate-600 hover:text-slate-900 underline underline-offset-2"
+                      >
+                        Terms of Service
+                      </Link>{" "}
+                      ·{" "}
+                      <Link
+                        href="/privacy"
+                        className="text-slate-600 hover:text-slate-900 underline underline-offset-2"
+                      >
+                        Privacy Policy
+                      </Link>
+                    </p>
+                  </div>
+                </Reveal>
               </section>
 
               {/* SECTION: FAQ */}
@@ -1394,29 +1447,54 @@ export default function LandingPage() {
                 </Reveal>
 
                 <Reveal y={10} delay={0.08}>
-                  <footer className="pt-6 pb-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#526078]">
-                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                        S
+                  <footer className="pt-6 pb-4 border-t border-slate-100 flex flex-col gap-5 text-xs text-[#526078]">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                          S
+                        </div>
+                        <span className="font-bold text-slate-900 whitespace-nowrap">
+                          StrangerLens
+                        </span>
+                        <span>
+                          © {new Date().getFullYear()} {LEGAL_CONFIG.operatorLegalName}. All rights reserved.
+                        </span>
                       </div>
-                      <span className="font-bold text-slate-900 whitespace-nowrap">
-                        StrangerLens
-                      </span>
-                      <span>
-                        © {new Date().getFullYear()} StrangerLens. All rights reserved.
-                      </span>
+                      <div className="flex flex-wrap items-center justify-center gap-6">
+                        {NAV_ITEMS.map((item) => (
+                          <a
+                            key={item.href}
+                            href={item.href}
+                            onClick={(e) => handleSectionNavigate(e, item.href)}
+                            className="hover:text-slate-900 transition-colors underline-offset-4 hover:underline"
+                          >
+                            {item.label}
+                          </a>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center justify-center gap-6">
-                      {NAV_ITEMS.map((item) => (
+
+                    <div className="pt-4 border-t border-slate-100/90 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] sm:text-xs text-slate-500">
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-5 gap-y-2">
+                        {LEGAL_CONFIG.links.map((item) => (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className="hover:text-slate-900 transition-colors underline-offset-4 hover:underline font-medium"
+                          >
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                      <div className="text-center sm:text-right text-[11px] text-slate-400">
+                        <span>Support: </span>
                         <a
-                          key={item.href}
-                          href={item.href}
-                          onClick={(e) => handleSectionNavigate(e, item.href)}
-                          className="hover:text-slate-900 transition-colors underline-offset-4 hover:underline"
+                          href={`mailto:${LEGAL_CONFIG.supportEmail}`}
+                          className="text-slate-600 hover:text-[#246BFD] transition-colors font-medium"
                         >
-                          {item.label}
+                          {LEGAL_CONFIG.supportEmail}
                         </a>
-                      ))}
+                      </div>
                     </div>
                   </footer>
                 </Reveal>
@@ -1659,6 +1737,26 @@ export default function LandingPage() {
                     )}
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-500 shrink-0">
+                <span>
+                  One-time payment · No recurring charges ·{" "}
+                  <Link href="/refund-policy" className="text-[#246BFD] font-semibold hover:underline">
+                    14-Day Refund Policy
+                  </Link>
+                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link href="/terms" className="hover:text-slate-900 underline underline-offset-2">
+                    Terms
+                  </Link>
+                  <Link href="/privacy" className="hover:text-slate-900 underline underline-offset-2">
+                    Privacy
+                  </Link>
+                  <Link href="/contact" className="hover:text-slate-900 underline underline-offset-2">
+                    Support
+                  </Link>
+                </div>
               </div>
             </motion.div>
           </div>

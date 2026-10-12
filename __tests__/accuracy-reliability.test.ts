@@ -13,6 +13,10 @@ import {
 import { SIGNAL_WEIGHTS } from "@/services/scoring/scoringConfig";
 import { calculateOverallScore } from "@/services/scoring/calculateOverallScore";
 import ResultsScreen from "@/components/ResultsScreen";
+import PrivacyPolicyPage from "@/app/privacy/page";
+import TermsOfServicePage from "@/app/terms/page";
+import RefundPolicyPage from "@/app/refund-policy/page";
+import ContactSupportPage from "@/app/contact/page";
 
 const ARE_YOU_RARE_HTML = `
 <!DOCTYPE html>
@@ -564,5 +568,189 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     });
     // 80*0.25 + 60*0.20 + 80*0.25 + 60*0.15 + 80*0.15 = 20 + 12 + 20 + 9 + 12 = 73
     assert.equal(calc.overallScore, 73);
+  });
+
+  test("TEST 13: Free Results UX — No duplicate quickSignal takeaway in Five Signal Overview, non-contradictory Biggest Issue, specific #1 Priority Fix guidance, and honest Copy-Ready CTA behavior", () => {
+    const snapshot = extractWebsiteSnapshot(ARE_YOU_RARE_HTML, { baseUrl: "https://areyourare.ai.studio" });
+    const validated = validateAndScoreAnalysis({} as any, snapshot);
+    const mapped = mapBackendToFrontend(validated, "https://areyourare.ai.studio", snapshot);
+
+    // Case A: Primary risk is in 'value' (score 74) while 'trust' is lowest signal (score 45),
+    // and recommendation is structural/proof-based so 0 copy-ready cards are generated.
+    const customPayload = {
+      ...mapped,
+      signals: [
+        { id: "first-impression", title: "First impression", score: 82, badgeText: "Clear", badgeType: "clear" as const, description: "Clear first impression.", icon: "eye" },
+        { id: "audience", title: "Audience", score: 62, badgeText: "Partly clear", badgeType: "amber" as const, description: "Audience could be more specific.", icon: "users" },
+        { id: "value", title: "Value", score: 68, badgeText: "Understandable", badgeType: "amber" as const, description: "Value is understandable.", icon: "sparkles" },
+        { id: "trust", title: "Trust", score: 45, badgeText: "Needs work", badgeType: "coral" as const, description: "Trust signals are weak.", icon: "shield" },
+        { id: "action", title: "Action", score: 85, badgeText: "Clear", badgeType: "clear" as const, description: "Primary CTA is clear.", icon: "arrow" },
+      ],
+      risks: [
+        {
+          category: "value",
+          severity: "high" as const,
+          title: "Primary outcome lacks concrete specificity",
+          description: "Visitors see a general rarity calculator prompt without knowing what the output looks like.",
+          why_it_matters: "Clear outcome previews increase quiz completion.",
+        },
+      ],
+      recommendation: {
+        title: "If you change only one thing",
+        subhead: "Add customer logos and methodology badge below the hero",
+        explanation: "Displaying visible methodology credentials directly reinforces trust for first-time visitors.",
+        impact: "high" as const,
+        currentDirection: "“ Check how rare you really are ”",
+        strongerDirection: "Add a visible methodology note beneath the primary button.",
+      },
+      otherImprovements: [],
+    };
+
+    const htmlNoCopy = renderToStaticMarkup(
+      React.createElement(ResultsScreen, {
+        rawUrl: "https://areyourare.ai.studio",
+        analysisData: customPayload,
+        previousCheckRecord: null,
+        onBackToLanding: () => {},
+        onRunNewCheck: () => {},
+        onOpenFaq: () => {},
+        onOpenPricing: () => {},
+      })
+    );
+
+    // 1. Five-signal snapshot phrases appear in Hero (1x) and First Few Seconds context (1x), NOT duplicated a 3rd time in Section 04 cards
+    const occurrences = htmlNoCopy.split("Product category is clear").length - 1;
+    assert.ok(occurrences <= 2, `Expected quickSignal string not to be duplicated in Section 04 cards, found ${occurrences}`);
+    assert.ok(htmlNoCopy.includes("Product category:"));
+
+    // 2. Section 05 Biggest Issue does not contradict itself by labeling Trust (45/100) while showing a Value risk
+    const sec05Start = htmlNoCopy.indexOf('id="biggest-issue-section"');
+    const sec06Start = htmlNoCopy.indexOf('id="priority-fix-section"');
+    const sec05Html = htmlNoCopy.slice(sec05Start, sec06Start);
+    assert.ok(sec05Html.includes("Impacted signal:"));
+    assert.ok(sec05Html.includes("Value (68/100)"));
+    assert.ok(!sec05Html.includes("Lowest signal: <strong class=\"text-slate-800\">Trust"));
+
+    // 3. Section 06 #1 Priority Fix shows specific website-grounded guidance and matches the targeted signal (Trust 45/100)
+    const paywallStart = htmlNoCopy.indexOf('id="paid-report-paywall-section"');
+    const sec06Html = htmlNoCopy.slice(sec06Start, paywallStart);
+    assert.ok(!sec06Html.includes("Focus your first edit on resolving this primary clarity gap above the fold before adjusting secondary page sections."));
+    assert.ok(sec06Html.includes("WHAT VISITORS SEE NOW"));
+    assert.ok(sec06Html.includes("Check how rare you really are"));
+    assert.ok(sec06Html.includes("RECOMMENDED DIRECTION"));
+    assert.ok(sec06Html.includes("45 / 100"));
+
+    // 4. When copyReadyImprovements is empty, "See copy-ready wording" CTA is hidden and replaced with Priority Fix Plan link
+    assert.ok(!sec06Html.includes("See copy-ready wording"));
+    assert.ok(sec06Html.includes("View Priority Fix Plan"));
+
+    // Case B: When valid copy-ready wording exists, "See copy-ready wording" CTA is rendered
+    const htmlWithCopy = renderToStaticMarkup(
+      React.createElement(ResultsScreen, {
+        rawUrl: "https://areyourare.ai.studio",
+        analysisData: {
+          ...customPayload,
+          recommendation: {
+            title: "If you change only one thing",
+            subhead: "Clarify hero headline with immediate trait rarity outcome",
+            explanation: "Helps visitors immediately understand the rarity score they will receive.",
+            impact: "high" as const,
+            currentDirection: "“ Check how rare you really are ”",
+            strongerDirection: "“ See how rare your trait combination is in 30 seconds ”",
+          },
+        },
+        previousCheckRecord: null,
+        onBackToLanding: () => {},
+        onRunNewCheck: () => {},
+        onOpenFaq: () => {},
+        onOpenPricing: () => {},
+      })
+    );
+    assert.ok(htmlWithCopy.includes("See copy-ready wording"));
+  });
+
+  test("TEST 14: Phase 2 Paywall Optimization & Compact 9-Section Premium Preview — Mobile-first checkout order, $5 & $12 plans, email input, and compact 9-section preview", () => {
+    const snapshot = extractWebsiteSnapshot(ARE_YOU_RARE_HTML, { baseUrl: "https://areyourare.ai.studio" });
+    const validated = validateAndScoreAnalysis({} as any, snapshot);
+    const mapped = mapBackendToFrontend(validated, "https://areyourare.ai.studio", snapshot);
+
+    const html = renderToStaticMarkup(
+      React.createElement(ResultsScreen, {
+        rawUrl: "https://areyourare.ai.studio",
+        analysisData: mapped,
+        previousCheckRecord: null,
+        onBackToLanding: () => {},
+        onRunNewCheck: () => {},
+        onOpenFaq: () => {},
+        onOpenPricing: () => {},
+      })
+    );
+
+    const idxPriorityFix = html.indexOf('id="priority-fix-section"');
+    const idxPaywall = html.indexOf('id="paid-report-paywall-section"');
+    const idxEmailInput = html.indexOf('id="paywall-email-input"');
+    const idxCheckoutCta = html.indexOf("Unlock Full Report — $5");
+    const idxPremiumPreview = html.indexOf('id="premium-sections-preview"');
+    const idxLevel2 = html.indexOf('id="level-2-actionable-improvements"');
+
+    // 1. Paywall is positioned right after Free Preview (Section 06) and before Full Report Level 2
+    assert.ok(idxPaywall > idxPriorityFix, "Expected paywall after Section 06");
+    assert.ok(idxLevel2 > idxPaywall, "Expected Level 2 after paywall");
+
+    // 2. Mobile conversion order: Email input & Primary Checkout CTA appear BEFORE the 9-section preview in DOM order
+    assert.ok(idxEmailInput > idxPaywall && idxEmailInput < idxPremiumPreview);
+    assert.ok(idxCheckoutCta > idxEmailInput && idxCheckoutCta < idxPremiumPreview);
+
+    // 3. Both $5 Full Report and $12 3-Report Pack remain clearly available
+    const paywallSlice = html.slice(idxPaywall, idxLevel2);
+    assert.ok(paywallSlice.includes("$5"));
+    assert.ok(paywallSlice.includes("Full Report"));
+    assert.ok(paywallSlice.includes("$12"));
+    assert.ok(paywallSlice.includes("3-Report Pack"));
+    assert.ok(paywallSlice.includes("Save $3"));
+
+    // 4. Compact 9-Section Premium Preview includes all 9 sections (07-15)
+    for (const num of ["07", "08", "09", "10", "11", "12", "13", "14", "15"]) {
+      assert.ok(
+        paywallSlice.includes(`>${num}<`),
+        `Expected compact premium preview to include section ${num}`
+      );
+    }
+
+    // 5. Paywall & Results footer include legal/support disclosures
+    assert.ok(paywallSlice.includes('href="/refund-policy"'));
+    assert.ok(paywallSlice.includes('href="/terms"'));
+    assert.ok(paywallSlice.includes('href="/privacy"'));
+    assert.ok(paywallSlice.includes('href="/contact"'));
+  });
+
+  test("TEST 15: Pre-Launch Legal Pages, Customer Support & Payment Trust — Privacy, Terms, Refund Policy, and Contact Support pages render required compliance content", () => {
+    const privacyHtml = renderToStaticMarkup(React.createElement(PrivacyPolicyPage));
+    const termsHtml = renderToStaticMarkup(React.createElement(TermsOfServicePage));
+    const refundHtml = renderToStaticMarkup(React.createElement(RefundPolicyPage));
+    const contactHtml = renderToStaticMarkup(React.createElement(ContactSupportPage));
+
+    // Privacy Policy checks
+    assert.ok(privacyHtml.includes("Privacy Policy"));
+    assert.ok(privacyHtml.includes("localStorage"));
+    assert.ok(privacyHtml.includes("Paddle"));
+    assert.ok(privacyHtml.includes("support@strangerlens.com"));
+
+    // Terms of Service checks
+    assert.ok(termsHtml.includes("Terms of Service"));
+    assert.ok(termsHtml.includes("$5 USD"));
+    assert.ok(termsHtml.includes("$12 USD"));
+    assert.ok(termsHtml.includes("Merchant of Record"));
+
+    // Refund Policy checks
+    assert.ok(refundHtml.includes("Refund Policy"));
+    assert.ok(refundHtml.includes("14-Day Refund Window"));
+    assert.ok(refundHtml.includes("fourteen (14) calendar days"));
+    assert.ok(refundHtml.includes("support@strangerlens.com"));
+
+    // Contact Support checks
+    assert.ok(contactHtml.includes("Contact Support"));
+    assert.ok(contactHtml.includes("support@strangerlens.com"));
+    assert.ok(contactHtml.includes("24–48 business hours"));
   });
 });

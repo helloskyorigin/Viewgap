@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
+import {LEGAL_CONFIG} from "@/lib/legal-config";
 import {
   Link2,
   ArrowRight,
@@ -24,6 +26,8 @@ import {
   AlertCircle,
   Clock,
   ExternalLink,
+  Lock,
+  Mail,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -130,6 +134,13 @@ export default function ResultsScreen({
   const [expandedImprovementId, setExpandedImprovementId] = useState<string | null>(
     customData?.otherImprovements?.[0]?.id ?? null
   );
+
+  // Paywall & Premium Preview States
+  const [selectedPaywallPlan, setSelectedPaywallPlan] = useState<"single" | "pack">("single");
+  const [paywallEmail, setPaywallEmail] = useState<string>("");
+  const [paywallEmailError, setPaywallEmailError] = useState<string | null>(null);
+  const [paywallCheckoutState, setPaywallCheckoutState] = useState<"idle" | "processing" | "unlocked">("idle");
+  const [showCompactPreviewDetails, setShowCompactPreviewDetails] = useState<boolean>(false);
 
   // Async Button States
   const [shareState, setShareState] = useState<"idle" | "sharing" | "copied">("idle");
@@ -1225,11 +1236,9 @@ export default function ResultsScreen({
       );
 
       // Concise 1-line summary for Section 04 Overview so full sig.description is reserved for Section 12
-      const overviewTakeaway =
-        quickTakeaway ||
-        (comprehensionRow
-          ? `${comprehensionRow.dimensionLabel}: ${comprehensionRow.label}`
-          : sig.badgeText);
+      const overviewTakeaway = comprehensionRow
+        ? `${comprehensionRow.dimensionLabel}: ${comprehensionRow.label}`
+        : sig.badgeText;
 
       return {
         ...sig,
@@ -1265,6 +1274,80 @@ export default function ResultsScreen({
           categoryLabel: formatRiskCategory(overviewStats.primaryRisk.category),
         }
       : null;
+
+    // Resolve the targeted signal for the primary risk so Section 05 header/badges never contradict the issue body
+    const signalIdByRiskCategory: Record<string, string> = {
+      clarity: "first-impression",
+      "first-impression": "first-impression",
+      first_impression: "first-impression",
+      audience: "audience",
+      value: "value",
+      trust: "trust",
+      action: "action",
+    };
+    const primaryRiskSignalId = primaryRisk
+      ? signalIdByRiskCategory[(primaryRisk.category || "").trim().toLowerCase()]
+      : undefined;
+    const primaryIssueTargetSignal = primaryRiskSignalId
+      ? data.signals.find((s) => s.id === primaryRiskSignalId) || overviewStats.weakest
+      : overviewStats.weakest;
+
+    // Resolve the targeted signal for Section 06 (#1 Priority Fix) based on what the fix actually addresses
+    const resolvePriorityFixSignal = () => {
+      const recText = `${data.recommendation?.subhead || ""} ${data.recommendation?.explanation || ""}`.toLowerCase();
+      let matchedId: string | null = null;
+      if (/\b(trust|proof|credibility|testimonial|logo|logos|metric|metrics|credential|social proof|validation|case stud)\b/i.test(recText)) {
+        matchedId = "trust";
+      } else if (/\b(cta|call to action|call-to-action|button|next step|friction|action)\b/i.test(recText)) {
+        matchedId = "action";
+      } else if (/\b(audience|who it is for|who this is for|persona|role|built for|target user|ideal customer)\b/i.test(recText)) {
+        matchedId = "audience";
+      } else if (/\b(outcome|benefit|value proposition|measurable|what visitors get|what i get)\b/i.test(recText)) {
+        matchedId = "value";
+      } else if (/\b(product category|what it is|first impression|headline|h1|hero)\b/i.test(recText)) {
+        matchedId = "first-impression";
+      }
+      if (matchedId) {
+        const found = data.signals.find((s) => s.id === matchedId);
+        if (found) return found;
+      }
+      return primaryIssueTargetSignal || overviewStats.weakest || null;
+    };
+
+    const priorityFixTargetSignal = resolvePriorityFixSignal();
+
+    const stripGuidanceQuotes = (val?: string): string =>
+      (val || "")
+        .replace(/^[“"'\s]+|[”"'\s]+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const isPlaceholderGuidance = (val: string): boolean => {
+      const lower = val.toLowerCase();
+      return (
+        !lower ||
+        lower === "current headline excerpt unavailable" ||
+        lower === "state the specific outcome your target audience achieves." ||
+        lower.includes("we scanned your accessible homepage structure") ||
+        lower.includes("we scanned your homepage above the fold structure") ||
+        lower === "none" ||
+        lower === "n/a" ||
+        lower === "unavailable"
+      );
+    };
+
+    const rawWhatYouSayNow = stripGuidanceQuotes(data.recommendation?.currentDirection);
+    const rawClearerDirection = stripGuidanceQuotes(data.recommendation?.strongerDirection);
+
+    const priorityFixCurrentText = !isPlaceholderGuidance(rawWhatYouSayNow)
+      ? rawWhatYouSayNow
+      : visitorUnderstandingAndEvidence.verifiedHeadline ||
+        visitorUnderstandingAndEvidence.verifiedExcerptText ||
+        null;
+
+    const priorityFixDirectionText = !isPlaceholderGuidance(rawClearerDirection)
+      ? rawClearerDirection
+      : data.recommendation?.explanation || null;
 
     const normPrimaryRiskTitle = normalizeText(primaryRisk?.title);
     const seenRiskTitles = new Set<string>(
@@ -1330,6 +1413,10 @@ export default function ResultsScreen({
     return {
       detailedSignals,
       primaryRisk,
+      primaryIssueTargetSignal,
+      priorityFixTargetSignal,
+      priorityFixCurrentText,
+      priorityFixDirectionText,
       secondaryRisks,
       totalRisksCount: (primaryRisk ? 1 : 0) + secondaryRisks.length,
       deduplicatedImprovements,
@@ -2008,6 +2095,38 @@ export default function ResultsScreen({
   // Toggle Accordion Improvement Row
   const toggleImprovementRow = (id: string) => {
     setExpandedImprovementId((prev) => (prev === id ? null : id));
+  };
+
+  // Paywall Checkout Submit Handler
+  const handlePaywallCheckout = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (paywallCheckoutState === "processing") return;
+
+    const trimmedEmail = paywallEmail.trim();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setPaywallEmailError("Please enter a valid email address to receive your report.");
+      return;
+    }
+
+    setPaywallEmailError(null);
+    setPaywallCheckoutState("processing");
+
+    const planLabel =
+      selectedPaywallPlan === "single"
+        ? "$5 Full Report"
+        : "$12 Three-Report Pack";
+
+    setTimeout(() => {
+      setPaywallCheckoutState("unlocked");
+      showToast(`${planLabel} selected for ${trimmedEmail}. Full report sections are below.`, "success");
+      const targetEl = document.getElementById("level-2-actionable-improvements");
+      if (targetEl) {
+        targetEl.scrollIntoView({
+          behavior: prefersReducedMotion ? "auto" : "smooth",
+          block: "start",
+        });
+      }
+    }, 250);
   };
 
   // Enforce Real Analysis Only: Never show mock results or hardcoded scores
@@ -2771,9 +2890,14 @@ export default function ResultsScreen({
                   <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
                   BIGGEST ISSUE + EVIDENCE
                 </span>
-                {overviewStats.weakest && (
+                {phase6DetailedData.primaryIssueTargetSignal && (
                   <span className="text-[11px] font-semibold text-slate-500">
-                    · Lowest signal: <strong className="text-slate-800">{overviewStats.weakest.title} ({overviewStats.weakest.score}/100)</strong>
+                    · {phase6DetailedData.primaryIssueTargetSignal.id === overviewStats.weakest?.id
+                      ? "Lowest signal:"
+                      : "Impacted signal:"}{" "}
+                    <strong className="text-slate-800">
+                      {phase6DetailedData.primaryIssueTargetSignal.title} ({phase6DetailedData.primaryIssueTargetSignal.score}/100)
+                    </strong>
                   </span>
                 )}
               </div>
@@ -2793,12 +2917,12 @@ export default function ResultsScreen({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
             {/* Left Column (7 cols): Primary Issue Diagnosis */}
             <div className="lg:col-span-7 flex flex-col justify-between">
-              {overviewStats.primaryRisk ? (
+              {phase6DetailedData.primaryRisk ? (
                 <div
                   className={`h-full border rounded-2xl p-5 sm:p-6 flex flex-col justify-between transition-all ${
-                    overviewStats.primaryRisk.severity === "high"
+                    phase6DetailedData.primaryRisk.severity === "high"
                       ? "bg-rose-50/50 border-rose-200/90"
-                      : overviewStats.primaryRisk.severity === "medium"
+                      : phase6DetailedData.primaryRisk.severity === "medium"
                       ? "bg-amber-50/50 border-amber-200/90"
                       : "bg-slate-50/80 border-slate-200/90"
                   }`}
@@ -2809,17 +2933,17 @@ export default function ResultsScreen({
                       <div className="flex items-center gap-2 flex-wrap">
                         <span
                           className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
-                            overviewStats.primaryRisk.severity === "high"
+                            phase6DetailedData.primaryRisk.severity === "high"
                               ? "bg-rose-600 text-white"
-                              : overviewStats.primaryRisk.severity === "medium"
+                              : phase6DetailedData.primaryRisk.severity === "medium"
                               ? "bg-amber-500 text-white"
                               : "bg-slate-600 text-white"
                           }`}
                         >
-                          {overviewStats.primaryRisk.severity} severity issue
+                          {phase6DetailedData.primaryRisk.severity} severity issue
                         </span>
                         <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-slate-200/80">
-                          {overviewStats.primaryRisk.category}
+                          {phase6DetailedData.primaryRisk.categoryLabel}
                         </span>
                       </div>
                       <span className="text-[11px] font-semibold text-slate-400">
@@ -2829,12 +2953,12 @@ export default function ResultsScreen({
 
                     {/* Issue Title */}
                     <h3 className="text-base sm:text-lg md:text-[19px] font-extrabold text-[#101828] tracking-tight leading-snug">
-                      {overviewStats.primaryRisk.title}
+                      {phase6DetailedData.primaryRisk.title}
                     </h3>
 
                     {/* Issue Description */}
                     <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
-                      {overviewStats.primaryRisk.description}
+                      {phase6DetailedData.primaryRisk.description}
                     </p>
                   </div>
 
@@ -2845,7 +2969,7 @@ export default function ResultsScreen({
                         WHY THIS MATTERS TO FIRST-TIME VISITORS
                       </span>
                       <p className="text-xs sm:text-[13px] text-slate-800 font-medium leading-relaxed">
-                        {overviewStats.primaryRisk.why_it_matters}
+                        {phase6DetailedData.primaryRisk.why_it_matters}
                       </p>
                     </div>
                   </div>
@@ -3020,10 +3144,12 @@ export default function ResultsScreen({
                 <p className="text-[11px] text-slate-500">
                   {copyReadyImprovements.length > 0
                     ? "Exact replacement wording is ready to copy in Section 08 below."
-                    : "Review the ordered Priority Fix Plan below to sequence your updates."}
+                    : priorityFixPlan.length > 0
+                    ? "Review your ordered Priority Fix Plan below to sequence your updates."
+                    : "Apply this priority change above the fold, then re-check your homepage."}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 print:hidden">
-                  {copyReadyImprovements.length > 0 && (
+                  {copyReadyImprovements.length > 0 ? (
                     <a
                       href="#copy-ready-improvements-section"
                       className="w-full sm:w-auto rounded-full bg-[#eaf2ff] hover:bg-blue-100/80 text-[#1d68f5] text-xs font-bold px-4 py-2 transition-all inline-flex items-center justify-center gap-1.5 shrink-0 min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
@@ -3031,17 +3157,25 @@ export default function ResultsScreen({
                       <span>See copy-ready wording</span>
                       <ArrowDown className="w-3.5 h-3.5 shrink-0" />
                     </a>
-                  )}
+                  ) : priorityFixPlan.length > 0 ? (
+                    <a
+                      href="#priority-fix-plan-section"
+                      className="w-full sm:w-auto rounded-full bg-[#eaf2ff] hover:bg-blue-100/80 text-[#1d68f5] text-xs font-bold px-4 py-2 transition-all inline-flex items-center justify-center gap-1.5 shrink-0 min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
+                    >
+                      <span>View Priority Fix Plan</span>
+                      <ArrowDown className="w-3.5 h-3.5 shrink-0" />
+                    </a>
+                  ) : null}
                 </div>
               </div>
             </div>
 
-            {/* Right Column (5 cols): Action Guidance & Implementation Context */}
+            {/* Right Column (5 cols): Specific Website-Grounded Action Guidance */}
             <div className="lg:col-span-5 bg-[#f8fbff] border border-blue-200/80 rounded-2xl p-5 sm:p-6 flex flex-col justify-between">
-              <div className="space-y-3.5">
+              <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1d68f5]">
-                    ACTION GUIDANCE · WHAT TO CHANGE FIRST
+                    SPECIFIC CHANGE FOR {data.domain.toUpperCase()}
                   </span>
                   {priorityFixPlan[0]?.where && (
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-white border border-slate-200/80 px-2.5 py-0.5 rounded-full">
@@ -3050,25 +3184,42 @@ export default function ResultsScreen({
                   )}
                 </div>
 
-                <p className="text-xs sm:text-[13px] text-slate-700 leading-relaxed">
-                  Focus your first edit on resolving this primary clarity gap above the fold before adjusting secondary page sections.
-                  {overviewStats.weakest
-                    ? ` This directly strengthens your ${overviewStats.weakest.title.toLowerCase()} signal (${overviewStats.weakest.score}/100).`
-                    : ""}
-                </p>
+                {/* Current Homepage Wording / Context */}
+                {phase6DetailedData.priorityFixCurrentText && (
+                  <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                      WHAT VISITORS SEE NOW
+                    </span>
+                    <p className="text-xs text-slate-700 italic leading-relaxed break-words">
+                      &ldquo;{phase6DetailedData.priorityFixCurrentText}&rdquo;
+                    </p>
+                  </div>
+                )}
 
-                {overviewStats.weakest && (
-                  <div className="bg-white border border-blue-100 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                {/* Recommended Direction */}
+                {phase6DetailedData.priorityFixDirectionText && (
+                  <div className="bg-white border border-blue-200/90 rounded-xl p-3 shadow-2xs">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1d68f5] block mb-1">
+                      RECOMMENDED DIRECTION
+                    </span>
+                    <p className="text-xs sm:text-[13px] font-semibold text-[#101828] leading-relaxed break-words">
+                      {phase6DetailedData.priorityFixDirectionText}
+                    </p>
+                  </div>
+                )}
+
+                {phase6DetailedData.priorityFixTargetSignal && (
+                  <div className="bg-white border border-blue-100 rounded-xl p-3 flex items-center justify-between gap-3">
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                         PRIMARY SIGNAL TARGETED
                       </span>
                       <span className="text-xs sm:text-sm font-bold text-[#101828]">
-                        {overviewStats.weakest.title}
+                        {phase6DetailedData.priorityFixTargetSignal.title}
                       </span>
                     </div>
                     <span className="text-xs font-extrabold text-amber-800 bg-amber-100/80 border border-amber-200/80 px-2.5 py-1 rounded-lg tabular-nums">
-                      {overviewStats.weakest.score} / 100
+                      {phase6DetailedData.priorityFixTargetSignal.score} / 100
                     </span>
                   </div>
                 )}
@@ -3089,6 +3240,332 @@ export default function ResultsScreen({
                   </a>
                 </div>
               )}
+            </div>
+          </div>
+        </section>
+
+        {/* PAID REPORT PAYWALL & COMPACT 9-SECTION PREMIUM PREVIEW */}
+        <section
+          id="paid-report-paywall-section"
+          aria-labelledby="paid-report-paywall-heading"
+          className="bg-gradient-to-b from-white via-[#f8fbff] to-[#f2f7ff] border-2 border-[#246bfd]/25 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-[0_16px_40px_-15px_rgba(36,107,253,0.14)] scroll-mt-24 print:hidden"
+        >
+          {/* Mobile-First Conversion Grid: Plan Selection + Email + Checkout CTA appear FIRST on mobile */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start">
+            {/* Primary Conversion Box (Appears 1st on Mobile, Right 5 cols on Desktop) */}
+            <div className="lg:col-span-5 lg:order-2 bg-white border border-blue-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-full bg-[#eaf2ff] text-[#1d68f5] border border-blue-200/70">
+                  <Lock className="w-3 h-3 shrink-0" />
+                  <span>UNLOCK FULL REPORT</span>
+                </span>
+                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2.5 py-0.5 rounded-full">
+                  One-time · No subscription
+                </span>
+              </div>
+
+              <h2
+                id="paid-report-paywall-heading"
+                className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight leading-snug mb-3"
+              >
+                Get the complete 15-section action plan for {data.domain}
+              </h2>
+
+              {/* Compact 2-Plan Selector: $5 Full Report (Primary) & $12 Three-Report Pack */}
+              <div
+                role="radiogroup"
+                aria-label="Select report package"
+                className="grid grid-cols-2 gap-2.5 mb-3.5"
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedPaywallPlan === "single"}
+                  onClick={() => setSelectedPaywallPlan("single")}
+                  className={`text-left rounded-xl p-3 border transition-all cursor-pointer relative focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none ${
+                    selectedPaywallPlan === "single"
+                      ? "bg-[#f5f8ff] border-2 border-[#1d68f5] shadow-2xs"
+                      : "bg-[#f8fafc] border-slate-200/90 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1d68f5]">
+                      Full Report
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#1d68f5] text-white">
+                      Popular
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1 tabular-nums">
+                    <span className="text-xl sm:text-2xl font-extrabold text-[#101828]">$5</span>
+                    <span className="text-[10px] text-slate-500 font-medium">one-time</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
+                    1 complete website report
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedPaywallPlan === "pack"}
+                  onClick={() => setSelectedPaywallPlan("pack")}
+                  className={`text-left rounded-xl p-3 border transition-all cursor-pointer relative focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none ${
+                    selectedPaywallPlan === "pack"
+                      ? "bg-[#f5f8ff] border-2 border-[#1d68f5] shadow-2xs"
+                      : "bg-[#f8fafc] border-slate-200/90 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700">
+                      3-Report Pack
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                      Save $3
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1 tabular-nums">
+                    <span className="text-xl sm:text-2xl font-extrabold text-[#101828]">$12</span>
+                    <span className="text-[10px] text-slate-500 font-medium">one-time</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
+                    3 full reports ($4 each)
+                  </p>
+                </button>
+              </div>
+
+              {/* Email Input + Primary Checkout CTA (Immediately reachable on mobile) */}
+              <form onSubmit={handlePaywallCheckout} className="space-y-2.5" noValidate>
+                <div>
+                  <label
+                    htmlFor="paywall-email-input"
+                    className="sr-only"
+                  >
+                    Email address for report delivery
+                  </label>
+                  <div className="relative flex items-center">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+                    <input
+                      id="paywall-email-input"
+                      type="email"
+                      value={paywallEmail}
+                      onChange={(e) => {
+                        setPaywallEmail(e.target.value);
+                        if (paywallEmailError) setPaywallEmailError(null);
+                      }}
+                      placeholder="Enter your email for report access…"
+                      aria-label="Email address for report delivery"
+                      aria-invalid={Boolean(paywallEmailError)}
+                      className={`w-full pl-9 pr-3.5 py-2.5 min-h-[44px] text-xs sm:text-sm bg-[#f8fafc] border rounded-xl text-slate-900 placeholder:text-slate-400 outline-none transition-all ${
+                        paywallEmailError
+                          ? "border-rose-400 ring-2 ring-rose-100"
+                          : "border-slate-200/90 focus:bg-white focus:border-[#1d68f5] focus:ring-2 focus:ring-blue-100"
+                      }`}
+                    />
+                  </div>
+                  {paywallEmailError && (
+                    <p className="text-[11px] text-rose-600 font-medium mt-1 pl-1" role="alert">
+                      {paywallEmailError}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={paywallCheckoutState === "processing"}
+                  className="w-full min-h-[46px] rounded-xl bg-[#1d68f5] hover:bg-blue-600 active:scale-[0.99] text-white font-bold text-xs sm:text-sm px-5 py-3 transition-all inline-flex items-center justify-center gap-2 shadow-sm hover:shadow-md hover:shadow-blue-500/15 cursor-pointer disabled:opacity-70 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
+                >
+                  <span>
+                    {paywallCheckoutState === "processing"
+                      ? "Unlocking report…"
+                      : selectedPaywallPlan === "single"
+                      ? "Unlock Full Report — $5"
+                      : "Unlock 3-Report Pack — $12"}
+                  </span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </button>
+
+                <p className="text-[11px] text-slate-500 text-center leading-normal">
+                  Instant access to all 9 deep-dive sections · Receipt sent to your email
+                </p>
+
+                <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[10px] sm:text-[11px] text-slate-400">
+                  <Link
+                    href="/refund-policy"
+                    className="text-slate-600 hover:text-[#1d68f5] font-medium underline underline-offset-2 transition-colors"
+                  >
+                    14-Day Refund Policy
+                  </Link>
+                  <span aria-hidden="true">·</span>
+                  <Link
+                    href="/terms"
+                    className="hover:text-slate-700 underline underline-offset-2 transition-colors"
+                  >
+                    Terms
+                  </Link>
+                  <span aria-hidden="true">·</span>
+                  <Link
+                    href="/privacy"
+                    className="hover:text-slate-700 underline underline-offset-2 transition-colors"
+                  >
+                    Privacy
+                  </Link>
+                  <span aria-hidden="true">·</span>
+                  <Link
+                    href="/contact"
+                    className="hover:text-slate-700 underline underline-offset-2 transition-colors"
+                  >
+                    Support
+                  </Link>
+                </div>
+              </form>
+            </div>
+
+            {/* Compact 9-Section Premium Content Preview (Left 7 cols on Desktop, Appears 2nd on Mobile) */}
+            <div
+              id="premium-sections-preview"
+              className="lg:col-span-7 lg:order-1 flex flex-col justify-between space-y-3.5"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#1d68f5] block">
+                    INCLUDED IN YOUR FULL REPORT
+                  </span>
+                  <h3 className="text-sm sm:text-base font-extrabold text-[#101828] tracking-tight mt-0.5">
+                    9 Premium Diagnostic &amp; Action Sections (Sections 07–15)
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCompactPreviewDetails((prev) => !prev)}
+                  aria-expanded={showCompactPreviewDetails}
+                  className="sm:hidden text-[11px] font-bold text-[#1d68f5] hover:text-blue-700 inline-flex items-center gap-1 py-1 px-2.5 rounded-full bg-white border border-blue-200/80 cursor-pointer"
+                >
+                  <span>{showCompactPreviewDetails ? "Compact view" : "View all 9 details"}</span>
+                </button>
+              </div>
+
+              {/* Compact 9-Item Grid: Replaces 9 tall locked cards with a scannable compact preview */}
+              <div
+                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2"
+                role="list"
+                aria-label="Nine premium report sections preview"
+              >
+                {[
+                  {
+                    num: "07",
+                    title: "Priority Fix Plan",
+                    meta: `${priorityFixPlan.length || 1} ordered steps`,
+                    href: "#priority-fix-plan-section",
+                  },
+                  {
+                    num: "08",
+                    title: "Copy-Ready Improvements",
+                    meta:
+                      copyReadyImprovements.length > 0
+                        ? `${copyReadyImprovements.length} verified ${
+                            copyReadyImprovements.length === 1 ? "rewrite" : "rewrites"
+                          }`
+                        : "Actionable wording",
+                    href: "#copy-ready-improvements-section",
+                  },
+                  {
+                    num: "09",
+                    title: "Other Improvements",
+                    meta: `${phase6DetailedData.deduplicatedImprovements.length} secondary fixes`,
+                    href: "#other-improvements-section",
+                  },
+                  {
+                    num: "10",
+                    title: "First Few Seconds",
+                    meta: `${overviewStats.clearQuestionsCount}/5 clear immediately`,
+                    href: "#first-seconds-section",
+                  },
+                  {
+                    num: "11",
+                    title: "Visitor Impression",
+                    meta: "Stranger reaction",
+                    href: "#visitor-impression-section",
+                  },
+                  {
+                    num: "12",
+                    title: "Homepage Evidence",
+                    meta: `${data.evidence.clearFindings.length + data.evidence.missingFindings.length} findings`,
+                    href: "#complete-homepage-evidence-section",
+                  },
+                  {
+                    num: "13",
+                    title: "Five Detailed Signals",
+                    meta: "5 signal breakdowns",
+                    href: "#five-detailed-signals-section",
+                  },
+                  {
+                    num: "14",
+                    title: "Communication Risks",
+                    meta: `${phase6DetailedData.totalRisksCount} ${
+                      phase6DetailedData.totalRisksCount === 1 ? "risk" : "risks"
+                    } flagged`,
+                    href: "#communication-risks-section",
+                  },
+                  {
+                    num: "15",
+                    title: "Recheck & Compare",
+                    meta: "Before → After delta",
+                    href: "#recheck-compare-section",
+                  },
+                ].map((sec, idx) => (
+                  <a
+                    key={sec.num}
+                    href={sec.href}
+                    role="listitem"
+                    className={`group rounded-xl bg-white/95 hover:bg-white border border-slate-200/80 hover:border-blue-300 px-3 py-2.5 flex items-center justify-between gap-2 transition-all shadow-2xs ${
+                      !showCompactPreviewDetails && idx >= 4 ? "hidden sm:flex" : "flex"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-[#eaf2ff] text-[#1d68f5] text-[10px] font-black inline-flex items-center justify-center shrink-0 tabular-nums">
+                        {sec.num}
+                      </span>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-[#101828] group-hover:text-[#1d68f5] transition-colors block truncate">
+                          {sec.title}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium block truncate">
+                          {sec.meta}
+                        </span>
+                      </div>
+                    </div>
+                    <Lock className="w-3 h-3 text-slate-400 group-hover:text-[#1d68f5] shrink-0" aria-hidden="true" />
+                  </a>
+                ))}
+              </div>
+
+              {!showCompactPreviewDetails && (
+                <button
+                  type="button"
+                  onClick={() => setShowCompactPreviewDetails(true)}
+                  className="sm:hidden w-full py-2 px-3 rounded-xl bg-white/80 border border-slate-200/80 text-xs font-semibold text-slate-700 hover:text-[#1d68f5] inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>+5 more premium sections included (11–15)</span>
+                  <ArrowDown className="w-3 h-3 shrink-0" />
+                </button>
+              )}
+
+              {/* Concise Value Summary Strip */}
+              <div className="pt-1 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-slate-600">
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5] shrink-0" />
+                  <span>Ordered 1-2-3 fix sequence</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5] shrink-0" />
+                  <span>Copy-ready homepage rewrites</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5] shrink-0" />
+                  <span>Full 5-signal evidence &amp; recheck tracking</span>
+                </span>
+              </div>
             </div>
           </div>
         </section>
@@ -5040,6 +5517,26 @@ export default function ResultsScreen({
             </div>
           )}
         </section>
+
+        {/* RESULTS SCREEN LEGAL & SUPPORT FOOTER */}
+        <footer className="pt-4 pb-6 border-t border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 print:hidden">
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+            <span className="font-bold text-slate-800">{LEGAL_CONFIG.productName}</span>
+            <span>·</span>
+            <span>© {new Date().getFullYear()} {LEGAL_CONFIG.operatorLegalName}</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5">
+            {LEGAL_CONFIG.links.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="hover:text-slate-900 transition-colors underline-offset-4 hover:underline"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </footer>
       </main>
 
       {/* FOCUSED COMPARE HISTORY MODAL */}
