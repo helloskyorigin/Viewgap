@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   Link2,
@@ -200,13 +200,8 @@ export default function LandingPage() {
     }
   };
 
-  const scrollToInputRef = useRef<() => void>(() => {});
-
-  const scanControllerRef = useRef<ReturnType<typeof createScanFlowController> | null>(
-    null
-  );
-  if (!scanControllerRef.current) {
-    scanControllerRef.current = createScanFlowController({
+  const [scanController] = useState(() =>
+    createScanFlowController({
       onStateChange: (nextState) => {
         setUrl(nextState.url);
         setSubmittedUrl(nextState.submittedUrl);
@@ -217,11 +212,42 @@ export default function LandingPage() {
         setBackendError(nextState.backendError);
         setAnalysisData(nextState.analysisData);
       },
-      onValidationError: () => {
-        scrollToInputRef.current();
-      },
-    });
-  }
+    })
+  );
+
+  const scanControllerRef = useRef(scanController);
+  useEffect(() => {
+    scanControllerRef.current = scanController;
+  }, [scanController]);
+
+  const scrollToScrollOnly = useCallback(() => {
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.scrollIntoView({
+          behavior: shouldReduceMotion ? "auto" : "smooth",
+          block: "center",
+        });
+        inputRef.current.focus();
+      }
+    }, 60);
+  }, []);
+
+  const scrollToInput = useCallback(() => {
+    if (activeInfoModal) setActiveInfoModal(null);
+    if (mobileMenuOpen) setMobileMenuOpen(false);
+    const wasNotOnLanding = currentView !== "landing";
+    if (wasNotOnLanding) {
+      clearPersistedReportSession();
+      scanController.cancelScan();
+    }
+    scrollToScrollOnly();
+  }, [activeInfoModal, mobileMenuOpen, currentView, shouldReduceMotion, scanController, scrollToScrollOnly]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      scrollToScrollOnly();
+    }
+  }, [errorMessage, scrollToScrollOnly]);
 
   // Restore active report from sessionStorage if user navigated to a legal/support page and returned
   useEffect(() => {
@@ -274,25 +300,9 @@ export default function LandingPage() {
 
   const urlValidation = React.useMemo(() => validateClientUrl(url), [url]);
 
-  const scrollToInput = () => {
-    if (activeInfoModal) setActiveInfoModal(null);
-    if (mobileMenuOpen) setMobileMenuOpen(false);
-    const wasNotOnLanding = currentView !== "landing";
-    if (wasNotOnLanding) {
-      clearPersistedReportSession();
-      scanControllerRef.current?.cancelScan();
-    }
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.scrollIntoView({
-          behavior: shouldReduceMotion ? "auto" : "smooth",
-          block: "center",
-        });
-        inputRef.current.focus();
-      }
-    }, wasNotOnLanding ? 180 : 60);
-  };
-  scrollToInputRef.current = scrollToInput;
+
+
+
 
   const handleSectionNavigate = (
     e: React.MouseEvent<HTMLAnchorElement>,
