@@ -309,15 +309,15 @@ export function mapBackendToFrontend(
 
   const homepageExcerpt = snapshot?.hero?.headline
     ? `“ ${snapshot.hero.headline}${snapshot.hero.subheadline ? ' — ' + snapshot.hero.subheadline : ''} ”`
-    : `“ We scanned your accessible homepage structure.”`;
+    : "";
 
   const evidence = {
-    locationTag: isPartialSnapshot
-      ? "Homepage · Partial text snapshot"
-      : "Homepage · Extracted content",
+    locationTag: snapshot?.hero?.headline
+      ? "Home page → Hero section"
+      : "Exact section not identified",
     homepageExcerpt,
-    clearFindings: clearFindings.length > 0 ? clearFindings : ["Found initial page structure"],
-    missingFindings: missingFindings.length > 0 ? missingFindings : ["No major communication blockers identified"],
+    clearFindings,
+    missingFindings,
   };
 
   // Build signals
@@ -455,28 +455,20 @@ export function mapBackendToFrontend(
         (category === "trust"
           ? "First-time visitors look for immediate proof that others rely on this product before committing attention."
           : category === "audience"
-          ? "Visitors bounce within seconds if they cannot immediately confirm the product was built specifically for their needs."
+          ? "First-time visitors look for an immediate indication of whether the product was built for their specific needs."
           : category === "action"
-          ? "Unclear button labels or ambiguous commitments create hesitation at the primary conversion step."
+          ? "Unclear button labels or ambiguous commitments create hesitation at the primary next step."
           : "Visitors evaluate solutions based on tangible outcomes achieved, not features listed."),
       whatToImprove:
         imp.what_to_improve ||
         (category === "trust"
-          ? "Place 2–3 customer proof points, logos, or methodology credentials directly below the primary CTA."
+          ? "Place verifiable customer proof points or credentials near the primary CTA."
           : category === "audience"
           ? "Add a clear audience tag or role qualifier directly above or below the main headline."
           : category === "action"
           ? "Use concrete, low-friction action copy and clarify what occurs immediately after clicking."
           : "Restate the primary message to emphasize the visitor's concrete outcome."),
-      copyableSuggestion:
-        imp.copyable_suggestion ||
-        (category === "trust"
-          ? `“ Trusted by teams building and growing with ${capitalizedBrand}.”`
-          : category === "audience"
-          ? `“ Built specifically for ${capitalizedBrand} users looking to achieve results faster.”`
-          : category === "action"
-          ? `Explore ${capitalizedBrand} →`
-          : `“ The clearer way to achieve your goals with ${capitalizedBrand}.”`),
+      copyableSuggestion: imp.copyable_suggestion ? imp.copyable_suggestion.trim() : undefined,
       icon,
       color,
     };
@@ -490,7 +482,7 @@ export function mapBackendToFrontend(
     score: backendAnalysis.overall_score,
     scoreStatus: scoreToStatus(backendAnalysis.overall_score),
     verdict: backendAnalysis.verdict.text,
-    verdictSubtext: "Based on your homepage · First-time visitor perspective",
+    verdictSubtext: "First-time visitor perspective",
     quickSignals,
     firstSeconds,
     visitorThought: backendAnalysis.visitor_thought.text,

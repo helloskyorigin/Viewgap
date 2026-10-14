@@ -230,7 +230,7 @@ export default function LandingPage() {
         inputRef.current.focus();
       }
     }, 60);
-  }, []);
+  }, [shouldReduceMotion]);
 
   const scrollToInput = useCallback(() => {
     if (activeInfoModal) setActiveInfoModal(null);
@@ -241,7 +241,7 @@ export default function LandingPage() {
       scanController.cancelScan();
     }
     scrollToScrollOnly();
-  }, [activeInfoModal, mobileMenuOpen, currentView, shouldReduceMotion, scanController, scrollToScrollOnly]);
+  }, [activeInfoModal, mobileMenuOpen, currentView, scanController, scrollToScrollOnly]);
 
   useEffect(() => {
     if (errorMessage) {
