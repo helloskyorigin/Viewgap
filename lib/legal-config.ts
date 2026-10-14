@@ -3,43 +3,35 @@ export const BRAND_NAME = "StrangerLens";
 export const LEGAL_CONFIG = {
   brandName: BRAND_NAME,
   productName: BRAND_NAME,
-  tagline: "AI-Powered Website First-Impression & Homepage Communication Analyzer",
-  // Founder Completion Note: If formal operator legal identity or physical address disclosure is required in your jurisdiction prior to commercial publication, complete that disclosure before enabling live checkout.
+  tagline: "AI Website First-Impression Clarity Analyzer",
   supportEmail: "hello.skyorigin@gmail.com",
   billingSupportNote:
-    "For order receipts, VAT/sales tax invoices, or payment inquiries, include the email address used at checkout and your order reference.",
+    "For order receipts, payment inquiries, or report delivery questions, please email hello.skyorigin@gmail.com with your analyzed URL and order details.",
   supportResponseWindow: "Within 24–48 business hours (Monday–Friday)",
-  effectiveDate: "October 12, 2026",
-  lastUpdated: "October 12, 2026",
+  effectiveDate: "October 14, 2026",
+  lastUpdated: "October 14, 2026",
   pricing: {
     freeTier: {
       name: "Free Preview",
       price: "$0",
-      billingType: "Free (No account or card required)",
+      billingType: "Free (No credit card or account required)",
       summary:
-        "Discover what's unclear. Includes overall first-impression score, short main verdict, five signal scores, biggest issue with evidence, and your #1 priority fix.",
+        "Instant clarity diagnosis. Includes overall website clarity score, five clarity signal scores (First Impression, Audience, Value, Trust, Action), and five signal statuses.",
     },
     singleReport: {
-      name: "Full Report",
+      name: "Full Clarity Report",
       price: "$5 USD",
       billingType: "One-time payment · No subscription",
       summary:
-        "Know exactly what to change. Includes everything in Free Preview, prioritized 1-2-3 fix plan, copy-ready website rewrites, detailed five-signal analysis, complete homepage evidence, supporting-page insights when available, and communication risks and recommendations.",
-    },
-    threeReportPack: {
-      name: "3-Report Pack",
-      price: "$12 USD",
-      billingType: "One-time payment · No subscription ($4 per report · Save $3)",
-      summary:
-        "Improve more. Check again. Includes 3 complete Full Reports, all premium insights per report, and copy-ready recommendations for multiple websites or before/after evaluations (unlocking from an existing free preview uses 1 credit for the current report, leaving 2 report credits).",
+        "Complete action breakdown. Includes detailed analysis for all five signals (Why This Score?, What's Working?, What's Unclear?, How to Improve?), plus First 5 Seconds breakdown (What a Visitor May Understand and What a Visitor May Miss).",
     },
   },
   refundPolicySummary:
-    "Digital report purchases are generally final once delivered. StrangerLens does not offer a separate voluntary money-back guarantee. Refunds remain subject to applicable consumer protection laws and Paddle's Refund Policy.",
-  merchantOfRecord: {
-    name: "Paddle",
+    "Digital report purchases are generated on-demand and delivered digitally. StrangerLens does not offer an unconditional voluntary money-back guarantee, but statutory consumer protection rights under applicable law are fully respected. Commercial checkout is planned to be processed via Dodo Payments once live.",
+  paymentProvider: {
+    plannedProvider: "Dodo Payments",
     disclosure:
-      "Our order process is conducted by our online reseller and Merchant of Record, Paddle.com. Paddle.com is the Merchant of Record for all paid StrangerLens orders, provides customer service inquiries regarding billing, and handles payment processing, invoicing, and applicable sales tax / VAT.",
+      "Commercial checkout is planned to be processed through Dodo Payments once live transactions are enabled. Live payment processing is not yet operational during the preview period.",
   },
   links: [
     { label: "Privacy Policy", href: "/privacy" },

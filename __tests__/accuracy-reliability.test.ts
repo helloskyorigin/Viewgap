@@ -712,11 +712,11 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     assert.ok(paywallSlice.includes("3 Reports"));
     assert.ok(paywallSlice.includes("Save $3"));
 
-    // 4. Compact 4-Section Full Report Preview includes all 4 locked full-report sections (04-07)
-    for (const num of ["04", "05", "06", "07"]) {
+    // 4. Compact 4-Section Full Report Preview includes the four premium benefits
+    for (const title of ["COMPLETE FIX PLAN", "WEBSITE MESSAGING UPGRADE", "COMPLETE VISITOR INSIGHTS", "WEBSITE IMPROVEMENT BRIEF"]) {
       assert.ok(
-        paywallSlice.includes(`>${num}<`),
-        `Expected compact premium preview to include section ${num}`
+        paywallSlice.includes(title),
+        `Expected paywall premium benefits to include ${title}`
       );
     }
 
@@ -787,7 +787,7 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     assert.ok(!paywallSlice.includes('href="#priority-fix-plan-section"'));
     assert.ok(!paywallSlice.includes('href="#copy-ready-improvements-section"'));
     assert.ok(!paywallSlice.includes('href="#recheck-compare-section"'));
-    assert.ok(paywallSlice.includes("Locked section 04: Prioritized Action Plan"));
+    assert.ok(paywallSlice.includes("COMPLETE FIX PLAN"));
 
     // 2. Paywall states honest one-time payment disclosure and does not claim instant paid receipt delivery
     assert.ok(paywallSlice.includes("One-time payment · No subscription"));
@@ -899,7 +899,7 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     assert.ok(unlockedExportText.includes("COMMUNICATION RISKS"));
 
     // Unpaid ResultsScreen top bar shows "Download free summary"
-    assert.ok(htmlValueRisk.includes("Download free summary"));
+    assert.ok(htmlValueRisk.includes("Report actions menu"));
   });
 
   test("TEST 18: Final Pricing Page UX Optimization & Refund Policy Correction — Value-based pricing cards, Coming Soon disabled paid CTAs, and removal of voluntary 14-day refund guarantee", () => {

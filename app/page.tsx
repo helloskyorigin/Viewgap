@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Link2,
@@ -49,22 +49,20 @@ interface PricingPlan {
   isPaid: boolean;
 }
 
-// PRICING CONFIG (Preserves existing layout; paid checkout controlled by IS_CHECKOUT_ENABLED)
+// PRICING CONFIG (Free and $5 One-Time Full Clarity Report)
 const PRICING_PLANS: PricingPlan[] = [
   {
     id: "free",
     name: "Free Preview",
     price: 0,
-    paymentLabel: "FREE PREVIEW",
+    paymentLabel: "FREE",
     badge: null,
-    positioning: "Discover what's unclear.",
-    description: "See how your website comes across to a first-time visitor.",
+    positioning: "Instant clarity evaluation.",
+    description: "Discover your overall website clarity score and five signal statuses with zero friction.",
     features: [
-      "Overall first-impression score",
-      "Short main verdict",
-      "Five signal scores",
-      "Biggest issue with evidence",
-      "Your #1 priority fix",
+      "Overall Website Clarity Score (0–100)",
+      "Five Clarity Signal Scores",
+      "Five Signal Statuses (Clear / Partly clear / Needs work)",
     ],
     cta: "Analyze My Website Free",
     disabledCta: "Analyze My Website Free",
@@ -72,51 +70,24 @@ const PRICING_PLANS: PricingPlan[] = [
     isPaid: false,
   },
   {
-    id: "one_report",
-    name: "Full Report",
+    id: "complete",
+    name: "Full Clarity Report",
     price: 5,
     paymentLabel: "ONE-TIME PAYMENT",
-    badge: "MOST POPULAR",
-    positioning: "Know exactly what to change.",
-    description:
-      "Turn your first-impression diagnosis into a clear, actionable improvement plan.",
+    badge: "COMPLETE REPORT",
+    positioning: "Actionable clarity & diagnostics.",
+    description: "Deep dive into what strangers understand, where friction occurs, and how to improve.",
     features: [
       "Everything in Free Preview",
-      "Prioritized 1-2-3 fix plan",
-      "Copy-ready website rewrites",
-      "Detailed five-signal analysis",
-      "Complete homepage evidence",
-      "Supporting-page insights when available",
-      "Communication risks and recommendations",
+      "Detailed analysis for all five signals",
+      "Why This Score? diagnostic reasoning",
+      "What's Working? & What's Unclear?",
+      "How to Improve? actionable next steps",
+      "First 5 Seconds (Understand vs Miss)",
     ],
-    cta: "Get Full Report — $5",
-    disabledCta: "Start with a Free Preview",
+    cta: "Start with a Free Check",
+    disabledCta: "Start with a Free Check",
     popular: true,
-    isPaid: true,
-  },
-  {
-    id: "three_reports",
-    name: "3-Report Pack",
-    price: 12,
-    paymentLabel: "ONE-TIME PAYMENT",
-    badge: "SAVE $3",
-    positioning: "Improve more. Check again.",
-    description:
-      "Three complete reports for multiple websites or improvement iterations.",
-    features: [
-      "3 complete Full Reports",
-      "All premium insights per report",
-      "Copy-ready recommendations",
-      "Useful for multiple websites",
-      "Useful for before/after evaluations",
-      "$4 per report",
-      "No subscription",
-    ],
-    creditNote:
-      "Unlocking from an existing free report uses 1 credit for the current report (2 report credits remain).",
-    cta: "Get 3-Report Pack — $12",
-    disabledCta: "Start with a Free Preview",
-    popular: false,
     isPaid: true,
   },
 ];
@@ -126,37 +97,37 @@ const FAQ_ITEMS = [
   {
     question: "What does StrangerLens analyse?",
     answer:
-      "StrangerLens performs an AI-powered first-impression assessment of your accessible homepage content. It evaluates five signals — First Impression, Audience, Value, Trust, and Action — to help you see what may be clear or unclear to a first-time visitor.",
+      "StrangerLens is an AI-powered website first-impression clarity analyzer. It evaluates website communication across five core visitor signals — First Impression, Audience, Value, Trust, and Action — using the content actually inspected from your URL.",
   },
   {
     question: "Does StrangerLens work with any website?",
     answer:
-      "StrangerLens works with publicly reachable homepages whose text and structure are accessible in the initial HTML response, including SaaS products, developer tools, B2B services, and landing pages.",
+      "StrangerLens works with publicly reachable websites whose text and structure are accessible in the initial HTML response, including SaaS products, developer tools, B2B services, and landing pages.",
   },
   {
     question: "Is the analysis based on real website content?",
     answer:
-      "Yes. StrangerLens fetches your live public homepage HTML and extracts accessible text, headings, calls to action, and credibility signals to ground its findings in extracted page content.",
+      "Yes. StrangerLens inspects your live public website URL and extracts visible text, headings, value propositions, and calls to action to ground its findings in your actual inspected content.",
   },
   {
-    question: "Is StrangerLens a security, SEO, or performance scanner?",
+    question: "Is StrangerLens a security, SEO, or human test panel?",
     answer:
-      "No. StrangerLens is an AI homepage communication analyzer focused on messaging clarity, audience understanding, value communication, trust signals, and next-step clarity. It is not a security scanner, technical SEO audit, PageSpeed benchmark, accessibility compliance audit, or live human usability test.",
+      "No. StrangerLens is an AI website first-impression clarity analyzer focused on visitor comprehension, audience alignment, value perception, trust cues, and call-to-action clarity. It does not conduct human usability panels, nor is it a technical SEO or vulnerability scanner.",
   },
   {
     question: "What is included in the free analysis?",
     answer:
-      "The Free Preview ($0) includes your overall first-impression score, short main verdict, five signal scores, biggest issue with evidence, and your #1 priority fix — with no account required.",
+      "The Free Preview ($0) gives you your Overall Website Clarity Score, five Clarity Signal Scores (First Impression, Audience, Value, Trust, Action), and five Signal Statuses with zero signup or credit card required.",
   },
   {
     question: "What do paid reports cost?",
     answer:
-      "One-time report unlocks ($5 for a single Full Report or $12 for a 3-Report Pack, with no subscription) include everything in Free Preview plus a prioritized 1-2-3 fix plan, copy-ready website rewrites, detailed five-signal analysis, complete homepage evidence, supporting-page insights when available, and communication risks and recommendations.",
+      "A complete report unlock is a simple $5 one-time payment (no subscriptions or recurring fees). It unlocks detailed analysis for all five signals, Why This Score?, What's Working?, What's Unclear?, How to Improve?, and the First 5 Seconds breakdown (What a Visitor May Understand vs What a Visitor May Miss).",
   },
   {
     question: "Do I need to create an account?",
     answer:
-      "No account or signup is required. Enter any public website URL to run an analysis.",
+      "No account or signup is required. Enter any public website URL to run an instant analysis.",
   },
 ];
 
@@ -215,12 +186,14 @@ export default function LandingPage() {
     })
   );
 
-  const scanControllerRef = useRef(scanController);
-  useEffect(() => {
-    scanControllerRef.current = scanController;
-  }, [scanController]);
-
-  const scrollToScrollOnly = useCallback(() => {
+  function scrollToInput() {
+    if (activeInfoModal) setActiveInfoModal(null);
+    if (mobileMenuOpen) setMobileMenuOpen(false);
+    const wasNotOnLanding = currentView !== "landing";
+    if (wasNotOnLanding) {
+      clearPersistedReportSession();
+      scanController.cancelScan();
+    }
     setTimeout(() => {
       if (inputRef.current) {
         inputRef.current.scrollIntoView({
@@ -229,27 +202,72 @@ export default function LandingPage() {
         });
         inputRef.current.focus();
       }
-    }, 60);
-  }, [shouldReduceMotion]);
+    }, wasNotOnLanding ? 180 : 60);
+  }
 
-  const scrollToInput = useCallback(() => {
-    if (activeInfoModal) setActiveInfoModal(null);
-    if (mobileMenuOpen) setMobileMenuOpen(false);
-    const wasNotOnLanding = currentView !== "landing";
-    if (wasNotOnLanding) {
-      clearPersistedReportSession();
-      scanController.cancelScan();
-    }
-    scrollToScrollOnly();
-  }, [activeInfoModal, mobileMenuOpen, currentView, scanController, scrollToScrollOnly]);
 
+
+  // Handle Browser Back / Forward and popstate events without unintended rescanning
   useEffect(() => {
-    if (errorMessage) {
-      scrollToScrollOnly();
-    }
-  }, [errorMessage, scrollToScrollOnly]);
+    if (typeof window === "undefined") return;
 
-  // Restore active report from sessionStorage if user navigated to a legal/support page and returned
+    // Set initial history state if not present
+    if (!window.history.state || !window.history.state.strangerLens) {
+      const rawSaved = window.sessionStorage.getItem(ACTIVE_REPORT_SESSION_KEY);
+      let initialView = "landing";
+      if (rawSaved) {
+        try {
+          const parsed = JSON.parse(rawSaved);
+          if (parsed && typeof parsed.analysisData?.score === "number") {
+            initialView = "results";
+          }
+        } catch {
+          // ignore
+        }
+      }
+      window.history.replaceState({ strangerLens: true, view: initialView }, "");
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      const histState = event.state;
+      const targetView = histState?.view || "landing";
+
+      if (targetView === "landing") {
+        // Navigating back to landing: MUST NOT RESCAN
+        scanController.navigateToLanding();
+      } else if (targetView === "results") {
+        // Navigating forward or back to results: MUST NOT RESCAN
+        const existingData = scanController.getState().analysisData;
+        if (existingData) {
+          scanController.navigateToResults();
+        } else {
+          try {
+            const rawSaved = window.sessionStorage.getItem(ACTIVE_REPORT_SESSION_KEY);
+            if (rawSaved) {
+              const parsed = JSON.parse(rawSaved);
+              if (parsed?.analysisData && typeof parsed.analysisData.score === "number") {
+                scanController.restoreSession(parsed.rawUrl, parsed.analysisData);
+                return;
+              }
+            }
+          } catch {
+            // ignore
+          }
+          scanController.navigateToLanding();
+        }
+      } else if (targetView === "scan") {
+        // If back to scan screen, do not automatically rescan; navigate to landing safely
+        scanController.navigateToLanding();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [scanController]);
+
+  // Restore active report from sessionStorage if user refreshed results or returned from legal page
   useEffect(() => {
     if (typeof window === "undefined") return;
     let rafId: number | null = null;
@@ -265,7 +283,7 @@ export default function LandingPage() {
         typeof parsed.analysisData.score === "number"
       ) {
         rafId = requestAnimationFrame(() => {
-          scanControllerRef.current?.restoreSession(
+          scanController.restoreSession(
             parsed.rawUrl,
             parsed.analysisData
           );
@@ -277,7 +295,7 @@ export default function LandingPage() {
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [scanController]);
 
   // Persist active report in sessionStorage while viewing results
   useEffect(() => {
@@ -292,6 +310,7 @@ export default function LandingPage() {
             savedAt: Date.now(),
           })
         );
+        window.history.replaceState({ strangerLens: true, view: "results" }, "");
       }
     } catch {
       // Ignore storage quota errors
@@ -299,8 +318,6 @@ export default function LandingPage() {
   }, [currentView, analysisData, submittedUrl]);
 
   const urlValidation = React.useMemo(() => validateClientUrl(url), [url]);
-
-
 
 
 
@@ -365,7 +382,16 @@ export default function LandingPage() {
 
   const handleAnalyze = async (e?: React.FormEvent, overrideUrl?: string) => {
     if (e) e.preventDefault();
-    await scanControllerRef.current?.startScan(overrideUrl);
+    if (typeof window !== "undefined") {
+      window.history.pushState({ strangerLens: true, view: "scan" }, "");
+    }
+    await scanController.startScan(overrideUrl);
+    if (scanController.getState().errorMessage) {
+      if (typeof window !== "undefined") {
+        window.history.replaceState({ strangerLens: true, view: "landing" }, "");
+      }
+      scrollToInput();
+    }
   };
 
   return (
@@ -378,14 +404,14 @@ export default function LandingPage() {
             animate={{ opacity: 1 }}
             exit={shouldReduceMotion ? {} : { opacity: 0 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="w-full min-h-screen flex flex-col"
+            className="w-full min-h-screen flex flex-col bg-[#090D15] text-[#F1F5F9]"
           >
             {/* STICKY HEADER */}
             <motion.header
               initial={shouldReduceMotion ? false : { opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
-              className="w-full bg-white/90 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50 transition-colors"
+              className="w-full bg-[#090D15]/85 backdrop-blur-md border-b border-[#263044] sticky top-0 z-50 transition-colors"
             >
               <div className="max-w-[1180px] mx-auto px-4 sm:px-6 md:px-8 h-[64px] sm:h-[72px] flex items-center justify-between gap-2 sm:gap-4">
                 <a
@@ -401,10 +427,10 @@ export default function LandingPage() {
                   }}
                   className="flex items-center gap-2 sm:gap-2.5 shrink-0 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] rounded-lg"
                 >
-                  <div className="w-8 h-8 rounded-xl bg-slate-950 text-white flex items-center justify-center font-bold text-sm tracking-tighter shadow-xs transition-transform duration-200 group-hover:scale-[1.04]">
+                  <div className="w-8 h-8 rounded-xl bg-[#171F2D] border border-[#263044] text-white flex items-center justify-center font-bold text-sm tracking-tighter shadow-xs transition-transform duration-200 group-hover:scale-[1.04]">
                     S
                   </div>
-                  <span className="text-lg sm:text-xl font-bold tracking-tight text-slate-950 whitespace-nowrap">
+                  <span className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
                     StrangerLens
                   </span>
                 </a>
@@ -412,14 +438,14 @@ export default function LandingPage() {
                 {/* Desktop Navigation */}
                 <nav
                   aria-label="Primary Navigation"
-                  className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600"
+                  className="hidden md:flex items-center gap-8 text-sm font-medium text-[#94A3B8]"
                 >
                   {NAV_ITEMS.map((item) => (
                     <a
                       key={item.href}
                       href={item.href}
                       onClick={(e) => handleSectionNavigate(e, item.href)}
-                      className="relative py-1 hover:text-slate-950 transition-colors whitespace-nowrap shrink-0 after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-[#246BFD] after:rounded-full after:scale-x-0 hover:after:scale-x-100 after:origin-left after:transition-transform after:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] rounded"
+                      className="relative py-1 hover:text-white transition-colors whitespace-nowrap shrink-0 after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-[#3B82F6] after:rounded-full after:scale-x-0 hover:after:scale-x-100 after:origin-left after:transition-transform after:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] rounded"
                     >
                       {item.label}
                     </a>
@@ -429,7 +455,7 @@ export default function LandingPage() {
                 <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
                   <button
                     onClick={scrollToInput}
-                    className="group rounded-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.97] text-white text-xs sm:text-sm font-medium px-4 sm:px-5 py-2 sm:py-2.5 transition-all duration-200 inline-flex items-center gap-1.5 shadow-xs hover:shadow-md hover:shadow-blue-500/15 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
+                    className="group rounded-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.97] text-white text-xs sm:text-sm font-medium px-4 sm:px-5 py-2 sm:py-2.5 transition-all duration-200 inline-flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
                   >
                     <span>Try for free</span>
                     <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -439,7 +465,7 @@ export default function LandingPage() {
                     ref={hamburgerButtonRef}
                     type="button"
                     onClick={() => setMobileMenuOpen((prev) => !prev)}
-                    className="md:hidden w-10 h-10 rounded-xl text-slate-800 hover:bg-slate-100 active:scale-95 transition-all flex items-center justify-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
+                    className="md:hidden w-10 h-10 rounded-xl text-[#94A3B8] hover:text-white hover:bg-[#171F2D] active:scale-95 transition-all flex items-center justify-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
                     aria-label={
                       mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"
                     }
@@ -475,7 +501,7 @@ export default function LandingPage() {
                       ease: "easeOut",
                     }}
                     onClick={() => setMobileMenuOpen(false)}
-                    className="fixed inset-0 top-[64px] sm:top-[72px] bg-slate-950/25 backdrop-blur-[16px] [-webkit-backdrop-filter:blur(16px)]"
+                    className="fixed inset-0 top-[64px] sm:top-[72px] bg-black/60 backdrop-blur-[16px] [-webkit-backdrop-filter:blur(16px)]"
                   />
 
                   {/* Translucent Floating Menu Surface */}
@@ -496,7 +522,7 @@ export default function LandingPage() {
                       ease: EASE_OUT_EXPO,
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    className="relative z-10 w-full bg-white/92 backdrop-blur-2xl border-b border-slate-200/80 shadow-[0_24px_48px_-12px_rgba(15,23,42,0.18)] rounded-b-3xl px-5 pt-4 pb-6 overflow-y-auto max-h-[calc(100dvh-64px)]"
+                    className="relative z-10 w-full bg-[#121824]/95 backdrop-blur-2xl border-b border-[#263044] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.6)] rounded-b-3xl px-5 pt-4 pb-6 overflow-y-auto max-h-[calc(100dvh-64px)] text-[#F1F5F9]"
                   >
                     <motion.nav
                       initial="hidden"
@@ -527,10 +553,10 @@ export default function LandingPage() {
                               transition: { duration: 0.28, ease: EASE_OUT_EXPO },
                             },
                           }}
-                          className="group flex items-center justify-between min-h-[48px] px-4 py-3 rounded-2xl text-base font-semibold text-slate-900 hover:bg-slate-100/90 active:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
+                          className="group flex items-center justify-between min-h-[48px] px-4 py-3 rounded-2xl text-base font-semibold text-[#F1F5F9] hover:bg-[#171F2D] active:bg-[#1C2638] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
                         >
                           <span>{item.label}</span>
-                          <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#246BFD] group-hover:translate-x-0.5 transition-all" />
+                          <ArrowRight className="w-4 h-4 text-[#64748B] group-hover:text-[#3B82F6] group-hover:translate-x-0.5 transition-all" />
                         </motion.a>
                       ))}
 
@@ -547,7 +573,7 @@ export default function LandingPage() {
                             },
                           },
                         }}
-                        className="pt-3 mt-2 border-t border-slate-200/70"
+                        className="pt-3 mt-2 border-t border-[#263044]"
                       >
                         <button
                           type="button"
@@ -558,13 +584,13 @@ export default function LandingPage() {
                           <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                         </button>
 
-                        <div className="pt-3 mt-3 border-t border-slate-100 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-slate-500">
+                        <div className="pt-3 mt-3 border-t border-[#263044] flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-[#94A3B8]">
                           {LEGAL_CONFIG.links.map((item) => (
                             <Link
                               key={item.href}
                               href={item.href}
                               onClick={() => setMobileMenuOpen(false)}
-                              className="hover:text-slate-900 transition-colors"
+                              className="hover:text-white transition-colors"
                             >
                               {item.label}
                             </Link>
@@ -594,13 +620,13 @@ export default function LandingPage() {
                       delay: 0.05,
                       ease: EASE_OUT_EXPO,
                     }}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold tracking-wider text-[#246BFD] uppercase bg-[#EAF2FF] mb-4 sm:mb-5 border border-blue-100"
+                    className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold tracking-wider text-[#3B82F6] uppercase bg-[#171F2D] mb-4 sm:mb-5 border border-[#263044]"
                   >
                     AI WEBSITE FIRST-IMPRESSION ANALYZER
                   </motion.div>
 
                   {/* 2. Staggered Hero Headline Lines */}
-                  <h1 className="text-[32px] min-[375px]:text-4xl sm:text-5xl lg:text-[54px] font-extrabold text-[#101828] tracking-tight leading-[1.09] mb-4 sm:mb-5 [text-wrap:balance]">
+                  <h1 className="text-[32px] min-[375px]:text-4xl sm:text-5xl lg:text-[54px] font-extrabold text-white tracking-tight leading-[1.09] mb-4 sm:mb-5 [text-wrap:balance]">
                     <motion.span
                       initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -624,7 +650,7 @@ export default function LandingPage() {
                       className="block"
                     >
                       Make Sense to a{" "}
-                      <span className="text-[#246BFD]">Stranger?</span>
+                      <span className="text-[#3B82F6]">Stranger?</span>
                     </motion.span>
                   </h1>
 
@@ -637,9 +663,9 @@ export default function LandingPage() {
                       delay: 0.3,
                       ease: EASE_OUT_EXPO,
                     }}
-                    className="text-[15px] sm:text-lg text-[#526078] leading-relaxed mb-6 sm:mb-7 max-w-lg font-normal"
+                    className="text-[15px] sm:text-lg text-[#94A3B8] leading-relaxed mb-6 sm:mb-7 max-w-lg font-normal"
                   >
-                    Get an AI-powered first-impression review of your homepage. Discover what{"'"}s unclear, what may make visitors hesitate, and exactly what to improve.
+                    See your website through a stranger&apos;s eyes. Get an AI-powered first-impression clarity review to uncover what&apos;s clear, what confuses first-time visitors, and how to improve.
                   </motion.p>
 
                   {/* 4. URL Input Pill & Primary Hero CTA */}
@@ -659,20 +685,20 @@ export default function LandingPage() {
                     className="w-full max-w-lg"
                   >
                     <div
-                      className={`relative flex flex-col sm:flex-row md:flex-col lg:flex-row items-stretch lg:items-center bg-white rounded-3xl sm:rounded-full md:rounded-3xl lg:rounded-full border transition-all duration-200 p-2 sm:p-1.5 sm:pl-5 md:p-2 lg:p-1.5 lg:pl-5 ${
+                      className={`relative flex flex-col sm:flex-row md:flex-col lg:flex-row items-stretch lg:items-center bg-[#121824] rounded-3xl sm:rounded-full md:rounded-3xl lg:rounded-full border transition-all duration-200 p-2 sm:p-1.5 sm:pl-5 md:p-2 lg:p-1.5 lg:pl-5 ${
                         errorMessage || urlValidation.status === "invalid"
-                          ? "border-rose-400 ring-4 ring-rose-100/80 shadow-sm"
+                          ? "border-rose-500 ring-4 ring-rose-500/20 shadow-sm"
                           : urlValidation.status === "valid"
-                          ? "border-emerald-500 ring-4 ring-emerald-100/80 shadow-md"
+                          ? "border-emerald-500 ring-4 ring-emerald-500/20 shadow-md"
                           : isInputFocused
-                          ? "border-[#246BFD] ring-4 ring-blue-100/90 shadow-[0_10px_30px_-6px_rgba(36,107,253,0.18)]"
-                          : "border-[#DCE6F7] hover:border-blue-300/90 shadow-[0_8px_26px_-6px_rgba(36,107,253,0.10)]"
+                          ? "border-[#3B82F6] ring-4 ring-blue-500/20 shadow-[0_10px_30px_-6px_rgba(59,130,246,0.3)]"
+                          : "border-[#263044] hover:border-[#384660] shadow-[0_8px_26px_-6px_rgba(0,0,0,0.4)]"
                       }`}
                     >
                       <div className="flex items-center flex-1 min-w-0 px-2.5 sm:px-0 md:px-2.5 lg:px-0 min-h-[44px] sm:min-h-[46px]">
                         <Link2
                           className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 mr-2.5 sm:mr-3 transition-colors duration-200 ${
-                            isInputFocused ? "text-[#246BFD]" : "text-slate-400"
+                            isInputFocused ? "text-[#3B82F6]" : "text-[#64748B]"
                           }`}
                         />
                         <input
@@ -683,10 +709,10 @@ export default function LandingPage() {
                           onFocus={() => setIsInputFocused(true)}
                           onBlur={() => setIsInputFocused(false)}
                           onChange={(e) => {
-                            scanControllerRef.current?.setUrl(e.target.value);
+                            scanController.setUrl(e.target.value);
                           }}
                           placeholder="https://yourwebsite.com"
-                          className="w-full min-w-0 bg-transparent text-slate-900 placeholder:text-slate-400 text-sm sm:text-base outline-none font-normal pr-2 disabled:opacity-75"
+                          className="w-full min-w-0 bg-transparent text-white placeholder:text-[#64748B] text-sm sm:text-base outline-none font-normal pr-2 disabled:opacity-75"
                           aria-label="Website URL"
                         />
                       </div>
@@ -697,10 +723,10 @@ export default function LandingPage() {
                         }
                         className={`group mt-1.5 sm:mt-0 md:mt-1.5 lg:mt-0 w-full sm:w-auto md:w-full lg:w-auto min-h-[44px] sm:min-h-[46px] px-4 sm:px-5 py-2.5 rounded-full font-semibold text-xs sm:text-[13px] flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 ${
                           urlValidation.status === "invalid"
-                            ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                            ? "bg-[#171F2D] text-[#64748B] cursor-not-allowed shadow-none border border-[#263044]"
                             : isVerifying
                             ? "bg-[#246BFD] text-white opacity-90 cursor-wait"
-                            : "bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white shadow-sm hover:shadow-md hover:shadow-blue-500/20"
+                            : "bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white shadow-md shadow-blue-500/25"
                         }`}
                         aria-label="Analyze My Website Free"
                       >
@@ -718,7 +744,7 @@ export default function LandingPage() {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -4 }}
                           transition={{ duration: 0.2 }}
-                          className="text-rose-600 text-xs sm:text-sm mt-2 font-medium pl-2"
+                          className="text-rose-400 text-xs sm:text-sm mt-2 font-medium pl-2"
                         >
                           {errorMessage || urlValidation.message}
                         </motion.p>
@@ -735,13 +761,13 @@ export default function LandingPage() {
                       delay: 0.46,
                       ease: EASE_OUT_EXPO,
                     }}
-                    className="mt-3.5 text-xs sm:text-[13px] text-[#526078] font-medium leading-relaxed"
+                    className="mt-3.5 text-xs sm:text-[13px] text-[#94A3B8] font-medium leading-relaxed"
                   >
-                    No signup required · AI-powered review · Actionable feedback
+                    No signup required · AI-powered clarity review · Five clarity signals
                   </motion.p>
                 </div>
 
-                {/* 6. Right Column — First-Impression Report Preview */}
+                {/* 6. Right Column — Final Product Report Preview */}
                 <motion.div
                   initial={
                     shouldReduceMotion
@@ -756,132 +782,83 @@ export default function LandingPage() {
                   }}
                   className="w-full min-w-0 flex justify-center md:justify-end"
                 >
-                  <div className="w-full bg-white border border-[#E3EAF5] rounded-3xl p-4 sm:p-6 shadow-[0_20px_50px_-15px_rgba(16,24,40,0.08)]">
+                  <div className="w-full bg-[#121824] border border-[#263044] rounded-3xl p-4 sm:p-6 shadow-[0_20px_50px_-15px_rgba(9,13,21,0.5)] text-[#F1F5F9]">
                     {/* A. Card Header */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pb-3.5 border-b border-slate-100 mb-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#263044] mb-3.5">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-[#EAF2FF] text-[#246BFD] flex items-center justify-center shrink-0">
+                        <div className="w-7 h-7 rounded-lg bg-[#3B82F6]/15 text-[#3B82F6] flex items-center justify-center shrink-0">
                           <Sparkles className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <span className="font-extrabold text-[#101828] text-sm sm:text-base tracking-tight block">
-                            First-Impression Report
+                          <span className="font-extrabold text-[#F1F5F9] text-sm sm:text-base tracking-tight block">
+                            Your Website Clarity
                           </span>
-                          <span className="text-[11px] text-slate-400 font-medium block">
-                            Illustrative preview
+                          <span className="text-[11px] text-[#94A3B8] font-medium block">
+                            Illustrative Preview · V1 Report
                           </span>
                         </div>
                       </div>
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#246BFD] bg-[#EAF2FF] px-2.5 py-1 rounded-full shrink-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#246BFD]" />
-                        5 Visitor Signals
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#3B82F6] bg-[#3B82F6]/10 px-3 py-1 rounded-full shrink-0 border border-[#3B82F6]/20">
+                        Overall Score: 78/100 · Clear
                       </span>
                     </div>
 
-                    {/* B. Five Signal Cards with Meaningful Status Colors */}
-                    <div className="grid grid-cols-2 min-[420px]:grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
+                    {/* B. Five Clarity Signals in Preview */}
+                    <div className="space-y-2 mb-3.5">
                       {[
-                        {
-                          label: "First Impression",
-                          status: "Clear",
-                          pillClass:
-                            "bg-[#ECFDF5] border-emerald-200/90 text-[#059669]",
-                          dotClass: "bg-[#059669]",
-                        },
-                        {
-                          label: "Audience",
-                          status: "Clear",
-                          pillClass:
-                            "bg-[#ECFDF5] border-emerald-200/90 text-[#059669]",
-                          dotClass: "bg-[#059669]",
-                        },
-                        {
-                          label: "Value",
-                          status: "Partly clear",
-                          pillClass:
-                            "bg-[#FFFBEB] border-amber-200/90 text-[#D97706]",
-                          dotClass: "bg-[#D97706]",
-                        },
-                        {
-                          label: "Trust",
-                          status: "Needs work",
-                          pillClass:
-                            "bg-[#FFF1F2] border-rose-200/90 text-[#E11D48]",
-                          dotClass: "bg-[#E11D48]",
-                        },
-                        {
-                          label: "Action",
-                          status: "Clear",
-                          pillClass:
-                            "bg-[#ECFDF5] border-emerald-200/90 text-[#059669]",
-                          dotClass: "bg-[#059669]",
-                        },
+                        { label: "First Impression", score: 85, status: "Clear", color: "bg-emerald-500", text: "text-emerald-400" },
+                        { label: "Audience", score: 80, status: "Clear", color: "bg-emerald-500", text: "text-emerald-400" },
+                        { label: "Value", score: 72, status: "Partly clear", color: "bg-amber-400", text: "text-amber-400" },
+                        { label: "Trust", score: 68, status: "Partly clear", color: "bg-amber-400", text: "text-amber-400" },
+                        { label: "Action", score: 85, status: "Clear", color: "bg-emerald-500", text: "text-emerald-400" },
                       ].map((sig) => (
                         <div
                           key={sig.label}
-                          className={`border rounded-2xl px-2.5 py-2.5 text-center flex flex-col items-center justify-between min-w-0 ${sig.pillClass}`}
+                          className="bg-[#171F2D] border border-[#263044] rounded-xl px-3 py-2 flex flex-col gap-1.5 transition-colors hover:border-[#384660]"
                         >
-                          <span className="text-[11px] font-bold text-[#101828] leading-tight">
-                            {sig.label}
-                          </span>
-                          <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold leading-none">
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${sig.dotClass}`}
+                          <div className="flex items-center justify-between text-xs sm:text-[13px]">
+                            <span className="font-semibold text-[#F1F5F9] truncate">{sig.label}</span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`text-[11px] sm:text-xs font-semibold ${sig.text}`}>
+                                {sig.status}
+                              </span>
+                              <span className="text-[11px] sm:text-xs font-bold text-white/90 tabular-nums">
+                                {sig.score}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-[#263044] h-2 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${sig.color}`}
+                              style={{ width: `${sig.score}%` }}
                             />
-                            {sig.status}
-                          </span>
+                          </div>
                         </div>
                       ))}
                     </div>
 
-                    {/* C. Biggest Issue Component */}
-                    <div className="rounded-2xl bg-[#FFF1F2]/75 border border-rose-200/80 p-3.5 sm:p-4 mb-3">
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-[#E11D48]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#E11D48]" />
-                          BIGGEST ISSUE
-                        </span>
+                    {/* C. Premium Preview Area (Why This Score, What's Working, Unclear, First 5 Seconds) */}
+                    <div className="rounded-2xl bg-[#171F2D] border border-[#263044] p-3 sm:p-3.5 space-y-2 text-xs">
+                      <div className="flex items-center justify-between font-semibold border-b border-[#263044] pb-2 text-[11px] sm:text-xs">
+                        <span className="text-[#94A3B8]">Paid Report Sections</span>
+                        <span className="text-[#3B82F6] font-bold">Unlocked with $5 One-Time</span>
                       </div>
-                      <p className="text-xs sm:text-[13px] font-semibold text-[#101828] leading-snug mb-2">
-                        The headline doesn{"'"}t explain what the product actually helps visitors do.
-                      </p>
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs bg-white/90 border border-rose-200/70 rounded-xl px-3 py-2">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#E11D48] shrink-0">
-                          EVIDENCE:
-                        </span>
-                        <span className="text-slate-700 font-medium break-words">
-                          &ldquo;Modern solutions for teams&rdquo;
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* D. #1 Priority Fix Component */}
-                    <div className="rounded-2xl bg-[#ECFDF5]/75 border border-emerald-200/80 p-3.5 sm:p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-[#059669]">
-                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                          #1 PRIORITY FIX
-                        </span>
-                        <span className="text-[11px] font-medium text-[#059669]">
-                          Explain the main benefit directly in the headline.
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                        <div className="bg-white/90 border border-slate-200/80 rounded-xl p-2.5">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
-                            BEFORE
-                          </span>
-                          <p className="text-slate-600 leading-snug break-words">
-                            &ldquo;Modern solutions for teams&rdquo;
-                          </p>
+                      <div className="grid grid-cols-2 gap-2 pt-0.5 text-[11px] sm:text-xs text-[#F1F5F9]">
+                        <div className="bg-[#121824] border border-[#263044] rounded-lg p-2 sm:p-2.5">
+                          <span className="font-bold text-[#3B82F6] block mb-0.5">Why This Score?</span>
+                          <span className="text-[#94A3B8] text-[10px] sm:text-[11px] leading-tight block">Deep signal rationale</span>
                         </div>
-                        <div className="bg-white border border-emerald-300/90 rounded-xl p-2.5 shadow-2xs">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#059669] block mb-1">
-                            AFTER
-                          </span>
-                          <p className="font-bold text-[#059669] leading-snug break-words">
-                            &ldquo;Plan projects, assign tasks, and track deadlines in one place.&rdquo;
-                          </p>
+                        <div className="bg-[#121824] border border-[#263044] rounded-lg p-2 sm:p-2.5">
+                          <span className="font-bold text-emerald-400 block mb-0.5">What{"'"}s Working?</span>
+                          <span className="text-[#94A3B8] text-[10px] sm:text-[11px] leading-tight block">Strong visitor cues</span>
+                        </div>
+                        <div className="bg-[#121824] border border-[#263044] rounded-lg p-2 sm:p-2.5">
+                          <span className="font-bold text-amber-400 block mb-0.5">What{"'"}s Unclear?</span>
+                          <span className="text-[#94A3B8] text-[10px] sm:text-[11px] leading-tight block">Friction &amp; doubt points</span>
+                        </div>
+                        <div className="bg-[#121824] border border-[#263044] rounded-lg p-2 sm:p-2.5">
+                          <span className="font-bold text-[#3B82F6] block mb-0.5">First 5 Seconds</span>
+                          <span className="text-[#94A3B8] text-[10px] sm:text-[11px] leading-tight block">Understand vs Miss</span>
                         </div>
                       </div>
                     </div>
@@ -889,152 +866,150 @@ export default function LandingPage() {
                 </motion.div>
               </section>
 
-              {/* SECTION: THE PROBLEM */}
+              {/* SECTION: HOW IT WORKS (3 Steps) */}
               <section
-                id="product"
-                className="scroll-mt-20 sm:scroll-mt-24 py-12 sm:py-14 md:py-20 border-t border-slate-100"
+                id="how-it-works"
+                className="scroll-mt-20 sm:scroll-mt-24 py-12 sm:py-14 md:py-20 border-t border-[#263044]"
               >
                 <div className="max-w-4xl mx-auto text-center mb-8 sm:mb-10 md:mb-12">
                   <Reveal y={10} blur>
-                    <span className="inline-block text-[11px] font-bold tracking-widest text-[#246BFD] uppercase bg-[#EAF2FF] px-3 py-1 rounded-full border border-blue-100">
-                      THE PROBLEM
+                    <span className="inline-block text-[11px] font-bold tracking-widest text-[#3B82F6] uppercase bg-[#171F2D] px-3 py-1 rounded-full border border-[#263044]">
+                      HOW IT WORKS
                     </span>
                   </Reveal>
                   <Reveal y={14} delay={0.06}>
-                    <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight mt-3.5 mb-3 [text-wrap:balance]">
-                      You know your product. <br />
-                      Your visitors don{"'"}t.
+                    <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-white tracking-tight mt-3.5 mb-3 [text-wrap:balance]">
+                      Three simple steps to clarity.
                     </h2>
                   </Reveal>
                   <Reveal y={14} delay={0.12}>
-                    <p className="text-[15px] sm:text-lg text-[#526078] max-w-2xl mx-auto leading-relaxed font-normal">
-                      You{"'"}ve spent hours building your product. But a new visitor sees only what{"'"}s on the page — and may miss what makes it valuable.
-                    </p>
-                  </Reveal>
-                </div>
-
-                <div className="relative grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 max-w-4xl mx-auto items-stretch">
-                  <Reveal y={18} delay={0.08} className="h-full">
-                    <div className="h-full bg-[#F5F8FF] border border-[#E3EAF5] rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 hover:border-blue-200">
-                      <div>
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">
-                          WHAT YOU WANT TO SAY
-                        </span>
-                        <h3 className="text-lg font-bold text-slate-950 mb-2.5">
-                          Your complete product vision
-                        </h3>
-                        <p className="text-sm text-slate-600 leading-relaxed">
-                          All your features, benefits, use cases, and nuanced positioning perfectly understood in context.
-                        </p>
-                      </div>
-                      <div className="mt-6 pt-4 border-t border-slate-200/60 text-xs text-slate-500 font-medium flex items-center justify-between">
-                        <span>Intended message</span>
-                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 hidden md:inline-block" />
-                      </div>
-                    </div>
-                  </Reveal>
-
-                  <Reveal y={18} delay={0.18} className="h-full">
-                    <div className="h-full bg-white border border-[#E3EAF5] rounded-3xl p-6 sm:p-7 flex flex-col justify-between shadow-xs transition-all duration-200 hover:border-blue-200 hover:shadow-sm">
-                      <div>
-                        <span className="text-xs font-bold uppercase tracking-wider text-[#246BFD] block mb-2">
-                          WHAT VISITORS MIGHT UNDERSTAND
-                        </span>
-                        <h3 className="text-lg font-bold text-slate-950 mb-2.5">
-                          First-time stranger impression
-                        </h3>
-                        <ul className="space-y-2 text-sm text-slate-700">
-                          <li className="flex items-center gap-2">
-                            <span className="text-blue-600 font-semibold">?</span> What is this product?
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <span className="text-blue-600 font-semibold">?</span> Is this actually for me?
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <span className="text-blue-600 font-semibold">?</span> Why should I trust this?
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <span className="text-blue-600 font-semibold">?</span> What should I do next?
-                          </li>
-                        </ul>
-                      </div>
-                      <div className="mt-6 pt-4 border-t border-slate-100 text-xs text-slate-500 font-medium">
-                        First-time visitor perspective
-                      </div>
-                    </div>
-                  </Reveal>
-                </div>
-              </section>
-
-              {/* SECTION: FIVE CORE SIGNALS */}
-              <section className="py-12 sm:py-14 md:py-20 border-t border-slate-100">
-                <div className="max-w-4xl mx-auto text-center mb-8 sm:mb-10 md:mb-12">
-                  <Reveal y={10} blur>
-                    <span className="inline-block text-[11px] font-bold tracking-widest text-[#246BFD] uppercase bg-[#EAF2FF] px-3 py-1 rounded-full border border-blue-100">
-                      FIVE EVALUATION DIMENSIONS
-                    </span>
-                  </Reveal>
-                  <Reveal y={14} delay={0.06}>
-                    <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight mt-3.5 mb-3 [text-wrap:balance]">
-                      See your website from every important angle.
-                    </h2>
-                  </Reveal>
-                  <Reveal y={14} delay={0.12}>
-                    <p className="text-[15px] sm:text-lg text-[#526078] max-w-2xl mx-auto leading-relaxed font-normal">
-                      StrangerLens evaluates accessible homepage content across five key signals to show what your website communicates to a first-time visitor.
+                    <p className="text-[15px] sm:text-lg text-[#94A3B8] max-w-2xl mx-auto leading-relaxed font-normal">
+                      See your website through a stranger&apos;s eyes.
                     </p>
                   </Reveal>
                 </div>
 
                 <StaggerContainer
-                  staggerDelay={0.07}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4"
+                  staggerDelay={0.08}
+                  className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 max-w-4xl mx-auto items-stretch"
+                >
+                  <StaggerItem y={16} className="h-full min-w-0">
+                    <div className="h-full bg-[#121824] border border-[#263044] rounded-3xl p-6 sm:p-7 flex flex-col justify-between shadow-lg hover:border-[#384660] transition-all">
+                      <div>
+                        <div className="w-10 h-10 rounded-2xl bg-[#171F2D] text-[#3B82F6] border border-[#263044] flex items-center justify-center font-extrabold text-sm mb-4">
+                          01
+                        </div>
+                        <h3 className="text-lg font-bold text-white mb-2">
+                          Enter your website
+                        </h3>
+                        <p className="text-sm text-[#94A3B8] leading-relaxed">
+                          Add the public URL you want analyzed. No signup or account required to start.
+                        </p>
+                      </div>
+                    </div>
+                  </StaggerItem>
+
+                  <StaggerItem y={16} className="h-full min-w-0">
+                    <div className="h-full bg-[#121824] border border-[#263044] rounded-3xl p-6 sm:p-7 flex flex-col justify-between shadow-lg hover:border-[#384660] transition-all">
+                      <div>
+                        <div className="w-10 h-10 rounded-2xl bg-[#171F2D] text-[#3B82F6] border border-[#263044] flex items-center justify-center font-extrabold text-sm mb-4">
+                          02
+                        </div>
+                        <h3 className="text-lg font-bold text-white mb-2">
+                          Get free clarity signals
+                        </h3>
+                        <p className="text-sm text-[#94A3B8] leading-relaxed">
+                          Discover your overall score and five first-impression signals evaluating core communication.
+                        </p>
+                      </div>
+                    </div>
+                  </StaggerItem>
+
+                  <StaggerItem y={16} className="h-full min-w-0">
+                    <div className="h-full bg-[#121824] border border-[#263044] rounded-3xl p-6 sm:p-7 flex flex-col justify-between shadow-lg hover:border-[#384660] transition-all">
+                      <div>
+                        <div className="w-10 h-10 rounded-2xl bg-[#171F2D] text-[#3B82F6] border border-[#263044] flex items-center justify-center font-extrabold text-sm mb-4">
+                          03
+                        </div>
+                        <h3 className="text-lg font-bold text-white mb-2">
+                          Explore the details
+                        </h3>
+                        <p className="text-sm text-[#94A3B8] leading-relaxed">
+                          Unlock deep signal analyses, improvements, and First 5 Seconds with a $5 one-time report.
+                        </p>
+                      </div>
+                    </div>
+                  </StaggerItem>
+                </StaggerContainer>
+              </section>
+
+              {/* SECTION: FIVE CLARITY SIGNALS (Compact & Sleek) */}
+              <section
+                id="product"
+                className="scroll-mt-20 sm:scroll-mt-24 py-10 sm:py-12 md:py-16 border-t border-[#263044]"
+              >
+                <div className="max-w-4xl mx-auto text-center mb-6 sm:mb-8">
+                  <Reveal y={10} blur>
+                    <span className="inline-block text-[11px] font-bold tracking-widest text-[#3B82F6] uppercase bg-[#171F2D] px-3 py-1 rounded-full border border-[#263044]">
+                      FIVE CLARITY SIGNALS
+                    </span>
+                  </Reveal>
+                  <Reveal y={14} delay={0.06}>
+                    <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-white tracking-tight mt-3 mb-2 [text-wrap:balance]">
+                      Five signals. One clearer picture.
+                    </h2>
+                  </Reveal>
+                  <Reveal y={14} delay={0.12}>
+                    <p className="text-sm sm:text-base text-[#94A3B8] max-w-2xl mx-auto leading-relaxed font-normal">
+                      Every signal evaluates how your website communicates essential visitor expectations.
+                    </p>
+                  </Reveal>
+                </div>
+
+                <StaggerContainer
+                  staggerDelay={0.06}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-3.5 max-w-6xl mx-auto items-stretch"
                 >
                   {[
                     {
-                      title: "First Impression",
-                      question:
-                        "How clearly the homepage communicates its overall purpose.",
+                      title: "FIRST IMPRESSION",
+                      desc: "Can visitors understand what your website offers?",
                       icon: Eye,
                     },
                     {
-                      title: "Audience",
-                      question:
-                        "Whether the intended visitor can recognize who the product is for.",
+                      title: "AUDIENCE",
+                      desc: "Is it clear who your website is intended for?",
                       icon: Users,
                     },
                     {
-                      title: "Value",
-                      question:
-                        "How specifically the homepage explains what visitors may gain.",
+                      title: "VALUE",
+                      desc: "Can visitors recognize the main benefit?",
                       icon: Sparkles,
                     },
                     {
-                      title: "Trust",
-                      question:
-                        "What credibility evidence is available in the accessible homepage content.",
+                      title: "TRUST",
+                      desc: "Can visitors understand the basis of important claims?",
                       icon: Shield,
                     },
                     {
-                      title: "Action",
-                      question:
-                        "How clearly the homepage communicates the next step.",
+                      title: "ACTION",
+                      desc: "Is the next step clear?",
                       icon: ArrowRight,
                     },
                   ].map((card, idx) => {
                     const IconComponent = card.icon;
                     return (
-                      <StaggerItem key={idx} y={16}>
-                        <div className="group h-full bg-white border border-[#E3EAF5] rounded-2xl p-5 flex flex-col justify-between shadow-2xs hover:border-blue-300 md:hover:-translate-y-1 hover:shadow-md transition-all duration-200">
+                      <StaggerItem key={idx} y={14} className="h-full">
+                        <div className="group h-full bg-[#121824] border border-[#263044] rounded-2xl p-4 sm:p-4.5 flex flex-col justify-between shadow-md hover:border-[#384660] md:hover:-translate-y-1 hover:shadow-xl transition-all duration-200">
                           <div>
-                            <div className="w-9 h-9 rounded-full bg-blue-50 text-[#246BFD] flex items-center justify-center mb-3.5 transition-transform duration-200 group-hover:scale-110 group-hover:bg-[#EAF2FF]">
+                            <div className="w-8 h-8 rounded-xl bg-[#171F2D] border border-[#263044] text-[#3B82F6] flex items-center justify-center mb-3 transition-transform duration-200 group-hover:scale-105 group-hover:bg-[#1C2638]">
                               <IconComponent className="w-4 h-4" />
                             </div>
-                            <h3 className="font-bold text-slate-950 text-sm mb-1">
+                            <h3 className="font-extrabold text-white text-xs tracking-wider uppercase mb-1">
                               {card.title}
                             </h3>
-                            <p className="text-xs text-slate-500 leading-relaxed">
-                              {card.question}
+                            <p className="text-xs text-[#94A3B8] leading-relaxed">
+                              {card.desc}
                             </p>
                           </div>
                         </div>
@@ -1044,167 +1019,32 @@ export default function LandingPage() {
                 </StaggerContainer>
               </section>
 
-              {/* SECTION: INSIDE YOUR REPORT (3 Compact Cards Side-by-Side on Desktop) */}
-              <section
-                id="how-it-works"
-                className="scroll-mt-20 sm:scroll-mt-24 py-12 sm:py-14 md:py-20 border-t border-slate-100"
-              >
-                <div className="max-w-4xl mx-auto text-center mb-8 sm:mb-10">
-                  <Reveal y={10} blur>
-                    <span className="inline-block text-[11px] font-bold tracking-widest text-[#246BFD] uppercase bg-[#EAF2FF] px-3 py-1 rounded-full border border-blue-100">
-                      INSIDE YOUR REPORT
-                    </span>
-                  </Reveal>
-                  <Reveal y={14} delay={0.06}>
-                    <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight mt-3.5 mb-3 [text-wrap:balance]">
-                      See what StrangerLens reveals.
-                    </h2>
-                  </Reveal>
-                  <Reveal y={14} delay={0.12}>
-                    <p className="text-[15px] sm:text-lg text-[#526078] max-w-2xl mx-auto leading-relaxed font-normal">
-                      Understand what{"'"}s unclear, discover the evidence, and know where to start.
-                    </p>
-                  </Reveal>
-                </div>
-
-                <StaggerContainer
-                  staggerDelay={0.08}
-                  className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 items-stretch"
-                >
-                  {/* CARD 1 — UNDERSTAND */}
-                  <StaggerItem y={16} className="h-full min-w-0">
-                    <div className="h-full bg-white border border-[#E3EAF5] rounded-2xl p-5 flex flex-col justify-between shadow-2xs hover:border-blue-300 transition-colors">
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-3">
-                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#246BFD] bg-[#EAF2FF] px-2.5 py-1 rounded-full">
-                            UNDERSTAND
-                          </span>
-                          <div className="w-8 h-8 rounded-full bg-[#EAF2FF] text-[#246BFD] flex items-center justify-center shrink-0">
-                            <Eye className="w-4 h-4" />
-                          </div>
-                        </div>
-
-                        <h3 className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight mb-1.5">
-                          First-Impression Diagnosis
-                        </h3>
-                        <p className="text-xs sm:text-sm text-[#526078] leading-relaxed mb-4">
-                          See how clearly your homepage communicates across five core visitor signals.
-                        </p>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#ECFDF5] text-[#059669] border border-emerald-200/80">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#059669]" />
-                          Clear
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#FFFBEB] text-[#D97706] border border-amber-200/80">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
-                          Partly clear
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#FFF1F2] text-[#E11D48] border border-rose-200/80">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#E11D48]" />
-                          Needs work
-                        </span>
-                      </div>
-                    </div>
-                  </StaggerItem>
-
-                  {/* CARD 2 — DISCOVER */}
-                  <StaggerItem y={16} className="h-full min-w-0">
-                    <div className="h-full bg-white border border-[#E3EAF5] rounded-2xl p-5 flex flex-col justify-between shadow-2xs hover:border-blue-300 transition-colors">
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-3">
-                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#D97706] bg-[#FFFBEB] px-2.5 py-1 rounded-full">
-                            DISCOVER
-                          </span>
-                          <div className="w-8 h-8 rounded-full bg-[#FFFBEB] text-[#D97706] flex items-center justify-center shrink-0">
-                            <Shield className="w-4 h-4" />
-                          </div>
-                        </div>
-
-                        <h3 className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight mb-1.5">
-                          Biggest Issue + Evidence
-                        </h3>
-                        <p className="text-xs sm:text-sm text-[#526078] leading-relaxed mb-4">
-                          See the #1 reason a new visitor may feel confused or leave — backed by your actual homepage wording.
-                        </p>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-100">
-                        <div className="rounded-xl bg-[#FFF1F2]/70 border border-rose-200/80 px-3 py-2 text-xs">
-                          <span className="font-bold text-[#E11D48] block">
-                            Verified page evidence
-                          </span>
-                          <span className="text-slate-700 leading-snug block mt-0.5">
-                            Connects findings directly to your headline, copy, and CTAs.
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </StaggerItem>
-
-                  {/* CARD 3 — IMPROVE */}
-                  <StaggerItem y={16} className="h-full min-w-0">
-                    <div className="h-full bg-white border border-[#E3EAF5] rounded-2xl p-5 flex flex-col justify-between shadow-2xs hover:border-blue-300 transition-colors">
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-3">
-                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#059669] bg-[#ECFDF5] px-2.5 py-1 rounded-full">
-                            IMPROVE
-                          </span>
-                          <div className="w-8 h-8 rounded-full bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
-                            <Sparkles className="w-4 h-4" />
-                          </div>
-                        </div>
-
-                        <h3 className="text-base sm:text-lg font-extrabold text-[#101828] tracking-tight mb-1.5">
-                          Priority Fix + Copy Rewrites
-                        </h3>
-                        <p className="text-xs sm:text-sm text-[#526078] leading-relaxed mb-4">
-                          Start with your #1 fix for free, then unlock the 1-2-3 action plan and copy-ready rewrites.
-                        </p>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-100">
-                        <div className="rounded-xl bg-[#ECFDF5]/80 border border-emerald-200/80 px-3 py-2 text-xs">
-                          <span className="font-bold text-[#059669] block">
-                            Before → After guidance
-                          </span>
-                          <span className="text-slate-700 leading-snug block mt-0.5">
-                            Clear replacement copy you can apply immediately.
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </StaggerItem>
-                </StaggerContainer>
-              </section>
-
               {/* SECTION: PRICING */}
               <section
                 id="pricing"
-                className="scroll-mt-20 sm:scroll-mt-24 py-12 sm:py-14 md:py-20 border-t border-slate-100"
+                className="scroll-mt-20 sm:scroll-mt-24 py-12 sm:py-14 md:py-20 border-t border-[#263044]"
               >
                 <div className="max-w-4xl mx-auto text-center mb-8 sm:mb-10 md:mb-12">
                   <Reveal y={10} blur>
-                    <span className="inline-block text-[11px] font-bold tracking-widest text-[#246BFD] uppercase bg-[#EAF2FF] px-3 py-1 rounded-full border border-blue-100">
+                    <span className="inline-block text-[11px] font-bold tracking-widest text-[#3B82F6] uppercase bg-[#171F2D] px-3 py-1 rounded-full border border-[#263044]">
                       PRICING
                     </span>
                   </Reveal>
                   <Reveal y={14} delay={0.06}>
-                    <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight mt-3.5 mb-3 [text-wrap:balance]">
+                    <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-white tracking-tight mt-3.5 mb-3 [text-wrap:balance]">
                       Simple, transparent pricing.
                     </h2>
                   </Reveal>
                   <Reveal y={14} delay={0.12}>
-                    <p className="text-[15px] sm:text-lg text-[#526078] max-w-2xl mx-auto leading-relaxed font-normal">
-                      Start with a free first-impression preview today. Unlock complete diagnostic reports with a one-time payment — no subscriptions.
+                    <p className="text-[15px] sm:text-lg text-[#94A3B8] max-w-2xl mx-auto leading-relaxed font-normal">
+                      Start with a free clarity preview today. Unlock the complete report with a one-time payment — no subscriptions or hidden fees.
                     </p>
                   </Reveal>
                 </div>
 
                 <StaggerContainer
                   staggerDelay={0.09}
-                  className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 max-w-5xl mx-auto pt-3 items-stretch"
+                  className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 max-w-3xl mx-auto pt-3 items-stretch"
                 >
                   {PRICING_PLANS.map((plan) => {
                     const isPaidPreLaunch = plan.isPaid && !IS_CHECKOUT_ENABLED;
@@ -1213,8 +1053,8 @@ export default function LandingPage() {
                         <div
                           className={`h-full rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 relative ${
                             plan.popular
-                              ? "bg-[#F5F8FF] border-2 border-[#246BFD] shadow-[0_18px_42px_-12px_rgba(36,107,253,0.18)] md:-translate-y-1.5 md:hover:-translate-y-2"
-                              : "bg-white border border-[#E3EAF5] shadow-xs hover:border-blue-300 md:hover:-translate-y-1 hover:shadow-md"
+                              ? "bg-[#121824] border-2 border-[#3B82F6] shadow-[0_0_40px_rgba(36,107,253,0.18)] md:-translate-y-1.5 md:hover:-translate-y-2"
+                              : "bg-[#121824] border border-[#263044] shadow-lg hover:border-[#384660] md:hover:-translate-y-1 hover:shadow-2xl"
                           }`}
                         >
                           {plan.badge && (
@@ -1234,7 +1074,7 @@ export default function LandingPage() {
                               className="absolute -top-3.5 left-6 right-6 flex items-center justify-between gap-2 pointer-events-none"
                             >
                               <span
-                                className={`text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-xs whitespace-nowrap ${
+                                className={`text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm whitespace-nowrap ${
                                   plan.popular
                                     ? "bg-[#246BFD] text-white"
                                     : "bg-emerald-600 text-white"
@@ -1247,39 +1087,39 @@ export default function LandingPage() {
 
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-1">
-                              <h3 className="font-extrabold text-slate-950 text-xl tracking-tight">
+                              <h3 className="font-extrabold text-white text-xl tracking-tight">
                                 {plan.name}
                               </h3>
                             </div>
 
-                            <p className="text-sm font-bold text-[#246BFD] mb-1">
+                            <p className="text-sm font-bold text-[#3B82F6] mb-1">
                               {plan.positioning}
                             </p>
-                            <p className="text-xs sm:text-[13px] text-[#526078] leading-relaxed mb-5">
+                            <p className="text-xs sm:text-[13px] text-[#94A3B8] leading-relaxed mb-5">
                               {plan.description}
                             </p>
 
-                            <div className="flex items-baseline gap-2 mb-5 pb-4 border-b border-slate-200/80 tabular-nums">
-                              <span className="text-4xl sm:text-[42px] font-extrabold text-slate-950 tracking-tight leading-none">
+                            <div className="flex items-baseline gap-2 mb-5 pb-4 border-b border-[#263044] tabular-nums">
+                              <span className="text-4xl sm:text-[42px] font-extrabold text-white tracking-tight leading-none">
                                 ${plan.price}
                               </span>
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-[#94A3B8]">
                                 {plan.paymentLabel}
                               </span>
                             </div>
 
                             <div className="mb-6">
-                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-3">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#64748B] block mb-3">
                                 Includes:
                               </span>
-                              <ul className="space-y-2.5 text-sm text-slate-700">
+                              <ul className="space-y-2.5 text-sm text-[#F1F5F9]">
                                 {plan.features.map((feat, i) => (
                                   <li key={i} className="flex items-start gap-2.5">
                                     <Check
                                       className={`w-4 h-4 shrink-0 mt-0.5 ${
                                         plan.popular
-                                          ? "text-[#246BFD]"
-                                          : "text-emerald-600"
+                                          ? "text-[#3B82F6]"
+                                          : "text-emerald-400"
                                       }`}
                                     />
                                     <span className="leading-snug">{feat}</span>
@@ -1287,7 +1127,7 @@ export default function LandingPage() {
                                 ))}
                               </ul>
                               {plan.creditNote && (
-                                <p className="mt-3.5 pt-3 border-t border-slate-100 text-[11px] text-slate-500 leading-relaxed">
+                                <p className="mt-3.5 pt-3 border-t border-[#263044] text-[11px] text-[#94A3B8] leading-relaxed">
                                   {plan.creditNote}
                                 </p>
                               )}
@@ -1299,8 +1139,8 @@ export default function LandingPage() {
                             onClick={scrollToInput}
                             className={`group w-full min-h-[46px] py-3 px-4 rounded-full text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 ${
                               plan.popular || !plan.isPaid
-                                ? "bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white shadow-xs hover:shadow-md hover:shadow-blue-500/20"
-                                : "bg-white hover:bg-[#EAF2FF] active:scale-[0.98] text-slate-900 border border-[#DCE6F7] hover:border-blue-300"
+                                ? "bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white shadow-md shadow-blue-500/20"
+                                : "bg-[#171F2D] hover:bg-[#1C2638] active:scale-[0.98] text-white border border-[#263044]"
                             }`}
                           >
                             <span>
@@ -1314,35 +1154,35 @@ export default function LandingPage() {
                 </StaggerContainer>
 
                 <Reveal y={12} delay={0.16}>
-                  <div className="max-w-3xl mx-auto mt-8 text-center text-xs text-[#526078] space-y-1.5">
-                    <p className="font-semibold text-slate-700">
+                  <div className="max-w-3xl mx-auto mt-8 text-center text-xs text-[#94A3B8] space-y-1.5">
+                    <p className="font-semibold text-white">
                       One-time payment · No subscription
                     </p>
-                    <p className="text-xs text-slate-500 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                    <p className="text-xs text-[#94A3B8] flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
                       <Link
                         href="/terms"
-                        className="text-slate-600 hover:text-[#246BFD] underline underline-offset-2 transition-colors"
+                        className="text-[#94A3B8] hover:text-[#3B82F6] underline underline-offset-2 transition-colors"
                       >
                         Terms
                       </Link>
                       <span aria-hidden="true">·</span>
                       <Link
                         href="/privacy"
-                        className="text-slate-600 hover:text-[#246BFD] underline underline-offset-2 transition-colors"
+                        className="text-[#94A3B8] hover:text-[#3B82F6] underline underline-offset-2 transition-colors"
                       >
                         Privacy
                       </Link>
                       <span aria-hidden="true">·</span>
                       <Link
                         href="/refund-policy"
-                        className="text-slate-600 hover:text-[#246BFD] underline underline-offset-2 transition-colors"
+                        className="text-[#94A3B8] hover:text-[#3B82F6] underline underline-offset-2 transition-colors"
                       >
                         Refund Policy
                       </Link>
                       <span aria-hidden="true">·</span>
                       <Link
                         href="/contact"
-                        className="text-slate-600 hover:text-[#246BFD] underline underline-offset-2 transition-colors"
+                        className="text-[#94A3B8] hover:text-[#3B82F6] underline underline-offset-2 transition-colors"
                       >
                         Contact Support
                       </Link>
@@ -1354,23 +1194,23 @@ export default function LandingPage() {
               {/* SECTION: FAQ */}
               <section
                 id="faq"
-                className="scroll-mt-20 sm:scroll-mt-24 py-12 sm:py-14 md:py-20 border-t border-slate-100 max-w-3xl mx-auto px-1 sm:px-4"
+                className="scroll-mt-20 sm:scroll-mt-24 py-12 sm:py-14 md:py-20 border-t border-[#263044] max-w-3xl mx-auto px-1 sm:px-4"
               >
                 <div className="text-center mb-8 sm:mb-10">
                   <Reveal y={10} blur>
-                    <span className="inline-block text-[11px] font-bold tracking-widest text-[#246BFD] uppercase bg-[#EAF2FF] px-3 py-1 rounded-full border border-blue-100">
+                    <span className="inline-block text-[11px] font-bold tracking-widest text-[#3B82F6] uppercase bg-[#171F2D] px-3 py-1 rounded-full border border-[#263044]">
                       FAQ
                     </span>
                   </Reveal>
                   <Reveal y={14} delay={0.06}>
-                    <h2 className="text-2xl min-[375px]:text-3xl font-extrabold text-[#101828] tracking-tight mt-3.5 [text-wrap:balance]">
+                    <h2 className="text-2xl min-[375px]:text-3xl font-extrabold text-white tracking-tight mt-3.5 [text-wrap:balance]">
                       Frequently asked questions
                     </h2>
                   </Reveal>
                 </div>
 
                 <Reveal y={16} delay={0.1}>
-                  <div className="divide-y divide-slate-100 border-t border-b border-slate-100">
+                  <div className="divide-y divide-[#263044] border-t border-b border-[#263044]">
                     {FAQ_ITEMS.map((item, idx) => {
                       const isOpen = openFaqIndex === idx;
                       const answerId = `faq-answer-${idx}`;
@@ -1383,14 +1223,14 @@ export default function LandingPage() {
                             aria-expanded={isOpen}
                             aria-controls={answerId}
                           >
-                            <span className="font-bold text-slate-900 group-hover:text-[#246BFD] transition-colors text-[15px] sm:text-base">
+                            <span className="font-bold text-[#F1F5F9] group-hover:text-[#3B82F6] transition-colors text-[15px] sm:text-base">
                               {item.question}
                             </span>
                             <ChevronDown
-                              className={`w-5 h-5 text-slate-400 shrink-0 transition-transform duration-200 ${
+                              className={`w-5 h-5 text-[#64748B] shrink-0 transition-transform duration-200 ${
                                 isOpen
-                                  ? "rotate-180 text-[#246BFD]"
-                                  : "group-hover:text-slate-600"
+                                  ? "rotate-180 text-[#3B82F6]"
+                                  : "group-hover:text-white"
                               }`}
                             />
                           </button>
@@ -1415,7 +1255,7 @@ export default function LandingPage() {
                                 }}
                                 className="overflow-hidden"
                               >
-                                <p className="pt-2 pb-1 text-sm text-[#526078] leading-relaxed">
+                                <p className="pt-2 pb-1 text-sm text-[#94A3B8] leading-relaxed">
                                   {item.answer}
                                 </p>
                               </motion.div>
@@ -1429,18 +1269,18 @@ export default function LandingPage() {
               </section>
 
               {/* FINAL CTA & FOOTER */}
-              <section className="pt-11 pb-8 sm:pt-14 sm:pb-10 md:pt-20 md:pb-12 border-t border-slate-100 text-center">
+              <section className="pt-11 pb-8 sm:pt-14 sm:pb-10 md:pt-20 md:pb-12 border-t border-[#263044] text-center">
                 <Reveal y={18}>
-                  <div className="max-w-4xl mx-auto rounded-3xl bg-[#F5F8FF] border border-[#E3EAF5] p-7 sm:p-10 md:p-14 mb-8 sm:mb-10 shadow-xs">
-                    <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight mb-3.5 [text-wrap:balance]">
-                      Your website deserves a second look.
+                  <div className="max-w-4xl mx-auto rounded-3xl bg-gradient-to-b from-[#121824] to-[#171F2D] border border-[#263044] p-7 sm:p-10 md:p-14 mb-8 sm:mb-10 shadow-2xl">
+                    <h2 className="text-2xl min-[375px]:text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-3.5 [text-wrap:balance]">
+                      Does Your Website Make Sense to a Stranger?
                     </h2>
-                    <p className="text-[15px] sm:text-base text-[#526078] max-w-xl mx-auto mb-6 sm:mb-7 font-normal">
-                      See what your homepage communicates to a first-time visitor before your next visitor lands on it.
+                    <p className="text-[15px] sm:text-base text-[#94A3B8] max-w-xl mx-auto mb-6 sm:mb-7 font-normal">
+                      See your website through a stranger&apos;s eyes before your next visitor leaves.
                     </p>
                     <button
                       onClick={scrollToInput}
-                      className="group rounded-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white font-medium px-7 sm:px-8 py-3.5 sm:py-4 inline-flex items-center gap-2 shadow-sm hover:shadow-md hover:shadow-blue-500/20 transition-all duration-200 cursor-pointer text-sm sm:text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
+                      className="group rounded-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white font-medium px-7 sm:px-8 py-3.5 sm:py-4 inline-flex items-center gap-2 shadow-md shadow-blue-500/25 transition-all duration-200 cursor-pointer text-sm sm:text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
                     >
                       <span>Analyze My Website Free →</span>
                     </button>
@@ -1448,13 +1288,13 @@ export default function LandingPage() {
                 </Reveal>
 
                 <Reveal y={10} delay={0.08}>
-                  <footer className="pt-6 pb-4 border-t border-slate-100 flex flex-col gap-5 text-xs text-[#526078]">
+                  <footer className="pt-6 pb-4 border-t border-[#263044] flex flex-col gap-5 text-xs text-[#94A3B8]">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                       <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                        <div className="w-6 h-6 rounded-lg bg-[#171F2D] border border-[#263044] text-white flex items-center justify-center text-xs font-bold shrink-0">
                           S
                         </div>
-                        <span className="font-bold text-slate-900 whitespace-nowrap">
+                        <span className="font-bold text-white whitespace-nowrap">
                           {BRAND_NAME}
                         </span>
                         <span>
@@ -1467,7 +1307,7 @@ export default function LandingPage() {
                             key={item.href}
                             href={item.href}
                             onClick={(e) => handleSectionNavigate(e, item.href)}
-                            className="hover:text-slate-900 transition-colors underline-offset-4 hover:underline"
+                            className="hover:text-white transition-colors underline-offset-4 hover:underline"
                           >
                             {item.label}
                           </a>
@@ -1475,23 +1315,23 @@ export default function LandingPage() {
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-slate-100/90 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] sm:text-xs text-slate-500">
+                    <div className="pt-4 border-t border-[#263044] flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] sm:text-xs text-[#94A3B8]">
                       <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-5 gap-y-2">
                         {LEGAL_CONFIG.links.map((item) => (
                           <Link
                             key={item.href}
                             href={item.href}
-                            className="hover:text-slate-900 transition-colors underline-offset-4 hover:underline font-medium"
+                            className="hover:text-white transition-colors underline-offset-4 hover:underline font-medium"
                           >
                             {item.label}
                           </Link>
                         ))}
                       </div>
-                      <div className="text-center sm:text-right text-[11px] text-slate-400">
+                      <div className="text-center sm:text-right text-[11px] text-[#64748B]">
                         <span>Support: </span>
                         <a
                           href={`mailto:${LEGAL_CONFIG.supportEmail}`}
-                          className="text-slate-600 hover:text-[#246BFD] transition-colors font-medium"
+                          className="text-[#94A3B8] hover:text-[#3B82F6] transition-colors font-medium"
                         >
                           {LEGAL_CONFIG.supportEmail}
                         </a>
@@ -1517,15 +1357,19 @@ export default function LandingPage() {
               isScanning={isPending || isVerifying}
               backendError={backendError}
               onRetry={() => {
-                scanControllerRef.current?.retryScan();
+                scanController.retryScan();
               }}
               onCancel={() => {
-                clearPersistedReportSession();
-                scanControllerRef.current?.cancelScan();
+                scanController.cancelScan();
+                if (typeof window !== "undefined") {
+                  window.history.replaceState({ strangerLens: true, view: "landing" }, "");
+                }
               }}
               onBackToLanding={() => {
-                clearPersistedReportSession();
-                scanControllerRef.current?.cancelScan();
+                scanController.cancelScan();
+                if (typeof window !== "undefined") {
+                  window.history.replaceState({ strangerLens: true, view: "landing" }, "");
+                }
                 setTimeout(() => scrollToInput(), 100);
               }}
               onOpenFaq={() => {
@@ -1534,7 +1378,7 @@ export default function LandingPage() {
               }}
               onOpenPricing={() => setActiveInfoModal("pricing")}
               onGoToResults={() => {
-                scanControllerRef.current?.completeScanToResults();
+                scanController.completeScanToResults();
               }}
             />
           </motion.div>
@@ -1551,12 +1395,33 @@ export default function LandingPage() {
               rawUrl={submittedUrl}
               analysisData={analysisData || undefined}
               onBackToLanding={() => {
-                clearPersistedReportSession();
-                scanControllerRef.current?.cancelScan();
-                setTimeout(() => scrollToInput(), 100);
+                // Logo/Home navigation: return to landing page without scanning
+                scanController.navigateToLanding();
+                if (typeof window !== "undefined") {
+                  window.history.pushState({ strangerLens: true, view: "landing" }, "");
+                }
+                window.scrollTo({
+                  top: 0,
+                  behavior: shouldReduceMotion ? "auto" : "smooth",
+                });
               }}
               onRunNewCheck={() => {
-                scanControllerRef.current?.retryScan();
+                // New Check: navigate to clean URL input screen, NEVER start scanning
+                clearPersistedReportSession();
+                scanController.resetToLanding(true);
+                if (typeof window !== "undefined") {
+                  window.history.pushState({ strangerLens: true, view: "landing" }, "");
+                }
+                setTimeout(() => {
+                  scrollToInput();
+                }, 60);
+              }}
+              onRecheck={() => {
+                // Recheck Website: explicitly start exactly ONE new scan
+                if (typeof window !== "undefined") {
+                  window.history.pushState({ strangerLens: true, view: "scan" }, "");
+                }
+                scanController.retryScan();
               }}
               onOpenFaq={() => {
                 setOpenFaqIndex(null);
@@ -1582,34 +1447,34 @@ export default function LandingPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setActiveInfoModal(null)}
-              className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs"
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm"
             />
             <motion.div
               initial={{ opacity: 0, y: 24, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
-              className="bg-white rounded-t-3xl sm:rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[85vh] flex flex-col z-10"
+              className="bg-[#121824] rounded-t-3xl sm:rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-[#263044] relative max-h-[85vh] flex flex-col z-10 text-[#F1F5F9]"
             >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center justify-between pb-4 border-b border-[#263044] shrink-0">
                 <div>
-                  <h3 className="font-bold text-slate-950 text-xl tracking-tight">
+                  <h3 className="font-bold text-white text-xl tracking-tight">
                     Frequently Asked Questions
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  <p className="text-xs sm:text-sm text-[#94A3B8] mt-0.5">
                     Everything you need to know about StrangerLens first-impression reviews.
                   </p>
                 </div>
                 <button
                   onClick={() => setActiveInfoModal(null)}
-                  className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                  className="w-9 h-9 rounded-full hover:bg-[#171F2D] flex items-center justify-center text-[#94A3B8] hover:text-white transition cursor-pointer"
                   aria-label="Close FAQ"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="mt-4 overflow-y-auto pr-1 divide-y divide-slate-100 flex-1">
+              <div className="mt-4 overflow-y-auto pr-1 divide-y divide-[#263044] flex-1">
                 {FAQ_ITEMS.map((item, idx) => {
                   const isOpen = openFaqIndex === idx;
                   const modalAnswerId = `faq-modal-answer-${idx}`;
@@ -1622,12 +1487,12 @@ export default function LandingPage() {
                         aria-expanded={isOpen}
                         aria-controls={modalAnswerId}
                       >
-                        <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors text-sm sm:text-base">
+                        <span className="font-semibold text-white group-hover:text-[#3B82F6] transition-colors text-sm sm:text-base">
                           {item.question}
                         </span>
                         <ChevronDown
-                          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
-                            isOpen ? "rotate-180 text-blue-600" : ""
+                          className={`w-4 h-4 text-[#64748B] shrink-0 transition-transform ${
+                            isOpen ? "rotate-180 text-[#3B82F6]" : ""
                           }`}
                         />
                       </button>
@@ -1641,7 +1506,7 @@ export default function LandingPage() {
                             transition={{ duration: 0.2 }}
                             className="overflow-hidden"
                           >
-                            <p className="pt-2 pb-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                            <p className="pt-2 pb-1 text-xs sm:text-sm text-[#94A3B8] leading-relaxed">
                               {item.answer}
                             </p>
                           </motion.div>
@@ -1670,34 +1535,34 @@ export default function LandingPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setActiveInfoModal(null)}
-              className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs"
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm"
             />
             <motion.div
               initial={{ opacity: 0, y: 24, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
-              className="bg-white rounded-t-3xl sm:rounded-3xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[85vh] flex flex-col z-10"
+              className="bg-[#121824] rounded-t-3xl sm:rounded-3xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl border border-[#263044] relative max-h-[85vh] flex flex-col z-10 text-[#F1F5F9]"
             >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center justify-between pb-4 border-b border-[#263044] shrink-0">
                 <div>
-                  <h3 className="font-bold text-slate-950 text-xl tracking-tight">
+                  <h3 className="font-bold text-white text-xl tracking-tight">
                     Simple, Transparent Pricing
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  <p className="text-xs sm:text-sm text-[#94A3B8] mt-0.5">
                     Start with a free first-impression preview today. One-time report unlocks with no subscriptions.
                   </p>
                 </div>
                 <button
                   onClick={() => setActiveInfoModal(null)}
-                  className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                  className="w-9 h-9 rounded-full hover:bg-[#171F2D] flex items-center justify-center text-[#94A3B8] hover:text-white transition cursor-pointer"
                   aria-label="Close Pricing"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 overflow-y-auto flex-1 pr-1 pb-1 pt-2">
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto overflow-y-auto flex-1 pr-1 pb-1 pt-2">
                 {PRICING_PLANS.map((plan) => {
                   const isPaidPreLaunch = plan.isPaid && !IS_CHECKOUT_ENABLED;
                   return (
@@ -1705,8 +1570,8 @@ export default function LandingPage() {
                       key={plan.id}
                       className={`rounded-2xl p-5 flex flex-col justify-between relative ${
                         plan.popular
-                          ? "bg-[#F5F8FF] border-2 border-[#246BFD] shadow-sm"
-                          : "bg-white border border-[#E3EAF5]"
+                          ? "bg-[#171F2D] border-2 border-[#3B82F6] shadow-md shadow-blue-500/10"
+                          : "bg-[#171F2D] border border-[#263044]"
                       }`}
                     >
                       {plan.badge && (
@@ -1723,27 +1588,27 @@ export default function LandingPage() {
                         </div>
                       )}
                       <div>
-                        <h4 className="font-extrabold text-slate-950 text-lg mb-0.5">
+                        <h4 className="font-extrabold text-white text-lg mb-0.5">
                           {plan.name}
                         </h4>
-                        <p className="text-xs font-bold text-[#246BFD] mb-1">
+                        <p className="text-xs font-bold text-[#3B82F6] mb-1">
                           {plan.positioning}
                         </p>
-                        <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                        <p className="text-xs text-[#94A3B8] mb-4 leading-relaxed">
                           {plan.description}
                         </p>
-                        <div className="flex items-baseline gap-1.5 mb-4 pb-3 border-b border-slate-100 tabular-nums">
-                          <span className="text-3xl font-extrabold text-slate-950">
+                        <div className="flex items-baseline gap-1.5 mb-4 pb-3 border-b border-[#263044] tabular-nums">
+                          <span className="text-3xl font-extrabold text-white">
                             ${plan.price}
                           </span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">
                             {plan.paymentLabel}
                           </span>
                         </div>
-                        <div className="space-y-2 mb-6 text-xs text-slate-700">
+                        <div className="space-y-2 mb-6 text-xs text-[#F1F5F9]">
                           {plan.features.map((feat, i) => (
                             <div key={i} className="flex items-start gap-2">
-                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                               <span>{feat}</span>
                             </div>
                           ))}
@@ -1754,8 +1619,8 @@ export default function LandingPage() {
                         onClick={scrollToInput}
                         className={`group w-full py-2.5 px-4 rounded-full text-xs font-semibold transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer ${
                           plan.popular || !plan.isPaid
-                            ? "bg-[#246BFD] hover:bg-blue-600 text-white"
-                            : "bg-white hover:bg-[#EAF2FF] text-slate-900 border border-[#DCE6F7]"
+                            ? "bg-[#246BFD] hover:bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                            : "bg-[#121824] hover:bg-[#1C2638] text-white border border-[#263044]"
                         }`}
                       >
                         <span>
@@ -1767,24 +1632,24 @@ export default function LandingPage() {
                 })}
               </div>
 
-              <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-500 shrink-0">
-                <span className="font-semibold text-slate-700">
+              <div className="mt-4 pt-3.5 border-t border-[#263044] flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#94A3B8] shrink-0">
+                <span className="font-semibold text-white">
                   One-time payment · No subscription
                 </span>
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <Link href="/terms" className="hover:text-slate-900 underline underline-offset-2">
+                  <Link href="/terms" className="hover:text-white underline underline-offset-2">
                     Terms
                   </Link>
                   <span aria-hidden="true">·</span>
-                  <Link href="/privacy" className="hover:text-slate-900 underline underline-offset-2">
+                  <Link href="/privacy" className="hover:text-white underline underline-offset-2">
                     Privacy
                   </Link>
                   <span aria-hidden="true">·</span>
-                  <Link href="/refund-policy" className="hover:text-slate-900 underline underline-offset-2">
+                  <Link href="/refund-policy" className="hover:text-white underline underline-offset-2">
                     Refund Policy
                   </Link>
                   <span aria-hidden="true">·</span>
-                  <Link href="/contact" className="hover:text-slate-900 underline underline-offset-2">
+                  <Link href="/contact" className="hover:text-white underline underline-offset-2">
                     Support
                   </Link>
                 </div>

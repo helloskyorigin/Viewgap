@@ -34,6 +34,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
 
   let activeRequestId = 0;
   let activeAbortController: AbortController | null = null;
+  let isScanningInProgress = false;
 
   function emit(patch: Partial<ScanFlowState>) {
     state = { ...state, ...patch };
@@ -42,6 +43,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
 
   function abortCurrentRequest() {
     activeRequestId += 1;
+    isScanningInProgress = false;
     if (activeAbortController) {
       try {
         activeAbortController.abort();
@@ -73,6 +75,42 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
     });
   }
 
+  function resetToLanding(clearUrl: boolean = true) {
+    abortCurrentRequest();
+    emit({
+      url: clearUrl ? "" : (state.submittedUrl || state.url),
+      submittedUrl: clearUrl ? "" : state.submittedUrl,
+      currentView: "landing",
+      isVerifying: false,
+      isPending: false,
+      errorMessage: null,
+      backendError: null,
+      analysisData: null,
+    });
+  }
+
+  function navigateToLanding() {
+    abortCurrentRequest();
+    emit({
+      currentView: "landing",
+      isVerifying: false,
+      isPending: false,
+      backendError: null,
+    });
+  }
+
+  function navigateToResults() {
+    abortCurrentRequest();
+    if (state.analysisData) {
+      emit({
+        currentView: "results",
+        isVerifying: false,
+        isPending: false,
+        backendError: null,
+      });
+    }
+  }
+
   function cancelScan() {
     abortCurrentRequest();
     emit({
@@ -81,7 +119,6 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
       isVerifying: false,
       isPending: false,
       backendError: null,
-      analysisData: null,
     });
   }
 
@@ -100,10 +137,15 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
   }
 
   async function startScan(overrideUrl?: string): Promise<void> {
+    // Prevent duplicate scan requests from rapid clicks or rerenders
+    if (isScanningInProgress || state.isVerifying || state.isPending) {
+      return;
+    }
+
     const rawTarget = (overrideUrl !== undefined ? overrideUrl : state.url).trim();
     const validation = validateClientUrl(rawTarget);
 
-    if (validation.status !== "valid" || !validation.normalizedUrl) {
+    if (!rawTarget || validation.status !== "valid" || !validation.normalizedUrl) {
       const msg = validation.message || "Please enter a valid website URL (e.g., stripe.com).";
       emit({
         url: overrideUrl !== undefined ? overrideUrl : state.url,
@@ -117,6 +159,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
     }
 
     abortCurrentRequest();
+    isScanningInProgress = true;
     const currentReqId = activeRequestId;
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     activeAbortController = controller;
@@ -236,11 +279,19 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
           "Network connection interrupted while analyzing your website. Please try again.",
         analysisData: null,
       });
+    } finally {
+      if (currentReqId === activeRequestId) {
+        isScanningInProgress = false;
+      }
     }
   }
 
   async function retryScan(): Promise<void> {
+    if (isScanningInProgress || state.isVerifying || state.isPending) {
+      return;
+    }
     const target = state.submittedUrl || state.url;
+    if (!target) return;
     await startScan(target);
   }
 
@@ -250,6 +301,9 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
     startScan,
     retryScan,
     cancelScan,
+    resetToLanding,
+    navigateToLanding,
+    navigateToResults,
     completeScanToResults,
     restoreSession,
   };

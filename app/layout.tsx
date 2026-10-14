@@ -3,16 +3,16 @@ import './globals.css'; // Global styles
 
 export const metadata: Metadata = {
   title: 'StrangerLens — AI Website First-Impression Analyzer',
-  description: "Get an AI-powered first-impression review of your homepage. Discover what's unclear, what may make visitors hesitate, and exactly what to improve.",
+  description: "See your website through a stranger's eyes. Get an AI-powered first-impression clarity review to discover what's unclear and how to improve.",
   openGraph: {
     title: 'StrangerLens — AI Website First-Impression Analyzer',
-    description: "Get an AI-powered first-impression review of your homepage. Discover what's unclear, what may make visitors hesitate, and exactly what to improve.",
+    description: "See your website through a stranger's eyes. Get an AI-powered first-impression clarity review to discover what's unclear and how to improve.",
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'StrangerLens — AI Website First-Impression Analyzer',
-    description: "Get an AI-powered first-impression review of your homepage. Discover what's unclear, what may make visitors hesitate, and exactly what to improve.",
+    description: "See your website through a stranger's eyes. Get an AI-powered first-impression clarity review to discover what's unclear and how to improve.",
   },
 };
 
