@@ -125,8 +125,14 @@ export async function POST(req: NextRequest) {
       SERVER_LIMITS.ANALYSIS_TOTAL_TIMEOUT_MS
     );
 
+    const overallStart = performance.now();
+
     try {
-      let fetchResult = getCachedFetch(validation.normalizedUrl);
+      const fetchStart = performance.now();
+      let fetchResult =
+        getCachedFetch(validation.normalizedUrl) ||
+        (rawUrl ? getCachedFetch(rawUrl) : null);
+      const cacheHit = Boolean(fetchResult);
 
       if (!fetchResult) {
         fetchResult = await fetchWebsiteHomepage(
@@ -142,8 +148,13 @@ export async function POST(req: NextRequest) {
 
         if (fetchResult.success) {
           setCachedFetch(validation.normalizedUrl, fetchResult);
+          if (fetchResult.finalUrl && fetchResult.finalUrl !== validation.normalizedUrl) {
+            setCachedFetch(fetchResult.finalUrl, fetchResult);
+          }
         }
       }
+
+      const fetchDurationMs = Math.round(performance.now() - fetchStart);
 
       if (!fetchResult.success) {
         let httpStatus = 502;
@@ -156,31 +167,57 @@ export async function POST(req: NextRequest) {
       }
 
       // 4. Phase 2: Deterministic Content Extraction (Primary Homepage)
+      const snapStart = performance.now();
       const snapshot = extractWebsiteSnapshot(fetchResult.html, {
         baseUrl: fetchResult.finalUrl,
       });
+      const snapDurationMs = Math.round(performance.now() - snapStart);
 
-      // 5. Phase 3: AI Analysis Engine (Primary Homepage ONLY)
-      const rawAiAnalysis = await analyzeWebsite(snapshot);
+      // 5. Concurrent Execution: Run homepage AI analysis and optional supporting-page discovery concurrently
+      //    when enabled, preventing unnecessary sequential waiting.
+      const aiStart = performance.now();
+      const shouldRunSupportingPages =
+        isSupportingPagesEnabled() && !pipelineController.signal.aborted;
+      type SupportingResultType = Awaited<ReturnType<typeof generateSupportingPageContext>>;
+
+      const [rawAiAnalysis, optionalSupportingResult] = await Promise.all([
+        analyzeWebsite(snapshot),
+        shouldRunSupportingPages
+          ? generateSupportingPageContext(
+              snapshot,
+              fetchResult.finalUrl,
+              fetchResult.html,
+              { signal: pipelineController.signal }
+            ).catch((err: unknown): SupportingResultType => {
+              console.warn(
+                "[SUPP-WARN] Supporting pages context failed gracefully:",
+                err instanceof Error ? err.message : String(err)
+              );
+              return {};
+            })
+          : Promise.resolve({} as SupportingResultType),
+      ]);
+      const aiDurationMs = Math.round(performance.now() - aiStart);
 
       // 6. Phase 4: Evidence Validation & Deterministic Scoring (Primary Homepage ONLY)
+      const scoreStart = performance.now();
       const finalValidatedAnalysis = validateAndScoreAnalysis(rawAiAnalysis, snapshot);
+      const scoreDurationMs = Math.round(performance.now() - scoreStart);
 
-      // 7. Multi-Page Phase 2: Optional Supporting-Page Context Integration
-      //    Strictly isolated from homepage scoring and disabled by default (ENABLE_SUPPORTING_PAGES_ANALYSIS=false).
-      //    Any failure inside supporting-page discovery, fetching, or synthesis never fails the homepage report.
-      let optionalSupportingResult: Awaited<
-        ReturnType<typeof generateSupportingPageContext>
-      > = {};
+      const totalDurationMs = Math.round(performance.now() - overallStart);
 
-      if (isSupportingPagesEnabled() && !pipelineController.signal.aborted) {
-        optionalSupportingResult = await generateSupportingPageContext(
-          snapshot,
-          fetchResult.finalUrl,
-          fetchResult.html,
-          { signal: pipelineController.signal }
-        );
-      }
+      // Server-side performance log (strictly safe: no secrets, no PII, no credentials)
+      console.log(
+        `[PERF] /api/check domain="${fetchResult.domain}" total=${totalDurationMs}ms (cacheHit=${cacheHit}, fetch=${fetchDurationMs}ms, snap=${snapDurationMs}ms, ai=${aiDurationMs}ms, score=${scoreDurationMs}ms)`
+      );
+
+      const serverTimingHeader = [
+        `fetch;dur=${fetchDurationMs};desc="${cacheHit ? "Cache Hit" : "Network Fetch"}"`,
+        `snap;dur=${snapDurationMs};desc="Content Extraction"`,
+        `ai;dur=${aiDurationMs};desc="AI Analysis"`,
+        `score;dur=${scoreDurationMs};desc="Deterministic Scoring"`,
+        `total;dur=${totalDurationMs};desc="Total Server Processing"`,
+      ].join(", ");
 
       // Omit raw HTML string from public API payload to prevent massive payloads,
       // memory pressure, and sensitive DOM leakage over the wire
@@ -219,7 +256,12 @@ export async function POST(req: NextRequest) {
             snapshot,
             analysis: redactAnalysisForFreeTier(finalValidatedAnalysis),
           },
-          { status: 200 }
+          {
+            status: 200,
+            headers: {
+              "Server-Timing": serverTimingHeader,
+            },
+          }
         );
       }
 
@@ -250,7 +292,12 @@ export async function POST(req: NextRequest) {
             ? { supportingPages: optionalSupportingResult.supportingPagesBundle.pages }
             : {}),
         },
-        { status: 200 }
+        {
+          status: 200,
+          headers: {
+            "Server-Timing": serverTimingHeader,
+          },
+        }
       );
     } finally {
       clearTimeout(pipelineTimer);

@@ -9,14 +9,40 @@ const fetchCache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
 const MAX_CACHE_ENTRIES = 25; // Hard cap on cached HTML payloads per container instance
 
+function canonicalizeUrlKey(url: string): string {
+  const trimmed = (url || "").trim().toLowerCase();
+  try {
+    const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(withProto);
+    const host = parsed.hostname.replace(/^www\./, "");
+    const cleanPath = parsed.pathname.replace(/\/+$/, "");
+    return `${host}${cleanPath}`;
+  } catch {
+    return trimmed.replace(/^https?:\/\//i, "").replace(/^www\./, "").replace(/\/+$/, "");
+  }
+}
+
 /**
  * Retrieves a recently fetched website result by normalized URL if fresh
  */
 export function getCachedFetch(normalizedUrl: string): FetchResult | null {
-  const entry = fetchCache.get(normalizedUrl);
+  const now = Date.now();
+  let entry = fetchCache.get(normalizedUrl);
+
+  // If not found by direct key, search bounded entries by canonical URL
+  if (!entry) {
+    const targetCanon = canonicalizeUrlKey(normalizedUrl);
+    for (const [key, val] of fetchCache.entries()) {
+      if (canonicalizeUrlKey(key) === targetCanon) {
+        entry = val;
+        break;
+      }
+    }
+  }
+
   if (!entry) return null;
 
-  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+  if (now - entry.timestamp > CACHE_TTL_MS) {
     fetchCache.delete(normalizedUrl);
     return null;
   }

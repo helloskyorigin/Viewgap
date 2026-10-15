@@ -221,7 +221,52 @@ async function callDefaultSupportingContextAI(
 
   const userPrompt = `Analyze the following homepage summary and fetched supporting pages. Return ONLY valid JSON with messageConsistency, trustContext, and ctaDestination, citing exact verbatim excerpts and exact sourceUrl values from supportingPages:\n\n${promptPayload}`;
 
-  // 1. Try Groq first if configured (preserving existing provider order & model selection)
+  // 1. Try Gemini first if configured (reliable and primary)
+  const geminiKey = process.env.GEMINI_API_KEY?.trim();
+  if (geminiKey) {
+    const ai = new GoogleGenAI({
+      apiKey: geminiKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+    const candidateModels = [
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-flash-latest",
+    ];
+
+    for (const model of candidateModels) {
+      if (options.signal?.aborted) {
+        throw new Error("Supporting-context AI aborted by deadline");
+      }
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: userPrompt,
+          config: {
+            systemInstruction: SUPPORTING_CONTEXT_SYSTEM_PROMPT,
+            responseMimeType: "application/json",
+            responseSchema: SUPPORTING_CONTEXT_GEMINI_SCHEMA,
+            temperature: 0.1,
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
+          },
+        });
+
+        if (response.text) {
+          return JSON.parse(response.text) as RawSupportingContextAIOutput;
+        }
+      } catch {
+        // Try next candidate model
+      }
+    }
+  }
+
+  // 2. Fall back to Groq if Gemini was not configured or threw an error
   const groqKey = process.env.GROQ_API_KEY?.trim();
   if (groqKey) {
     const groqModels = [
@@ -268,15 +313,6 @@ async function callDefaultSupportingContextAI(
         );
 
         if (!res.ok) {
-          const errText = await res.text().catch(() => "");
-          if (
-            res.status === 401 ||
-            res.status === 403 ||
-            errText.includes("blocked at the project level") ||
-            errText.includes("model_permission_blocked_project")
-          ) {
-            break; // Fast fallback to Gemini
-          }
           continue;
         }
 
@@ -294,49 +330,6 @@ async function callDefaultSupportingContextAI(
       } finally {
         clearTimeout(timer);
         options.signal?.removeEventListener("abort", parentAbort);
-      }
-    }
-  }
-
-  // 2. Fallback to Gemini if configured
-  const geminiKey = process.env.GEMINI_API_KEY?.trim();
-  if (geminiKey) {
-    const ai = new GoogleGenAI({
-      apiKey: geminiKey,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
-    });
-    const candidateModels = [
-      "gemini-3.8-flash",
-      "gemini-2.5-flash",
-      "gemini-flash-latest",
-      "gemini-2.5-flash-lite",
-    ];
-
-    for (const model of candidateModels) {
-      if (options.signal?.aborted) {
-        throw new Error("Supporting-context AI aborted by deadline");
-      }
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: userPrompt,
-          config: {
-            systemInstruction: SUPPORTING_CONTEXT_SYSTEM_PROMPT,
-            responseMimeType: "application/json",
-            responseSchema: SUPPORTING_CONTEXT_GEMINI_SCHEMA,
-            temperature: 0.1,
-          },
-        });
-
-        if (response.text) {
-          return JSON.parse(response.text) as RawSupportingContextAIOutput;
-        }
-      } catch {
-        // Try next candidate model
       }
     }
   }

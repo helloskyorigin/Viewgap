@@ -21,39 +21,38 @@ export async function analyzeWebsite(
   options: AnalyzeWebsiteOptions = {}
 ): Promise<WebsiteAnalysis> {
   let rawAnalysis: WebsiteAnalysis | null = null;
-  let groqError: Error | null = null;
+  let providerError: Error | null = null;
 
-  // 1. Try Groq AI Provider first (using openai/gpt-oss-20b)
-  if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim()) {
+  // 1. Try Gemini AI Provider first (reliable and primary)
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) {
+    try {
+      const geminiProvider = new GeminiAIProvider();
+      rawAnalysis = await geminiProvider.analyzeWebsite(snapshot);
+    } catch (err: unknown) {
+      providerError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+
+  // 2. Fall back to Groq if Gemini was not configured or encountered an error
+  if (!rawAnalysis && process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim()) {
     try {
       const groqProvider = new GroqAIProvider(options.apiKey);
       rawAnalysis = await groqProvider.analyzeWebsite(snapshot);
     } catch (err: unknown) {
-      groqError = err instanceof Error ? err : new Error(String(err));
-      console.warn("Groq AI analysis encountered an error, falling back to Gemini provider:", groqError.message);
+      const groqErr = err instanceof Error ? err : new Error(String(err));
+      if (!providerError) providerError = groqErr;
     }
   }
 
-  // 2. If Groq was not configured or threw an error, use Gemini AI Provider
+  // 3. If neither succeeded, throw the error or default error
   if (!rawAnalysis) {
-    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) {
-      try {
-        const geminiProvider = new GeminiAIProvider();
-        rawAnalysis = await geminiProvider.analyzeWebsite(snapshot);
-      } catch (geminiErr: unknown) {
-        console.error("Gemini AI analysis error:", geminiErr);
-        throw geminiErr;
-      }
-    } else if (groqError) {
-      throw groqError;
-    } else {
-      const err = new Error("Analysis is temporarily unavailable. Please try again later.");
-      (err as any).code = "AI_PROVIDER_NOT_CONFIGURED";
-      throw err;
-    }
+    if (providerError) throw providerError;
+    const err = new Error("Analysis is temporarily unavailable. Please try again later.");
+    (err as any).code = "AI_PROVIDER_NOT_CONFIGURED";
+    throw err;
   }
 
-  // 3. Validate and Clean Evidence References against original WebsiteSnapshot
+  // 4. Validate and Clean Evidence References against original WebsiteSnapshot
   const groundedAnalysis = validateAndCleanEvidence(rawAnalysis, snapshot);
 
   return groundedAnalysis;

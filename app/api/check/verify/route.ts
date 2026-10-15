@@ -92,6 +92,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const verifyStart = performance.now();
+
     // 3. Fast Reachability Fetch
     const fetchResult = await fetchWebsiteHomepage(
       rawUrl,
@@ -123,8 +125,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cache the successful fetch result so the subsequent /api/check call does not have to re-fetch
+    const verifyDurationMs = Math.round(performance.now() - verifyStart);
+
+    // Cache under normalizedUrl, finalUrl, and rawUrl to prevent any duplicate fetch in /api/check
     setCachedFetch(validation.normalizedUrl, fetchResult);
+    if (fetchResult.finalUrl && fetchResult.finalUrl !== validation.normalizedUrl) {
+      setCachedFetch(fetchResult.finalUrl, fetchResult);
+    }
+    if (rawUrl && rawUrl !== validation.normalizedUrl) {
+      setCachedFetch(rawUrl, fetchResult);
+    }
+
+    console.log(`[PERF] /api/check/verify domain="${fetchResult.domain}" reachable=true duration=${verifyDurationMs}ms`);
 
     return NextResponse.json(
       {
@@ -136,7 +148,12 @@ export async function POST(req: NextRequest) {
         domain: fetchResult.domain,
         status: fetchResult.status,
       },
-      { status: 200 }
+      {
+        status: 200,
+        headers: {
+          "Server-Timing": `verify;dur=${verifyDurationMs}`,
+        },
+      }
     );
   } catch (error: unknown) {
     console.error("Error in /api/check/verify endpoint:", error instanceof Error ? error.message : "Unknown error");

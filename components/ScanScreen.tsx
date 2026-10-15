@@ -130,8 +130,36 @@ export default function ScanScreen({
     };
   }, [hasError, isBackendReady, rawUrl]);
 
+  // Dynamic time estimation tracking elapsed seconds
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  if (rawUrl !== prevRawUrl) {
+    setPrevRawUrl(rawUrl);
+    setTimerStage(0);
+    setElapsedSeconds(0);
+  }
+
+  useEffect(() => {
+    if (hasError || isBackendReady) return;
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [hasError, isBackendReady]);
+
+  const dynamicTimeEstimate = useMemo(() => {
+    if (hasError) return null;
+    if (isPreparing) return "Finalizing your clarity report…";
+    if (elapsedSeconds < 4) return "Estimated time: ~15–25 seconds";
+    if (elapsedSeconds < 12) return "Estimated time: ~10–18 seconds remaining";
+    if (elapsedSeconds < 25) return "Evaluating clarity signals & evidence…";
+    if (elapsedSeconds < 45) return "Taking longer than expected. We're still analyzing your website.";
+    return "Finalizing analysis…";
+  }, [hasError, isPreparing, elapsedSeconds]);
+
   // When backend is ready, visibly paint the "Preparing results" active stage,
-  // then navigate to Results screen after a brief, honest visual transition.
+  // then navigate to Results screen after an honest 0.8–1.2s visual transition (950ms).
   useEffect(() => {
     if (
       isBackendReady &&
@@ -144,7 +172,7 @@ export default function ScanScreen({
           hasTransitionedRef.current = true;
           onGoToResults();
         }
-      }, 550);
+      }, 950);
 
       return () => {
         clearTimeout(transitionTimer);

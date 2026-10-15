@@ -90,6 +90,9 @@ export default function ResultsScreen({
   const [activeExplorerSignalId, setActiveExplorerSignalId] = useState("first-impression");
   const [isScoreModalOpen, setIsScoreModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [earlyEmail, setEarlyEmail] = useState("");
+  const [earlyStatus, setEarlyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [earlyErrorMessage, setEarlyErrorMessage] = useState<string | null>(null);
   const isReportUnlocked = Boolean(isUnlocked);
 
   // Canonical report normalized from authoritative analysis data
@@ -271,18 +274,111 @@ export default function ResultsScreen({
           </div>
         </section>
 
-        {/* PAYWALL */}
+        {/* EARLY ACCESS SECTION */}
         {!isReportUnlocked && (
-          <section className="bg-[#121824] border border-[#263044] rounded-2xl p-6 text-center shadow-lg">
-            <h2 className="text-xl font-bold mb-2 text-white">Unlock Full Analysis</h2>
-            <p className="text-[#94A3B8] text-sm mb-6 max-w-sm mx-auto">Get detailed signal diagnostics, actionable improvement steps, and visitor comprehension analysis.</p>
-            <div className="space-y-2 mb-6 text-sm text-[#F1F5F9] font-medium">
-              <div className="flex items-center justify-center gap-2">✓ Understand every score</div>
-              <div className="flex items-center justify-center gap-2">✓ See what to improve</div>
+          <section className="bg-[#121824] border border-[#263044] rounded-2xl p-6 sm:p-8 text-center shadow-lg relative overflow-hidden">
+            <div className="absolute top-0 right-0 transform translate-x-4 -translate-y-4 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+            <div className="relative z-10 max-w-lg mx-auto">
+              <span className="inline-block text-[11px] font-bold tracking-widest text-[#3B82F6] uppercase bg-[#171F2D] px-3 py-1 rounded-full border border-[#263044] mb-3 shadow-xs">
+                EARLY ACCESS
+              </span>
+              <h2 className="text-xl sm:text-2xl font-bold mb-2 text-white">Unlock Your Full Analysis</h2>
+              <div className="text-base sm:text-lg font-bold text-white mb-3">
+                $5 <span className="text-xs sm:text-sm text-[#94A3B8] font-normal">one-time · Coming Soon</span>
+              </div>
+              <p className="text-[#94A3B8] text-sm mb-2 max-w-md mx-auto leading-relaxed">
+                Go beyond your scores. Discover what&apos;s working, what&apos;s unclear, and what to improve across all five clarity signals.
+              </p>
+              <p className="text-xs text-[#94A3B8] mb-6 font-medium">
+                Be first to know when full analysis launches.
+              </p>
+
+              {earlyStatus === "success" ? (
+                <div className="bg-[#171F2D] border border-emerald-500/30 rounded-2xl p-6 text-center space-y-2 my-2">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto mb-2 font-bold text-base">
+                    ✓
+                  </div>
+                  <h3 className="text-lg font-bold text-white">You&apos;re on the list!</h3>
+                  <p className="text-xs sm:text-sm text-[#94A3B8]">
+                    We&apos;ll email you when full analysis becomes available.
+                  </p>
+                </div>
+              ) : (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!earlyEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(earlyEmail)) {
+                      setEarlyErrorMessage("Please enter a valid email address.");
+                      setEarlyStatus("error");
+                      return;
+                    }
+                    setEarlyStatus("loading");
+                    setEarlyErrorMessage(null);
+                    try {
+                      const res = await fetch("/api/early-access", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email: earlyEmail }),
+                      });
+                      const data = await res.json().catch(() => null);
+                      if (res.ok && data?.success) {
+                        setEarlyStatus("success");
+                      } else {
+                        setEarlyStatus("error");
+                        setEarlyErrorMessage(data?.message || "Failed to submit. Please try again.");
+                      }
+                    } catch {
+                      setEarlyStatus("error");
+                      setEarlyErrorMessage("Network error. Please check your connection and try again.");
+                    }
+                  }}
+                  className="space-y-3"
+                >
+                  <div>
+                    <label htmlFor="earlyAccessEmail" className="sr-only">
+                      Enter your email
+                    </label>
+                    <input
+                      id="earlyAccessEmail"
+                      type="email"
+                      value={earlyEmail}
+                      onChange={(e) => {
+                        setEarlyEmail(e.target.value);
+                        if (earlyStatus === "error") setEarlyStatus("idle");
+                      }}
+                      placeholder="Enter your email"
+                      required
+                      className="w-full bg-[#171F2D] border border-[#263044] focus:border-[#3B82F6] text-white placeholder:text-[#64748B] text-sm rounded-xl px-4 py-3 outline-none transition-all shadow-xs"
+                    />
+                  </div>
+                  {earlyStatus === "error" && earlyErrorMessage && (
+                    <p className="text-xs text-rose-400 text-left font-medium px-1">
+                      {earlyErrorMessage}
+                    </p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={earlyStatus === "loading"}
+                    className="w-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60 text-white font-semibold py-3 px-6 rounded-xl text-sm transition-all shadow-md shadow-blue-500/20 cursor-pointer inline-flex items-center justify-center gap-2"
+                  >
+                    <span>{earlyStatus === "loading" ? "Joining..." : "Join Early Access"}</span>
+                    <span>→</span>
+                  </button>
+                </form>
+              )}
+
+              <p className="text-xs text-[#94A3B8] mt-4 leading-relaxed">
+                No payment required today. We&apos;ll email you when full analysis is available.
+                <br />
+                <span className="block mt-1.5 text-[11px] text-slate-500">
+                  Submitted email addresses are stored securely and used solely to notify you when StrangerLens Full Analysis launches. Waitlist emails are received and retained in the operator&apos;s Gmail inbox. To request removal, contact hello.skyorigin@gmail.com. Review our{" "}
+                  <Link href="/privacy" className="text-[#3B82F6] hover:underline font-medium">
+                    Privacy Policy
+                  </Link>
+                  .
+                </span>
+              </p>
             </div>
-            <div className="text-2xl font-bold mb-6 text-white">$5 <span className="text-sm text-[#94A3B8] font-normal">· One-time payment</span></div>
-            <button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg text-sm transition cursor-pointer">Unlock Full Analysis — $5</button>
-            <p className="text-xs text-[#94A3B8] mt-4">One-time payment · No subscription · Terms · Privacy · Refund Policy · Support</p>
           </section>
         )}
 

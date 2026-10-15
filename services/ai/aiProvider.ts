@@ -9,7 +9,7 @@ export interface AIProvider {
 
 export class GeminiAIProvider implements AIProvider {
   private ai: GoogleGenAI | null = null;
-  private candidateModels = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
+  private candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"];
 
   constructor(apiKey?: string) {
     const key = apiKey || process.env.GEMINI_API_KEY;
@@ -36,6 +36,7 @@ export class GeminiAIProvider implements AIProvider {
     let lastError: Error | null = null;
 
     for (const model of this.candidateModels) {
+      const modelStart = Date.now();
       try {
         const response = await this.ai.models.generateContent({
           model,
@@ -45,8 +46,13 @@ export class GeminiAIProvider implements AIProvider {
             responseMimeType: "application/json",
             responseSchema: WEBSITE_ANALYSIS_GEMINI_SCHEMA,
             temperature: 0.2, // Low temperature for deterministic analysis
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
           },
         });
+
+        console.log(`[AI-PERF] Gemini model ${model} analysis generated in ${Date.now() - modelStart}ms`);
 
         const rawText = response.text;
         if (!rawText) {

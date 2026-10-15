@@ -13,6 +13,8 @@ import {
   Shield,
   Users,
   Sparkles,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import ScanScreen from "@/components/ScanScreen";
@@ -146,6 +148,56 @@ export default function LandingPage() {
   const [activeInfoModal, setActiveInfoModal] = useState<"faq" | "pricing" | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const saved = localStorage.getItem("strangerlens_theme");
+      if (saved === "light") {
+        document.documentElement.classList.add("light");
+        document.documentElement.classList.remove("dark");
+        return false;
+      }
+    } catch {
+      // ignore
+    }
+    document.documentElement.classList.add("dark");
+    document.documentElement.classList.remove("light");
+    return true;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (isDarkMode) {
+        document.documentElement.classList.add("dark");
+        document.documentElement.classList.remove("light");
+      } else {
+        document.documentElement.classList.add("light");
+        document.documentElement.classList.remove("dark");
+      }
+    } catch {
+      // ignore
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => {
+    const nextMode = !isDarkMode;
+    setIsDarkMode(nextMode);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("strangerlens_theme", nextMode ? "dark" : "light");
+        if (nextMode) {
+          document.documentElement.classList.add("dark");
+          document.documentElement.classList.remove("light");
+        } else {
+          document.documentElement.classList.add("light");
+          document.documentElement.classList.remove("dark");
+        }
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   // API Integration States
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
@@ -460,6 +512,20 @@ export default function LandingPage() {
                   >
                     <span>Try for free</span>
                     <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={toggleDarkMode}
+                    className="w-10 h-10 rounded-xl text-[#94A3B8] hover:text-white hover:bg-[#171F2D] active:scale-95 transition-all flex items-center justify-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
+                    aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+                    title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+                  >
+                    {isDarkMode ? (
+                      <Sun className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <Moon className="w-4 h-4 text-blue-600" />
+                    )}
                   </button>
 
                   <button
