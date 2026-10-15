@@ -61,13 +61,31 @@ export function isPrivateIp(ip: string): boolean {
   return isPrivateIpAddress(ip);
 }
 
+interface SsrfCheckResult {
+  isSafe: boolean;
+  isDnsFailure?: boolean;
+  reason?: string;
+}
+
+interface SsrfCacheEntry {
+  result: SsrfCheckResult;
+  timestamp: number;
+}
+
+const ssrfCache = new Map<string, SsrfCacheEntry>();
+const SSRF_CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
+
+export function _clearSsrfCacheForTesting(): void {
+  ssrfCache.clear();
+}
+
 /**
  * Validates a URL against Server-Side Request Forgery (SSRF) vulnerabilities.
  * Checks protocol, reserved hostnames, private IP literals, and performs DNS resolution to verify target IPs.
  */
 export async function checkSsrf(
   urlStr: string
-): Promise<{ isSafe: boolean; isDnsFailure?: boolean; reason?: string }> {
+): Promise<SsrfCheckResult> {
   try {
     if (!urlStr || typeof urlStr !== "string" || urlStr.length > 2048) {
       return {
@@ -141,33 +159,48 @@ export async function checkSsrf(
       return { isSafe: true };
     }
 
+    // Fast cache check: if hostname was recently verified, reuse result
+    const now = Date.now();
+    const cached = ssrfCache.get(unbracketedHost);
+    if (cached && (now - cached.timestamp < SSRF_CACHE_TTL_MS)) {
+      return cached.result;
+    }
+
     // DNS Resolution check to prevent DNS rebinding / internal resolution & verify domain existence
     try {
       const addresses = await dns.promises.lookup(unbracketedHost, { all: true });
       if (!addresses || addresses.length === 0) {
-        return {
+        const failRes: SsrfCheckResult = {
           isSafe: false,
           isDnsFailure: true,
           reason: `Domain '${hostname}' resolved to no addresses. Please verify the website URL.`,
         };
+        ssrfCache.set(unbracketedHost, { result: failRes, timestamp: now });
+        return failRes;
       }
       for (const record of addresses) {
         if (isPrivateIp(record.address)) {
-          return {
+          const blockedRes: SsrfCheckResult = {
             isSafe: false,
             reason: `Hostname '${hostname}' resolves to private IP address (${record.address})`,
           };
+          ssrfCache.set(unbracketedHost, { result: blockedRes, timestamp: now });
+          return blockedRes;
         }
       }
     } catch (dnsErr: any) {
-      return {
+      const dnsErrRes: SsrfCheckResult = {
         isSafe: false,
         isDnsFailure: true,
         reason: `Domain '${hostname}' does not exist or DNS lookup failed. Please verify the website URL.`,
       };
+      ssrfCache.set(unbracketedHost, { result: dnsErrRes, timestamp: now });
+      return dnsErrRes;
     }
 
-    return { isSafe: true };
+    const safeRes: SsrfCheckResult = { isSafe: true };
+    ssrfCache.set(unbracketedHost, { result: safeRes, timestamp: now });
+    return safeRes;
   } catch (err) {
     return {
       isSafe: false,

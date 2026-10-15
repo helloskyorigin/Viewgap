@@ -151,15 +151,26 @@ export default function ScanScreen({
   const dynamicTimeEstimate = useMemo(() => {
     if (hasError) return null;
     if (isPreparing) return "Finalizing your clarity report…";
-    if (elapsedSeconds < 4) return "Estimated time: ~15–25 seconds";
-    if (elapsedSeconds < 12) return "Estimated time: ~10–18 seconds remaining";
-    if (elapsedSeconds < 25) return "Evaluating clarity signals & evidence…";
-    if (elapsedSeconds < 45) return "Taking longer than expected. We're still analyzing your website.";
-    return "Finalizing analysis…";
-  }, [hasError, isPreparing, elapsedSeconds]);
+    if (elapsedSeconds >= 35) {
+      return "Taking longer than expected. We're still analyzing your website.";
+    }
+    if (stageIndex === 0) {
+      return "Estimated time: 10–20 seconds";
+    }
+    if (stageIndex === 1) {
+      return "Estimated time: 8–15 seconds";
+    }
+    if (stageIndex === 2) {
+      if (elapsedSeconds < 8) {
+        return "Estimated time: 5–10 seconds remaining";
+      }
+      return "Analyzing your website…";
+    }
+    return "Analyzing your website…";
+  }, [hasError, isPreparing, stageIndex, elapsedSeconds]);
 
   // When backend is ready, visibly paint the "Preparing results" active stage,
-  // then navigate to Results screen after an honest 0.8–1.2s visual transition (950ms).
+  // then navigate to Results screen after a smooth 0.8–1.2s visual transition (1000ms).
   useEffect(() => {
     if (
       isBackendReady &&
@@ -167,18 +178,19 @@ export default function ScanScreen({
       onGoToResults &&
       !hasTransitionedRef.current
     ) {
+      const delay = shouldReduceMotion ? 120 : 1000;
       const transitionTimer = setTimeout(() => {
         if (!hasTransitionedRef.current) {
           hasTransitionedRef.current = true;
           onGoToResults();
         }
-      }, 950);
+      }, delay);
 
       return () => {
         clearTimeout(transitionTimer);
       };
     }
-  }, [isBackendReady, backendError, onGoToResults]);
+  }, [isBackendReady, backendError, onGoToResults, shouldReduceMotion]);
 
   const safeErrorMessage = useMemo(
     () => (hasError ? formatSafeErrorMessage(backendError) : null),
@@ -468,6 +480,21 @@ export default function ScanScreen({
                 </div>
               );
             })}
+
+            {/* Dynamic Time Estimate / Status Indicator */}
+            {dynamicTimeEstimate && (
+              <motion.div
+                key={dynamicTimeEstimate}
+                initial={shouldReduceMotion ? false : { opacity: 0, y: 3 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className="pt-2.5 mt-1 border-t border-[#263044]/40 flex items-center justify-center text-center"
+              >
+                <p className="text-xs text-[#94A3B8] font-medium tracking-wide">
+                  {dynamicTimeEstimate}
+                </p>
+              </motion.div>
+            )}
           </div>
         ) : null}
 

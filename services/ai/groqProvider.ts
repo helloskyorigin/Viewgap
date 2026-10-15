@@ -1,9 +1,10 @@
 import { WebsiteSnapshot } from "@/lib/content-extractor";
+import { SupportingPagesBundle } from "@/lib/supporting-page-fetcher";
 import { WebsiteAnalysis } from "./analysisSchema";
 import { formatSnapshotForAi, SYSTEM_PROMPT } from "./analysisPrompt";
 
 export interface AIProvider {
-  analyzeWebsite(snapshot: WebsiteSnapshot): Promise<WebsiteAnalysis>;
+  analyzeWebsite(snapshot: WebsiteSnapshot, supportingPagesBundle?: SupportingPagesBundle): Promise<WebsiteAnalysis>;
 }
 
 /**
@@ -24,7 +25,10 @@ export class GroqAIProvider implements AIProvider {
     this.apiKey = apiKey || process.env.GROQ_API_KEY;
   }
 
-  async analyzeWebsite(snapshot: WebsiteSnapshot): Promise<WebsiteAnalysis> {
+  async analyzeWebsite(
+    snapshot: WebsiteSnapshot,
+    supportingPagesBundle?: SupportingPagesBundle
+  ): Promise<WebsiteAnalysis> {
     if (!this.apiKey || !this.apiKey.trim()) {
       // Server log without exposing any sensitive details
       console.error("Groq API key is not configured.");
@@ -33,8 +37,8 @@ export class GroqAIProvider implements AIProvider {
       throw err;
     }
 
-    const formattedInput = formatSnapshotForAi(snapshot);
-    const userPrompt = `Perform a Percept first-impression analysis on this WebsiteSnapshot:
+    const formattedInput = formatSnapshotForAi(snapshot, supportingPagesBundle);
+    const userPrompt = `Perform a Percept first-impression and legal trust analysis on this WebsiteSnapshot and legalPages:
 
 ${formattedInput}
 

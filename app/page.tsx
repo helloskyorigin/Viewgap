@@ -13,8 +13,6 @@ import {
   Shield,
   Users,
   Sparkles,
-  Sun,
-  Moon,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import ScanScreen from "@/components/ScanScreen";
@@ -73,22 +71,20 @@ const PRICING_PLANS: PricingPlan[] = [
   },
   {
     id: "complete",
-    name: "Full Clarity Report",
+    name: "Unlock Your Full Analysis",
     price: 5,
-    paymentLabel: "ONE-TIME PAYMENT",
-    badge: "COMPLETE REPORT",
+    paymentLabel: "ONE-TIME · COMING SOON",
+    badge: "EARLY ACCESS",
     positioning: "Actionable clarity & diagnostics.",
-    description: "Deep dive into what strangers understand, where friction occurs, and how to improve.",
+    description: "Go beyond your clarity scores. Discover what's working, what's unclear, and how to improve your website.",
     features: [
-      "Everything in Free Preview",
-      "Detailed analysis for all five signals",
-      "Why This Score? diagnostic reasoning",
-      "What's Working? & What's Unclear?",
-      "How to Improve? actionable next steps",
+      "Detailed Signal Diagnostics",
+      "What's Working & What's Unclear",
+      "Actionable Improvements",
       "First 5 Seconds (Understand vs Miss)",
     ],
-    cta: "Start with a Free Check",
-    disabledCta: "Start with a Free Check",
+    cta: "Join Early Access",
+    disabledCta: "Join Early Access",
     popular: true,
     isPaid: true,
   },
@@ -122,9 +118,9 @@ const FAQ_ITEMS = [
       "The Free Preview ($0) gives you your Overall Website Clarity Score, five Clarity Signal Scores (First Impression, Audience, Value, Trust, Action), and five Signal Statuses with zero signup or credit card required.",
   },
   {
-    question: "What do paid reports cost?",
+    question: "What will Full Analysis cost?",
     answer:
-      "A complete report unlock is a simple $5 one-time payment (no subscriptions or recurring fees). It unlocks detailed analysis for all five signals, Why This Score?, What's Working?, What's Unclear?, How to Improve?, and the First 5 Seconds breakdown (What a Visitor May Understand vs What a Visitor May Miss).",
+      "Full Analysis will be a simple $5 one-time payment when it launches (Coming Soon — no subscriptions or recurring fees). It will unlock detailed analysis for all five signals, What's Working & What's Unclear, Actionable Improvements, and the First 5 Seconds breakdown. You can join Early Access today to be notified the moment it launches.",
   },
   {
     question: "Do I need to create an account?",
@@ -148,56 +144,7 @@ export default function LandingPage() {
   const [activeInfoModal, setActiveInfoModal] = useState<"faq" | "pricing" | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    try {
-      const saved = localStorage.getItem("strangerlens_theme");
-      if (saved === "light") {
-        document.documentElement.classList.add("light");
-        document.documentElement.classList.remove("dark");
-        return false;
-      }
-    } catch {
-      // ignore
-    }
-    document.documentElement.classList.add("dark");
-    document.documentElement.classList.remove("light");
-    return true;
-  });
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if (isDarkMode) {
-        document.documentElement.classList.add("dark");
-        document.documentElement.classList.remove("light");
-      } else {
-        document.documentElement.classList.add("light");
-        document.documentElement.classList.remove("dark");
-      }
-    } catch {
-      // ignore
-    }
-  }, [isDarkMode]);
-
-  const toggleDarkMode = () => {
-    const nextMode = !isDarkMode;
-    setIsDarkMode(nextMode);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("strangerlens_theme", nextMode ? "dark" : "light");
-        if (nextMode) {
-          document.documentElement.classList.add("dark");
-          document.documentElement.classList.remove("light");
-        } else {
-          document.documentElement.classList.add("light");
-          document.documentElement.classList.remove("dark");
-        }
-      } catch {
-        // ignore
-      }
-    }
-  };
 
   // API Integration States
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
@@ -258,7 +205,64 @@ export default function LandingPage() {
     }, wasNotOnLanding ? 180 : 60);
   }
 
+  // Early Access Waitlist States for Landing Page
+  const [earlyEmail, setEarlyEmail] = useState("");
+  const [earlyStatus, setEarlyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [earlyErrorMessage, setEarlyErrorMessage] = useState<string | null>(null);
+  const [isEarlySuccessModalOpen, setIsEarlySuccessModalOpen] = useState(false);
+  const earlyGotItButtonRef = useRef<HTMLButtonElement>(null);
+  const earlyCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const earlyModalCardRef = useRef<HTMLDivElement>(null);
+  const earlyPreviousActiveElement = useRef<HTMLElement | null>(null);
 
+  function scrollToEarlyAccess() {
+    if (activeInfoModal) setActiveInfoModal(null);
+    if (mobileMenuOpen) setMobileMenuOpen(false);
+    setTimeout(() => {
+      const el = document.getElementById("early-access");
+      if (el) {
+        el.scrollIntoView({
+          behavior: shouldReduceMotion ? "auto" : "smooth",
+          block: "center",
+        });
+        const inputEl = document.getElementById("early-access-landing-email") as HTMLInputElement | null;
+        if (inputEl) {
+          inputEl.focus();
+        }
+      }
+    }, 100);
+  }
+
+  const handleEarlyAccessSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (earlyStatus === "loading") return;
+    const trimmed = earlyEmail.trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setEarlyErrorMessage("Please enter a valid email address.");
+      setEarlyStatus("error");
+      return;
+    }
+    setEarlyStatus("loading");
+    setEarlyErrorMessage(null);
+    try {
+      const res = await fetch("/api/early-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        setEarlyStatus("success");
+        setIsEarlySuccessModalOpen(true);
+      } else {
+        setEarlyStatus("error");
+        setEarlyErrorMessage(data?.message || "Failed to submit. Please try again.");
+      }
+    } catch {
+      setEarlyStatus("error");
+      setEarlyErrorMessage("Network error. Please check your connection and try again.");
+    }
+  };
 
   // Handle Browser Back / Forward and popstate events without unintended rescanning
   useEffect(() => {
@@ -394,10 +398,14 @@ export default function LandingPage() {
     }
   };
 
-  // Escape key handling for mobile menu and info modals
+  // Escape key handling for mobile menu, info modals, and Early Access modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (isEarlySuccessModalOpen) {
+          setIsEarlySuccessModalOpen(false);
+          return;
+        }
         if (mobileMenuOpen) {
           setMobileMenuOpen(false);
           hamburgerButtonRef.current?.focus();
@@ -405,11 +413,43 @@ export default function LandingPage() {
         if (activeInfoModal) {
           setActiveInfoModal(null);
         }
+      } else if (e.key === "Tab" && isEarlySuccessModalOpen) {
+        const focusable = earlyModalCardRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable || focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mobileMenuOpen, activeInfoModal]);
+  }, [mobileMenuOpen, activeInfoModal, isEarlySuccessModalOpen]);
+
+  // Focus management for Early Access modal
+  useEffect(() => {
+    if (isEarlySuccessModalOpen) {
+      earlyPreviousActiveElement.current = document.activeElement as HTMLElement;
+      const timer = setTimeout(() => {
+        earlyGotItButtonRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    } else if (earlyPreviousActiveElement.current) {
+      earlyPreviousActiveElement.current.focus?.();
+      earlyPreviousActiveElement.current = null;
+    }
+  }, [isEarlySuccessModalOpen]);
 
   // Close mobile overlay automatically on desktop resize
   useEffect(() => {
@@ -424,14 +464,14 @@ export default function LandingPage() {
 
   // Prevent background scrolling when mobile menu or modal is open
   useEffect(() => {
-    if (mobileMenuOpen || activeInfoModal) {
+    if (mobileMenuOpen || activeInfoModal || isEarlySuccessModalOpen) {
       const originalOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
       return () => {
         document.body.style.overflow = originalOverflow;
       };
     }
-  }, [mobileMenuOpen, activeInfoModal]);
+  }, [mobileMenuOpen, activeInfoModal, isEarlySuccessModalOpen]);
 
   const handleAnalyze = async (e?: React.FormEvent, overrideUrl?: string) => {
     if (e) e.preventDefault();
@@ -514,19 +554,7 @@ export default function LandingPage() {
                     <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={toggleDarkMode}
-                    className="w-10 h-10 rounded-xl text-[#94A3B8] hover:text-white hover:bg-[#171F2D] active:scale-95 transition-all flex items-center justify-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
-                    aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-                    title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-                  >
-                    {isDarkMode ? (
-                      <Sun className="w-4 h-4 text-amber-400" />
-                    ) : (
-                      <Moon className="w-4 h-4 text-blue-600" />
-                    )}
-                  </button>
+
 
                   <button
                     ref={hamburgerButtonRef}
@@ -860,45 +888,66 @@ export default function LandingPage() {
                           <span className="font-extrabold text-[#F1F5F9] text-sm sm:text-base tracking-tight block">
                             Your Website Clarity
                           </span>
-                          <span className="text-[11px] text-[#94A3B8] font-medium block">
-                            Illustrative Preview · V1 Report
-                          </span>
                         </div>
                       </div>
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#3B82F6] bg-[#3B82F6]/10 px-3 py-1 rounded-full shrink-0 border border-[#3B82F6]/20">
-                        Overall Score: 78/100 · Clear
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 sm:px-3 py-1 rounded-full shrink-0 border border-amber-500/20">
+                          Overall Score: 69/100 · Needs Improvement
+                        </span>
+                      </div>
                     </div>
 
-                    {/* B. Five Clarity Signals in Preview */}
-                    <div className="space-y-2 mb-3.5">
+                    {/* B. Five Clarity Signals in Preview (Matching exact ResultsScreen responsive layout) */}
+                    <div className="bg-[#121824] rounded-xl overflow-hidden divide-y divide-[#263044]/70 space-y-2">
                       {[
-                        { label: "First Impression", score: 85, status: "Clear", color: "bg-emerald-500", text: "text-emerald-400" },
-                        { label: "Audience", score: 80, status: "Clear", color: "bg-emerald-500", text: "text-emerald-400" },
-                        { label: "Value", score: 72, status: "Partly clear", color: "bg-amber-400", text: "text-amber-400" },
-                        { label: "Trust", score: 68, status: "Partly clear", color: "bg-amber-400", text: "text-amber-400" },
-                        { label: "Action", score: 85, status: "Clear", color: "bg-emerald-500", text: "text-emerald-400" },
+                        { label: "First Impression", score: 85, status: "Clear", color: "bg-emerald-500", text: "text-emerald-400", dot: "bg-emerald-400" },
+                        { label: "Audience", score: 58, status: "Partly clear", color: "bg-amber-500", text: "text-amber-400", dot: "bg-amber-400" },
+                        { label: "Value", score: 72, status: "Understandable", color: "bg-emerald-500", text: "text-emerald-400", dot: "bg-emerald-400" },
+                        { label: "Trust", score: 30, status: "Unclear", color: "bg-rose-500", text: "text-rose-400", dot: "bg-rose-400" },
+                        { label: "Action", score: 90, status: "Clear", color: "bg-emerald-500", text: "text-emerald-400", dot: "bg-emerald-400" },
                       ].map((sig) => (
                         <div
                           key={sig.label}
-                          className="bg-[#171F2D] border border-[#263044] rounded-xl px-3 py-2 flex flex-col gap-1.5 transition-colors hover:border-[#384660]"
+                          className="bg-[#171F2D] border border-[#263044] rounded-xl p-3 sm:p-4.5 transition-colors hover:border-[#384660]"
                         >
-                          <div className="flex items-center justify-between text-xs sm:text-[13px]">
-                            <span className="font-semibold text-[#F1F5F9] truncate">{sig.label}</span>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className={`text-[11px] sm:text-xs font-semibold ${sig.text}`}>
+                          {/* Mobile Layout (< sm) */}
+                          <div className="sm:hidden space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-sm text-[#F1F5F9]">{sig.label}</span>
+                              <span className="font-semibold text-sm text-white">{sig.score}%</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${sig.dot}`} aria-hidden="true" />
+                              <span className={`text-xs font-normal ${sig.text}`}>
                                 {sig.status}
                               </span>
-                              <span className="text-[11px] sm:text-xs font-bold text-white/90 tabular-nums">
-                                {sig.score}%
-                              </span>
+                            </div>
+                            <div className="w-full h-1.5 bg-[#090D15] border border-[#263044]/40 rounded-full overflow-hidden mt-1.5">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${sig.color}`}
+                                style={{ width: `${Math.min(100, Math.max(0, sig.score))}%` }}
+                              />
                             </div>
                           </div>
-                          <div className="w-full bg-[#263044] h-2 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${sig.color}`}
-                              style={{ width: `${sig.score}%` }}
-                            />
+
+                          {/* Desktop Layout (>= sm) */}
+                          <div className="hidden sm:flex items-center justify-between">
+                            <span className="font-medium text-[#F1F5F9]">{sig.label}</span>
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <div className="font-semibold text-white text-sm">{sig.score}%</div>
+                                <div className={`text-xs font-medium flex items-center justify-end gap-1.5 ${sig.text}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${sig.dot}`} aria-hidden="true" />
+                                  <span>{sig.status}</span>
+                                </div>
+                              </div>
+                              <div className="w-20 h-1.5 bg-[#090D15] border border-[#263044]/40 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${sig.color}`}
+                                  style={{ width: `${Math.min(100, Math.max(0, sig.score))}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -907,8 +956,8 @@ export default function LandingPage() {
                     {/* C. Premium Preview Area (Why This Score, What's Working, Unclear, First 5 Seconds) */}
                     <div className="rounded-2xl bg-[#171F2D] border border-[#263044] p-3 sm:p-3.5 space-y-2 text-xs">
                       <div className="flex items-center justify-between font-semibold border-b border-[#263044] pb-2 text-[11px] sm:text-xs">
-                        <span className="text-[#94A3B8]">Paid Report Sections</span>
-                        <span className="text-[#3B82F6] font-bold">Unlocked with $5 One-Time</span>
+                        <span className="text-[#94A3B8]">Full Analysis Sections</span>
+                        <span className="text-[#3B82F6] font-bold">Coming Soon · $5 One-Time</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 pt-0.5 text-[11px] sm:text-xs text-[#F1F5F9]">
                         <div className="bg-[#121824] border border-[#263044] rounded-lg p-2 sm:p-2.5">
@@ -1002,7 +1051,7 @@ export default function LandingPage() {
                           Explore the details
                         </h3>
                         <p className="text-sm text-[#94A3B8] leading-relaxed">
-                          Unlock deep signal analyses, improvements, and First 5 Seconds with a $5 one-time report.
+                          Unlock deep signal analyses, improvements, and First 5 Seconds when Full Analysis launches ($5 one-time · Coming Soon).
                         </p>
                       </div>
                     </div>
@@ -1104,7 +1153,7 @@ export default function LandingPage() {
                   </Reveal>
                   <Reveal y={14} delay={0.12}>
                     <p className="text-[15px] sm:text-lg text-[#94A3B8] max-w-2xl mx-auto leading-relaxed font-normal">
-                      Start with a free clarity preview today. Unlock the complete report with a one-time payment — no subscriptions or hidden fees.
+                      Start with a free clarity preview today. Full Analysis launches soon with a $5 one-time payment — no subscriptions.
                     </p>
                   </Reveal>
                 </div>
@@ -1113,111 +1162,169 @@ export default function LandingPage() {
                   staggerDelay={0.09}
                   className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 max-w-3xl mx-auto pt-3 items-stretch"
                 >
-                  {PRICING_PLANS.map((plan) => {
-                    const isPaidPreLaunch = plan.isPaid && !IS_CHECKOUT_ENABLED;
-                    return (
-                      <StaggerItem key={plan.id} y={20} className="h-full">
-                        <div
-                          className={`h-full rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 relative ${
-                            plan.popular
-                              ? "bg-[#121824] border-2 border-[#3B82F6] shadow-[0_0_40px_rgba(36,107,253,0.18)] md:-translate-y-1.5 md:hover:-translate-y-2"
-                              : "bg-[#121824] border border-[#263044] shadow-lg hover:border-[#384660] md:hover:-translate-y-1 hover:shadow-2xl"
-                          }`}
-                        >
-                          {plan.badge && (
-                            <motion.div
-                              initial={
-                                shouldReduceMotion
-                                  ? false
-                                  : { opacity: 0, scale: 0.92, y: 4 }
-                              }
-                              whileInView={{ opacity: 1, scale: 1, y: 0 }}
-                              viewport={{ once: true }}
-                              transition={{
-                                duration: 0.35,
-                                delay: 0.18,
-                                ease: EASE_OUT_EXPO,
-                              }}
-                              className="absolute -top-3.5 left-6 right-6 flex items-center justify-between gap-2 pointer-events-none"
-                            >
-                              <span
-                                className={`text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm whitespace-nowrap ${
-                                  plan.popular
-                                    ? "bg-[#246BFD] text-white"
-                                    : "bg-emerald-600 text-white"
-                                }`}
-                              >
-                                {plan.badge}
-                              </span>
-                            </motion.div>
-                          )}
+                  {/* CARD 1: FREE PREVIEW */}
+                  <StaggerItem y={20} className="h-full">
+                    <div className="h-full rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 relative bg-[#121824] border border-[#263044] shadow-lg hover:border-[#384660] md:hover:-translate-y-1 hover:shadow-2xl">
+                      <div>
+                        <h3 className="font-extrabold text-white text-xl tracking-tight mb-1">
+                          Free Preview
+                        </h3>
+                        <p className="text-sm font-bold text-[#3B82F6] mb-1">
+                          Instant clarity evaluation.
+                        </p>
+                        <p className="text-xs sm:text-[13px] text-[#94A3B8] leading-relaxed mb-5">
+                          Discover your overall website clarity score and five signal statuses with zero friction.
+                        </p>
 
-                          <div>
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <h3 className="font-extrabold text-white text-xl tracking-tight">
-                                {plan.name}
-                              </h3>
-                            </div>
-
-                            <p className="text-sm font-bold text-[#3B82F6] mb-1">
-                              {plan.positioning}
-                            </p>
-                            <p className="text-xs sm:text-[13px] text-[#94A3B8] leading-relaxed mb-5">
-                              {plan.description}
-                            </p>
-
-                            <div className="flex items-baseline gap-2 mb-5 pb-4 border-b border-[#263044] tabular-nums">
-                              <span className="text-4xl sm:text-[42px] font-extrabold text-white tracking-tight leading-none">
-                                ${plan.price}
-                              </span>
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-[#94A3B8]">
-                                {plan.paymentLabel}
-                              </span>
-                            </div>
-
-                            <div className="mb-6">
-                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#64748B] block mb-3">
-                                Includes:
-                              </span>
-                              <ul className="space-y-2.5 text-sm text-[#F1F5F9]">
-                                {plan.features.map((feat, i) => (
-                                  <li key={i} className="flex items-start gap-2.5">
-                                    <Check
-                                      className={`w-4 h-4 shrink-0 mt-0.5 ${
-                                        plan.popular
-                                          ? "text-[#3B82F6]"
-                                          : "text-emerald-400"
-                                      }`}
-                                    />
-                                    <span className="leading-snug">{feat}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                              {plan.creditNote && (
-                                <p className="mt-3.5 pt-3 border-t border-[#263044] text-[11px] text-[#94A3B8] leading-relaxed">
-                                  {plan.creditNote}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={scrollToInput}
-                            className={`group w-full min-h-[46px] py-3 px-4 rounded-full text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 ${
-                              plan.popular || !plan.isPaid
-                                ? "bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white shadow-md shadow-blue-500/20"
-                                : "bg-[#171F2D] hover:bg-[#1C2638] active:scale-[0.98] text-white border border-[#263044]"
-                            }`}
-                          >
-                            <span>
-                              {isPaidPreLaunch ? plan.disabledCta : plan.cta} →
-                            </span>
-                          </button>
+                        <div className="flex items-baseline gap-2 mb-5 pb-4 border-b border-[#263044] tabular-nums">
+                          <span className="text-4xl sm:text-[42px] font-extrabold text-white tracking-tight leading-none">
+                            $0
+                          </span>
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#94A3B8]">
+                            FREE
+                          </span>
                         </div>
-                      </StaggerItem>
-                    );
-                  })}
+
+                        <div className="mb-6">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#64748B] block mb-3">
+                            Includes:
+                          </span>
+                          <ul className="space-y-2.5 text-sm text-[#F1F5F9]">
+                            {[
+                              "Overall Website Clarity Score (0–100)",
+                              "Five Clarity Signal Scores",
+                              "Five Signal Statuses (Clear / Partly clear / Needs work)",
+                            ].map((feat, i) => (
+                              <li key={i} className="flex items-start gap-2.5">
+                                <Check className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                                <span className="leading-snug">{feat}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={scrollToInput}
+                        className="group w-full min-h-[46px] py-3 px-4 rounded-full text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer bg-[#171F2D] hover:bg-[#1C2638] active:scale-[0.98] text-white border border-[#263044] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
+                      >
+                        <span>Analyze My Website Free →</span>
+                      </button>
+                    </div>
+                  </StaggerItem>
+
+                  {/* CARD 2: EARLY ACCESS / FULL ANALYSIS */}
+                  <StaggerItem y={20} className="h-full">
+                    <div
+                      id="early-access"
+                      className="h-full rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 relative bg-[#121824] border-2 border-[#3B82F6] shadow-[0_0_40px_rgba(36,107,253,0.18)] md:-translate-y-1.5 md:hover:-translate-y-2"
+                    >
+                      <div className="absolute -top-3.5 left-6 right-6 flex items-center justify-between gap-2 pointer-events-none">
+                        <span className="text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm whitespace-nowrap bg-[#246BFD] text-white">
+                          EARLY ACCESS
+                        </span>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <h3 className="font-extrabold text-white text-xl tracking-tight">
+                            Unlock Your Full Analysis
+                          </h3>
+                        </div>
+
+                        <div className="flex items-baseline gap-2 mb-2 pb-3 border-b border-[#263044] tabular-nums">
+                          <span className="text-4xl sm:text-[42px] font-extrabold text-white tracking-tight leading-none">
+                            $5
+                          </span>
+                          <span className="text-xs sm:text-sm font-semibold text-[#94A3B8]">
+                            one-time · Coming Soon
+                          </span>
+                        </div>
+
+                        <p className="text-xs sm:text-[13px] text-[#94A3B8] leading-relaxed mb-4">
+                          Go beyond your clarity scores. Discover what&apos;s working, what&apos;s unclear, and how to improve your website.
+                        </p>
+
+                        <div className="mb-5">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#64748B] block mb-2.5">
+                            Coming with Full Analysis:
+                          </span>
+                          <ul className="space-y-2 text-xs sm:text-sm text-[#F1F5F9]">
+                            {[
+                              "Detailed Signal Diagnostics",
+                              "What's Working & What's Unclear",
+                              "Actionable Improvements",
+                              "First 5 Seconds (Understand vs Miss)",
+                            ].map((feat, i) => (
+                              <li key={i} className="flex items-start gap-2.5">
+                                <Check className="w-4 h-4 shrink-0 mt-0.5 text-[#3B82F6]" />
+                                <span className="leading-snug">{feat}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+
+                      <div>
+                        {earlyStatus === "success" ? (
+                          <div className="bg-[#171F2D] border border-emerald-500/30 rounded-2xl p-4 text-center space-y-1.5 my-2">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto mb-1 font-bold text-sm">
+                              ✓
+                            </div>
+                            <h4 className="text-sm font-bold text-white">You&apos;re on the list! 🎉</h4>
+                            <p className="text-xs text-[#94A3B8]">
+                              We&apos;ll email you when Full Analysis becomes available.
+                            </p>
+                          </div>
+                        ) : (
+                          <form onSubmit={handleEarlyAccessSubmit} className="space-y-2.5">
+                            <div>
+                              <label htmlFor="early-access-landing-email" className="sr-only">
+                                Enter your email address
+                              </label>
+                              <input
+                                id="early-access-landing-email"
+                                type="email"
+                                value={earlyEmail}
+                                onChange={(e) => {
+                                  setEarlyEmail(e.target.value);
+                                  if (earlyStatus === "error") setEarlyStatus("idle");
+                                }}
+                                placeholder="Enter your email address"
+                                required
+                                className="w-full bg-[#171F2D] border border-[#263044] focus:border-[#3B82F6] text-white placeholder:text-[#64748B] text-xs sm:text-sm rounded-xl px-3.5 py-2.5 outline-none transition-all shadow-xs"
+                              />
+                            </div>
+                            {earlyStatus === "error" && earlyErrorMessage && (
+                              <p className="text-xs text-rose-400 text-left font-medium px-1">
+                                {earlyErrorMessage}
+                              </p>
+                            )}
+                            <button
+                              type="submit"
+                              disabled={earlyStatus === "loading"}
+                              className="w-full min-h-[44px] py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60 text-white shadow-md shadow-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
+                            >
+                              <span>{earlyStatus === "loading" ? "Joining..." : "Join Early Access"} →</span>
+                            </button>
+                          </form>
+                        )}
+
+                        <p className="text-[11px] sm:text-xs text-[#94A3B8] mt-3 leading-relaxed text-left sm:text-center">
+                          No payment required today. We&apos;ll notify you when Full Analysis launches.
+                          <br />
+                          <span className="block mt-1 text-[11px] text-slate-500">
+                            Submitted email addresses are stored securely and used solely to notify you when StrangerLens Full Analysis launches. Waitlist emails are received and retained in the operator&apos;s Gmail inbox. To request removal, contact hello.skyorigin@gmail.com. Review our{" "}
+                            <Link href="/privacy" className="text-[#3B82F6] hover:underline font-medium">
+                              Privacy Policy
+                            </Link>
+                            .
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </StaggerItem>
                 </StaggerContainer>
 
                 <Reveal y={12} delay={0.16}>
@@ -1617,7 +1724,7 @@ export default function LandingPage() {
                     Simple, Transparent Pricing
                   </h3>
                   <p className="text-xs sm:text-sm text-[#94A3B8] mt-0.5">
-                    Start with a free first-impression preview today. One-time report unlocks with no subscriptions.
+                    Start with a free first-impression preview today. Full Analysis launches soon for $5 one-time.
                   </p>
                 </div>
                 <button
@@ -1631,7 +1738,6 @@ export default function LandingPage() {
 
               <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto overflow-y-auto flex-1 pr-1 pb-1 pt-2">
                 {PRICING_PLANS.map((plan) => {
-                  const isPaidPreLaunch = plan.isPaid && !IS_CHECKOUT_ENABLED;
                   return (
                     <div
                       key={plan.id}
@@ -1683,7 +1789,7 @@ export default function LandingPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={scrollToInput}
+                        onClick={plan.id === "complete" ? scrollToEarlyAccess : scrollToInput}
                         className={`group w-full py-2.5 px-4 rounded-full text-xs font-semibold transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer ${
                           plan.popular || !plan.isPaid
                             ? "bg-[#246BFD] hover:bg-blue-600 text-white shadow-md shadow-blue-500/20"
@@ -1691,7 +1797,7 @@ export default function LandingPage() {
                         }`}
                       >
                         <span>
-                          {isPaidPreLaunch ? plan.disabledCta : plan.cta} →
+                          {plan.id === "complete" ? "Join Early Access →" : `${plan.cta} →`}
                         </span>
                       </button>
                     </div>
@@ -1721,6 +1827,128 @@ export default function LandingPage() {
                   </Link>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* EARLY ACCESS THANK YOU MODAL */}
+      <AnimatePresence>
+        {isEarlySuccessModalOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="landing-early-access-success-title"
+            aria-describedby="landing-early-access-success-desc"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+          >
+            {/* Dark Blurred Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0.05 : 0.2 }}
+              onClick={() => setIsEarlySuccessModalOpen(false)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-md"
+            />
+
+            {/* Modal Card Surface with Subtle Blue Glow */}
+            <motion.div
+              ref={earlyModalCardRef}
+              initial={
+                shouldReduceMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, scale: 0.95, y: 8 }
+              }
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={
+                shouldReduceMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, scale: 0.96, y: 6 }
+              }
+              transition={{
+                duration: shouldReduceMotion ? 0.05 : 0.25,
+                ease: [0.16, 1, 0.3, 1],
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative z-10 w-full max-w-md bg-[#121824] border border-[#263044] rounded-3xl p-6 sm:p-8 text-center shadow-[0_0_50px_-10px_rgba(36,107,253,0.3)] overflow-hidden"
+            >
+              {/* Subtle ambient blue glow */}
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-48 bg-[#246BFD]/12 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Close (×) Button */}
+              <button
+                ref={earlyCloseButtonRef}
+                type="button"
+                onClick={() => setIsEarlySuccessModalOpen(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#171F2D] hover:bg-[#1E293B] border border-[#263044] text-[#94A3B8] hover:text-white flex items-center justify-center transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
+                aria-label="Close dialog"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {/* Animated Success Checkmark */}
+              <motion.div
+                initial={shouldReduceMotion ? false : { scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 380,
+                  damping: 22,
+                  delay: 0.08,
+                }}
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/10"
+              >
+                <svg
+                  className="w-7 h-7 sm:w-8 sm:h-8"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.8}
+                >
+                  <motion.path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                    initial={shouldReduceMotion ? false : { pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{
+                      duration: shouldReduceMotion ? 0.05 : 0.35,
+                      delay: 0.15,
+                      ease: "easeOut",
+                    }}
+                  />
+                </svg>
+              </motion.div>
+
+              {/* Heading */}
+              <h3
+                id="landing-early-access-success-title"
+                className="text-xl sm:text-2xl font-extrabold text-white mb-2 tracking-tight"
+              >
+                You&apos;re on the list! 🎉
+              </h3>
+
+              {/* Description */}
+              <div
+                id="landing-early-access-success-desc"
+                className="space-y-1 mb-6 text-sm sm:text-base text-[#94A3B8] leading-relaxed"
+              >
+                <p>Thanks for joining StrangerLens Early Access.</p>
+                <p className="text-xs sm:text-sm text-[#64748B]">
+                  We&apos;ll email you when Full Analysis becomes available.
+                </p>
+              </div>
+
+              {/* Primary Action Button */}
+              <button
+                ref={earlyGotItButtonRef}
+                type="button"
+                onClick={() => setIsEarlySuccessModalOpen(false)}
+                className="w-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white font-semibold py-3 px-6 rounded-full text-sm transition-all shadow-md shadow-blue-500/25 cursor-pointer inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 focus-visible:ring-offset-[#121824]"
+              >
+                <span>Got it →</span>
+              </button>
             </motion.div>
           </div>
         )}

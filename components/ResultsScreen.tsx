@@ -1,6 +1,7 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Link2, Clock, Share2, Download, AlertCircle, Check, Zap, Info, X, Lock, Mail, ArrowRight, Sparkles, Shield, Users, Eye, ChevronDown } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { adaptReport, SIGNAL_ID_TO_KEY } from "@/lib/report-adapter";
 
@@ -89,11 +90,73 @@ export default function ResultsScreen({
 }: any) {
   const [activeExplorerSignalId, setActiveExplorerSignalId] = useState("first-impression");
   const [isScoreModalOpen, setIsScoreModalOpen] = useState(false);
+  const [isEarlySuccessModalOpen, setIsEarlySuccessModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [earlyEmail, setEarlyEmail] = useState("");
   const [earlyStatus, setEarlyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [earlyErrorMessage, setEarlyErrorMessage] = useState<string | null>(null);
   const isReportUnlocked = Boolean(isUnlocked);
+
+  const shouldReduceMotion = useReducedMotion();
+  const gotItButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const modalCardRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+
+  // Accessible Escape and Tab key listener for the Thank You modal
+  useEffect(() => {
+    if (!isEarlySuccessModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsEarlySuccessModalOpen(false);
+      } else if (e.key === "Tab") {
+        const focusable = modalCardRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable || focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isEarlySuccessModalOpen]);
+
+  // Prevent background scrolling while modal is open
+  useEffect(() => {
+    if (isEarlySuccessModalOpen || isScoreModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isEarlySuccessModalOpen, isScoreModalOpen]);
+
+  // Focus management: move focus into modal when opened, restore when closed
+  useEffect(() => {
+    if (isEarlySuccessModalOpen) {
+      previousActiveElement.current = document.activeElement as HTMLElement;
+      const timer = setTimeout(() => {
+        gotItButtonRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    } else if (previousActiveElement.current) {
+      previousActiveElement.current.focus?.();
+      previousActiveElement.current = null;
+    }
+  }, [isEarlySuccessModalOpen]);
 
   // Canonical report normalized from authoritative analysis data
   const report = useMemo(() => adaptReport(data), [data]);
@@ -154,6 +217,128 @@ export default function ResultsScreen({
 
   return (
     <div id="results-content" className="min-h-screen bg-[#090D15] text-[#F1F5F9] font-sans antialiased flex flex-col">
+      {/* EARLY ACCESS THANK YOU SUCCESS MODAL */}
+      <AnimatePresence>
+        {isEarlySuccessModalOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="early-access-success-title"
+            aria-describedby="early-access-success-desc"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+          >
+            {/* Dark Blurred Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0.05 : 0.2 }}
+              onClick={() => setIsEarlySuccessModalOpen(false)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-md"
+            />
+
+            {/* Modal Card Surface with Subtle Blue Glow */}
+            <motion.div
+              ref={modalCardRef}
+              initial={
+                shouldReduceMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, scale: 0.95, y: 8 }
+              }
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={
+                shouldReduceMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, scale: 0.96, y: 6 }
+              }
+              transition={{
+                duration: shouldReduceMotion ? 0.05 : 0.25,
+                ease: [0.16, 1, 0.3, 1],
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative z-10 w-full max-w-md bg-[#121824] border border-[#263044] rounded-3xl p-6 sm:p-8 text-center shadow-[0_0_50px_-10px_rgba(36,107,253,0.3)] overflow-hidden"
+            >
+              {/* Subtle ambient blue glow */}
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-48 bg-[#246BFD]/12 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Close (×) Button */}
+              <button
+                ref={closeButtonRef}
+                type="button"
+                onClick={() => setIsEarlySuccessModalOpen(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#171F2D] hover:bg-[#1E293B] border border-[#263044] text-[#94A3B8] hover:text-white flex items-center justify-center transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
+                aria-label="Close dialog"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {/* Animated Success Checkmark */}
+              <motion.div
+                initial={shouldReduceMotion ? false : { scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 380,
+                  damping: 22,
+                  delay: 0.08,
+                }}
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/10"
+              >
+                <svg
+                  className="w-7 h-7 sm:w-8 sm:h-8"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.8}
+                >
+                  <motion.path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                    initial={shouldReduceMotion ? false : { pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{
+                      duration: shouldReduceMotion ? 0.05 : 0.35,
+                      delay: 0.15,
+                      ease: "easeOut",
+                    }}
+                  />
+                </svg>
+              </motion.div>
+
+              {/* Heading */}
+              <h3
+                id="early-access-success-title"
+                className="text-xl sm:text-2xl font-extrabold text-white mb-2 tracking-tight"
+              >
+                You&apos;re on the list! 🎉
+              </h3>
+
+              {/* Description */}
+              <div
+                id="early-access-success-desc"
+                className="space-y-1 mb-6 text-sm sm:text-base text-[#94A3B8] leading-relaxed"
+              >
+                <p>Thanks for joining StrangerLens Early Access.</p>
+                <p className="text-xs sm:text-sm text-[#64748B]">
+                  We&apos;ll email you when Full Analysis becomes available.
+                </p>
+              </div>
+
+              {/* Primary Action Button */}
+              <button
+                ref={gotItButtonRef}
+                type="button"
+                onClick={() => setIsEarlySuccessModalOpen(false)}
+                className="w-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white font-semibold py-3 px-6 rounded-full text-sm transition-all shadow-md shadow-blue-500/25 cursor-pointer inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 focus-visible:ring-offset-[#121824]"
+              >
+                <span>Got it →</span>
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* SCORE CALCULATION MODAL */}
       {isScoreModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
@@ -307,6 +492,7 @@ export default function ResultsScreen({
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    if (earlyStatus === "loading") return;
                     if (!earlyEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(earlyEmail)) {
                       setEarlyErrorMessage("Please enter a valid email address.");
                       setEarlyStatus("error");
@@ -323,6 +509,7 @@ export default function ResultsScreen({
                       const data = await res.json().catch(() => null);
                       if (res.ok && data?.success) {
                         setEarlyStatus("success");
+                        setIsEarlySuccessModalOpen(true);
                       } else {
                         setEarlyStatus("error");
                         setEarlyErrorMessage(data?.message || "Failed to submit. Please try again.");
@@ -382,177 +569,397 @@ export default function ResultsScreen({
           </section>
         )}
 
-        {/* PREMIUM: INTERACTIVE ANALYSIS */}
-        <section>
-          <h2 className="text-xl font-bold mb-6 text-white">Signal Diagnostics</h2>
-          
-          <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-2 px-2 scrollbar-hide">
-            {explorerTabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveExplorerSignalId(tab.id)}
-                className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition cursor-pointer ${activeExplorerSignalId === tab.id ? "bg-blue-600 text-white" : "bg-[#121824] border border-[#263044] text-[#94A3B8]"}`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* 4. UPCOMING FEATURES PREVIEW (WHEN FULL ANALYSIS IS COMING SOON / UNLOCKED IS FALSE) */}
+        {!isReportUnlocked ? (
+          <section className="bg-[#121824] border border-[#263044] rounded-2xl p-6 sm:p-8">
+            <div className="mb-6">
+              <h2 className="text-lg sm:text-xl font-bold text-white mb-1.5">
+                Coming with Full Analysis
+              </h2>
+              <p className="text-xs sm:text-sm text-[#94A3B8]">
+                A deeper look at what your website communicates — and what needs improvement.
+              </p>
+            </div>
 
-          <div className="bg-[#121824] border border-[#263044] rounded-xl p-5 sm:p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-bold text-white">{activeSignal.title}</h3>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className={`w-1.5 h-1.5 rounded-full ${getStatusTheme(activeSignal.status, activeSignal.badgeType).dot}`} aria-hidden="true" />
-                  <span className={`text-xs font-medium ${getStatusTheme(activeSignal.status, activeSignal.badgeType).text}`}>
-                    {formatStatusText(activeSignal.status)}
-                  </span>
+            {/* Four Compact Feature Rows */}
+            <div className="space-y-3.5">
+              {/* Feature 01 */}
+              <div className="flex items-start gap-3.5 p-3.5 sm:p-4 rounded-xl bg-[#171F2D]/70 border border-[#263044]/80">
+                <span className="shrink-0 text-xs font-mono font-bold text-[#3B82F6] bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-md">
+                  01
+                </span>
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold text-white">
+                    Detailed Signal Diagnostics
+                  </h3>
+                  <p className="text-xs text-[#94A3B8] leading-relaxed">
+                    Understand the reasoning behind each of your five clarity scores.
+                  </p>
                 </div>
               </div>
-              <div className="text-sm font-semibold text-white">{activeSignal.scoreDisplay}</div>
-            </div>
-            
-            <div className="space-y-6">
-              <div>
-                <h4 className="text-[10px] font-bold text-blue-400 mb-2 tracking-widest uppercase">Why This Score</h4>
-                <p className="text-[#94A3B8] text-sm">
-                  {activeSignal.explanation || "Diagnostic analysis not available for this signal."}
-                </p>
-              </div>
-              <div className="border-t border-[#263044]"></div>
-              <div>
-                <h4 className="text-[10px] font-bold text-emerald-400 mb-2 tracking-widest uppercase">What&apos;s Working</h4>
-                {activeSignal.positiveFindings.length > 0 ? (
-                  <ul className="text-[#94A3B8] text-sm space-y-1.5">
-                    {activeSignal.positiveFindings.map((finding, i) => (
-                      <li key={i}>✓ {finding}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-[#94A3B8] text-sm">No clear positive signals detected in the initial content.</p>
-                )}
-              </div>
-              <div className="border-t border-[#263044]"></div>
-              <div>
-                <h4 className="text-[10px] font-bold text-amber-400 mb-2 tracking-widest uppercase">What&apos;s Unclear</h4>
-                {activeSignal.concerns.length > 0 ? (
-                  <ul className="text-[#94A3B8] text-sm space-y-1.5">
-                    {activeSignal.concerns.map((concern, i) => (
-                      <li key={i}>! {concern}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-[#94A3B8] text-sm">No significant ambiguities identified for this signal.</p>
-                )}
-              </div>
-              <div className="border-t border-[#263044]"></div>
-              <div>
-                <h4 className="text-[10px] font-bold text-rose-400 mb-2 tracking-widest uppercase">How to Improve</h4>
-                {activeSignal.recommendations.length > 0 ? (
-                  <ul className="text-[#94A3B8] text-sm space-y-1.5">
-                    {activeSignal.recommendations.map((rec, i) => (
-                      <li key={i}>→ {rec}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-[#94A3B8] text-sm">Maintain current messaging clarity in this area.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
 
-        {/* FIRST 5 SECONDS */}
-        <section>
-          <h2 className="text-xl font-bold mb-2 text-white">First 5 Seconds</h2>
-          <p className="text-[#94A3B8] text-sm mb-6">What a first-time visitor grasps in the first 5 seconds.</p>
-          <div className="grid gap-6">
-            <div className="bg-[#121824] border border-[#263044] rounded-xl p-5">
-              <h3 className="font-bold text-emerald-400 text-xs mb-3 tracking-widest uppercase">WHAT VISITORS UNDERSTAND</h3>
-              {report.firstSeconds.understandItems.length > 0 ? (
-                <div className="space-y-3">
-                  {report.firstSeconds.understandItems.map((item, i) => (
-                    <div key={i} className="text-sm">
-                      <div className="font-semibold text-white">{item.title}</div>
-                      <div className="text-[#94A3B8] mt-0.5">{item.explanation}</div>
-                    </div>
-                  ))}
+              {/* Feature 02 */}
+              <div className="flex items-start gap-3.5 p-3.5 sm:p-4 rounded-xl bg-[#171F2D]/70 border border-[#263044]/80">
+                <span className="shrink-0 text-xs font-mono font-bold text-[#3B82F6] bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-md">
+                  02
+                </span>
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold text-white">
+                    What&apos;s Working &amp; What&apos;s Unclear
+                  </h3>
+                  <p className="text-xs text-[#94A3B8] leading-relaxed">
+                    Discover what your website communicates well and where visitors may get confused.
+                  </p>
                 </div>
-              ) : (
-                <p className="text-[#94A3B8] text-sm">No elements detected as immediately clear on initial load.</p>
-              )}
-            </div>
-            <div className="bg-[#121824] border border-[#263044] rounded-xl p-5">
-              <h3 className="font-bold text-amber-400 text-xs mb-3 tracking-widest uppercase">WHAT VISITORS MISS</h3>
-              {report.firstSeconds.missItems.length > 0 ? (
-                <div className="space-y-3">
-                  {report.firstSeconds.missItems.map((item, i) => (
-                    <div key={i} className="text-sm">
-                      <div className="font-semibold text-white">{item.title}</div>
-                      <div className="text-[#94A3B8] mt-0.5">{item.explanation}</div>
-                    </div>
-                  ))}
+              </div>
+
+              {/* Feature 03 */}
+              <div className="flex items-start gap-3.5 p-3.5 sm:p-4 rounded-xl bg-[#171F2D]/70 border border-[#263044]/80">
+                <span className="shrink-0 text-xs font-mono font-bold text-[#3B82F6] bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-md">
+                  03
+                </span>
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold text-white">
+                    Actionable Improvements
+                  </h3>
+                  <p className="text-xs text-[#94A3B8] leading-relaxed">
+                    See specific ways to make your website&apos;s message clearer.
+                  </p>
                 </div>
-              ) : (
-                <p className="text-[#94A3B8] text-sm">No immediate comprehension blockers identified.</p>
-              )}
+              </div>
+
+              {/* Feature 04 */}
+              <div className="flex items-start gap-3.5 p-3.5 sm:p-4 rounded-xl bg-[#171F2D]/70 border border-[#263044]/80">
+                <span className="shrink-0 text-xs font-mono font-bold text-[#3B82F6] bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-md">
+                  04
+                </span>
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold text-white">
+                    First 5 Seconds
+                  </h3>
+                  <p className="text-xs text-[#94A3B8] leading-relaxed">
+                    Explore what a first-time visitor may understand or miss.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
-        </section>
+
+            {/* COMING SOON INDICATOR */}
+            <div className="mt-6 pt-4 border-t border-[#263044]/70 flex items-center justify-center gap-2 text-xs text-[#94A3B8]">
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Available when Full Analysis launches.</span>
+            </div>
+          </section>
+        ) : (
+          <>
+            {/* PREMIUM: INTERACTIVE ANALYSIS (ONLY RENDERED WHEN FULL ANALYSIS IS UNLOCKED) */}
+            <section>
+              <h2 className="text-xl font-bold mb-6 text-white">Signal Diagnostics</h2>
+              
+              <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-2 px-2 scrollbar-hide">
+                {explorerTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveExplorerSignalId(tab.id)}
+                    className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition cursor-pointer ${activeExplorerSignalId === tab.id ? "bg-blue-600 text-white" : "bg-[#121824] border border-[#263044] text-[#94A3B8]"}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="bg-[#121824] border border-[#263044] rounded-xl p-5 sm:p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{activeSignal.title}</h3>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className={`w-1.5 h-1.5 rounded-full ${getStatusTheme(activeSignal.status, activeSignal.badgeType).dot}`} aria-hidden="true" />
+                      <span className={`text-xs font-medium ${getStatusTheme(activeSignal.status, activeSignal.badgeType).text}`}>
+                        {formatStatusText(activeSignal.status)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold text-white">{activeSignal.scoreDisplay}</div>
+                </div>
+                
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-[10px] font-bold text-blue-400 mb-2 tracking-widest uppercase">Why This Score</h4>
+                    <p className="text-[#94A3B8] text-sm">
+                      {activeSignal.explanation || "Diagnostic analysis not available for this signal."}
+                    </p>
+                  </div>
+                  <div className="border-t border-[#263044]"></div>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-emerald-400 mb-2 tracking-widest uppercase">What&apos;s Working</h4>
+                    {activeSignal.positiveFindings.length > 0 ? (
+                      <ul className="text-[#94A3B8] text-sm space-y-1.5">
+                        {activeSignal.positiveFindings.map((finding, i) => (
+                          <li key={i}>✓ {finding}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[#94A3B8] text-sm">No clear positive signals detected in the initial content.</p>
+                    )}
+                  </div>
+                  <div className="border-t border-[#263044]"></div>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-amber-400 mb-2 tracking-widest uppercase">What&apos;s Unclear</h4>
+                    {activeSignal.concerns.length > 0 ? (
+                      <ul className="text-[#94A3B8] text-sm space-y-1.5">
+                        {activeSignal.concerns.map((concern, i) => (
+                          <li key={i}>! {concern}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[#94A3B8] text-sm">No significant ambiguities identified for this signal.</p>
+                    )}
+                  </div>
+                  <div className="border-t border-[#263044]"></div>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-rose-400 mb-2 tracking-widest uppercase">How to Improve</h4>
+                    {activeSignal.recommendations.length > 0 ? (
+                      <ul className="text-[#94A3B8] text-sm space-y-1.5">
+                        {activeSignal.recommendations.map((rec, i) => (
+                          <li key={i}>→ {rec}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[#94A3B8] text-sm">Maintain current messaging clarity in this area.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* FIRST 5 SECONDS */}
+            <section>
+              <h2 className="text-xl font-bold mb-2 text-white">First 5 Seconds</h2>
+              <p className="text-[#94A3B8] text-sm mb-6">What a first-time visitor grasps in the first 5 seconds.</p>
+              <div className="grid gap-6">
+                <div className="bg-[#121824] border border-[#263044] rounded-xl p-5">
+                  <h3 className="font-bold text-emerald-400 text-xs mb-3 tracking-widest uppercase">WHAT VISITORS UNDERSTAND</h3>
+                  {report.firstSeconds.understandItems.length > 0 ? (
+                    <div className="space-y-3">
+                      {report.firstSeconds.understandItems.map((item, i) => (
+                        <div key={i} className="text-sm">
+                          <div className="font-semibold text-white">{item.title}</div>
+                          <div className="text-[#94A3B8] mt-0.5">{item.explanation}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[#94A3B8] text-sm">No elements detected as immediately clear on initial load.</p>
+                  )}
+                </div>
+                <div className="bg-[#121824] border border-[#263044] rounded-xl p-5">
+                  <h3 className="font-bold text-amber-400 text-xs mb-3 tracking-widest uppercase">WHAT VISITORS MISS</h3>
+                  {report.firstSeconds.missItems.length > 0 ? (
+                    <div className="space-y-3">
+                      {report.firstSeconds.missItems.map((item, i) => (
+                        <div key={i} className="text-sm">
+                          <div className="font-semibold text-white">{item.title}</div>
+                          <div className="text-[#94A3B8] mt-0.5">{item.explanation}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[#94A3B8] text-sm">No immediate comprehension blockers identified.</p>
+                  )}
+                </div>
+              </div>
+            </section>
+          </>
+        )}
 
         {/* ACTIONS */}
         <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-[#263044]">
           <button 
-            onClick={() => {
-              import('html2canvas').then(html2canvas => {
-                const target = document.getElementById('results-content');
-                if (!target) return;
-                html2canvas.default(target, { scale: 2, useCORS: true }).then(canvas => {
+            onClick={async () => {
+              const card = document.createElement('div');
+              card.style.position = 'fixed';
+              card.style.top = '-9999px';
+              card.style.left = '-9999px';
+              card.style.width = '600px';
+              card.style.backgroundColor = '#090D15';
+              card.style.color = '#F1F5F9';
+              card.style.padding = '32px';
+              card.style.borderRadius = '24px';
+              card.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+              card.style.border = '1px solid #263044';
+              card.style.boxShadow = '0 25px 50px -12px rgba(0, 0, 0, 0.5)';
+
+              card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                  <div>
+                    <div style="font-size: 20px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.5px;">StrangerLens</div>
+                    <div style="font-size: 12px; color: #94A3B8; margin-top: 2px;">Website Clarity Diagnostic</div>
+                  </div>
+                  <div style="background: #171F2D; border: 1px solid #263044; padding: 6px 12px; border-radius: 9999px; font-size: 12px; color: #3B82F6; font-weight: 600;">
+                    ${report.domain}
+                  </div>
+                </div>
+                
+                <div style="background: #121824; border: 1px solid #263044; border-radius: 16px; padding: 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <div style="font-size: 11px; text-transform: uppercase; color: #94A3B8; font-weight: 700; letter-spacing: 0.5px;">Overall Clarity Score</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #FFFFFF; margin-top: 4px;">${report.overallScoreDisplay}</div>
+                  </div>
+                  <div style="text-align: right;">
+                    <div style="font-size: 14px; font-weight: 600; color: #38BDF8;">${report.overallStatus}</div>
+                    <div style="font-size: 11px; color: #64748B; margin-top: 2px;">First-time visitor perspective</div>
+                  </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                  ${report.signalsList.map(s => `
+                    <div style="background: #121824; border: 1px solid #263044; border-radius: 12px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;">
+                      <span style="font-size: 14px; font-weight: 600; color: #F1F5F9;">${s.title}</span>
+                      <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 12px; color: #94A3B8;">${s.status}</span>
+                        <span style="font-size: 14px; font-weight: 700; color: #FFFFFF; min-width: 45px; text-align: right;">${s.scoreDisplay}</span>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+
+                <div style="text-align: center; font-size: 11px; color: #64748B; border-top: 1px solid #263044; padding-top: 16px;">
+                  Analyzed with StrangerLens · strangerlens.ai
+                </div>
+              `;
+
+              document.body.appendChild(card);
+
+              try {
+                const html2canvas = (await import('html2canvas')).default;
+                const canvas = await html2canvas(card, { scale: 2, useCORS: true, backgroundColor: '#090D15' });
+                document.body.removeChild(card);
+
+                canvas.toBlob(async (blob) => {
+                  if (!blob) return;
+                  const file = new File([blob], 'StrangerLens-Share.png', { type: 'image/png' });
+
+                  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                      await navigator.share({
+                        title: `StrangerLens Report: ${report.domain}`,
+                        text: `Website Clarity Score: ${report.overallScoreDisplay} for ${report.domain}`,
+                        files: [file],
+                      });
+                      return;
+                    } catch (err: any) {
+                      if (err.name === 'AbortError') return;
+                    }
+                  }
+
                   const link = document.createElement('a');
-                  link.download = `strangerlens-${report.domain}.png`;
-                  link.href = canvas.toDataURL('image/png');
+                  link.download = 'StrangerLens-Share.png';
+                  link.href = URL.createObjectURL(blob);
                   link.click();
-                });
-              });
+                  URL.revokeObjectURL(link.href);
+                }, 'image/png');
+              } catch (err) {
+                if (document.body.contains(card)) {
+                  document.body.removeChild(card);
+                }
+              }
             }}
-            className="flex-1 bg-[#171F2D] hover:bg-[#263044] text-white font-semibold py-3 rounded-lg text-sm transition"
+            className="flex-1 bg-[#171F2D] hover:bg-[#263044] text-white font-semibold py-3 px-6 rounded-xl text-sm transition inline-flex items-center justify-center gap-2 cursor-pointer"
           >
-            Export Summary
+            <Share2 className="w-4 h-4 text-blue-400" />
+            <span>Share Result</span>
           </button>
           <button 
             onClick={() => {
-              Promise.all([
-                import('html2canvas'),
-                import('jspdf')
-              ]).then(([html2canvas, jspdf]) => {
-                const target = document.getElementById('results-content');
-                if (!target) return;
-                html2canvas.default(target, { scale: 2, useCORS: true }).then(canvas => {
-                  const imgData = canvas.toDataURL('image/png');
-                  const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-                  const pdfWidth = pdf.internal.pageSize.getWidth();
-                  const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                  const pageHeight = pdf.internal.pageSize.getHeight();
-                  let heightLeft = pdfHeight;
-                  let position = 0;
+              import('jspdf').then(({ jsPDF }) => {
+                const doc = new jsPDF('p', 'mm', 'a4');
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                let y = 20;
 
-                  pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-                  heightLeft -= pageHeight;
+                // Header
+                doc.setFillColor(18, 24, 36);
+                doc.rect(0, 0, pageWidth, 35, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(18);
+                doc.text("StrangerLens", 15, 20);
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(148, 163, 184);
+                doc.text("Website Clarity & First-Impression Report", 15, 27);
 
-                  while (heightLeft > 0) {
-                    position = heightLeft - pdfHeight;
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-                    heightLeft -= pageHeight;
+                y = 45;
+                doc.setTextColor(15, 23, 42);
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(14);
+                doc.text(`Target URL: ${report.domain}`, 15, y);
+                y += 8;
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                doc.setTextColor(100, 116, 139);
+                doc.text(`Analysis Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 15, y);
+
+                y += 15;
+                // Overall Score Box
+                doc.setFillColor(241, 245, 249);
+                doc.roundedRect(15, y, pageWidth - 30, 25, 3, 3, 'F');
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(12);
+                doc.setTextColor(15, 23, 42);
+                doc.text("Overall Website Clarity Score", 22, y + 10);
+                doc.setFontSize(16);
+                doc.text(report.overallScoreDisplay, pageWidth - 35, y + 15, { align: "right" });
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                doc.setTextColor(71, 85, 105);
+                doc.text(`Status: ${report.overallStatus}`, 22, y + 18);
+
+                y += 35;
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(14);
+                doc.setTextColor(15, 23, 42);
+                doc.text("Five Clarity Signals Overview", 15, y);
+                y += 8;
+
+                report.signalsList.forEach((signal) => {
+                  if (y > pageHeight - 30) {
+                    doc.addPage();
+                    y = 20;
                   }
+                  doc.setFillColor(248, 250, 252);
+                  doc.roundedRect(15, y, pageWidth - 30, 16, 2, 2, 'F');
+                  doc.setFont("helvetica", "bold");
+                  doc.setFontSize(10);
+                  doc.setTextColor(15, 23, 42);
+                  doc.text(signal.title, 22, y + 10);
+                  doc.text(signal.scoreDisplay, pageWidth - 35, y + 10, { align: "right" });
+                  
+                  doc.setFont("helvetica", "normal");
+                  doc.setFontSize(9);
+                  doc.setTextColor(100, 116, 139);
+                  doc.text(`Status: ${signal.status}`, 80, y + 10);
 
-                  pdf.save(`strangerlens-${report.domain}.pdf`);
+                  y += 20;
                 });
+
+                y += 10;
+                if (y > pageHeight - 30) {
+                  doc.addPage();
+                  y = 20;
+                }
+                doc.setFont("helvetica", "italic");
+                doc.setFontSize(8);
+                doc.setTextColor(148, 163, 184);
+                doc.text("Generated by StrangerLens · Free Tier Authorized Report · No paid diagnostics included.", 15, y);
+
+                doc.save("StrangerLens-Report.pdf");
               });
             }}
-            className="flex-1 bg-[#171F2D] hover:bg-[#263044] text-white font-semibold py-3 rounded-lg text-sm transition"
+            className="flex-1 bg-[#171F2D] hover:bg-[#263044] text-white font-semibold py-3 px-6 rounded-xl text-sm transition inline-flex items-center justify-center gap-2 cursor-pointer"
           >
-            Download PDF
+            <Download className="w-4 h-4 text-blue-400" />
+            <span>Download PDF</span>
           </button>
         </div>
       </main>

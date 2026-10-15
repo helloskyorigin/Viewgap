@@ -12,6 +12,9 @@ export type SupportingPageType =
   | "security"
   | "about"
   | "docs"
+  | "privacy_policy"
+  | "terms_of_service"
+  | "refund_policy"
   | "other";
 
 export type SupportingPageCategoryGroup =
@@ -20,7 +23,8 @@ export type SupportingPageCategoryGroup =
   | "audience_solutions"
   | "trust_proof"
   | "company_about"
-  | "docs_integrations";
+  | "docs_integrations"
+  | "legal_policies";
 
 export type SupportingLinkLocation = "header" | "hero" | "main" | "footer";
 
@@ -153,13 +157,7 @@ const EXCLUDED_PATH_SEGMENTS = new Set([
   "billing",
   "subscribe",
   "unsubscribe",
-  // Legal / Policy / Boilerplate
-  "privacy",
-  "privacy-policy",
-  "terms",
-  "terms-of-service",
-  "terms-and-conditions",
-  "tos",
+  // Legal / Policy / Boilerplate (Excluding core legal pages which are analyzed for Trust)
   "cookie",
   "cookies",
   "cookie-policy",
@@ -521,6 +519,37 @@ export function classifySupportingPageCandidate(
         lowerText === kw ||
         lowerText.includes(kw)
     );
+
+  // 0. Legal Policies (Privacy, Terms, Refund)
+  if (
+    matchesAny(["privacy", "privacy-policy", "privacy-statement"])
+  ) {
+    return {
+      pageType: "privacy_policy",
+      categoryGroup: "legal_policies",
+      baseScore: 98,
+    };
+  }
+
+  if (
+    matchesAny(["terms", "terms-of-service", "terms-and-conditions", "tos", "conditions", "user-agreement"])
+  ) {
+    return {
+      pageType: "terms_of_service",
+      categoryGroup: "legal_policies",
+      baseScore: 98,
+    };
+  }
+
+  if (
+    matchesAny(["refund", "refund-policy", "returns", "return-policy", "cancellation", "cancellation-policy"])
+  ) {
+    return {
+      pageType: "refund_policy",
+      categoryGroup: "legal_policies",
+      baseScore: 95,
+    };
+  }
 
   // 1. Pricing & Plans (Highest value for understanding offer, tiers, trials, guarantees)
   if (

@@ -1,4 +1,5 @@
 import { WebsiteSnapshot } from "@/lib/content-extractor";
+import { SupportingPagesBundle } from "@/lib/supporting-page-fetcher";
 import { WebsiteAnalysis } from "./analysisSchema";
 import { GroqAIProvider } from "./groqProvider";
 import { GeminiAIProvider } from "./aiProvider";
@@ -10,14 +11,13 @@ export interface AnalyzeWebsiteOptions {
 
 /**
  * Main entry point for Phase 3 AI Analysis.
- * Analyzes a Phase 2 WebsiteSnapshot using Groq API as the primary AI provider,
- * with seamless fallback to Gemini AI Provider if Groq encounters project-level
- * model restrictions or downtime, ensuring continuous real analysis availability.
- * Verifies structured output, cleans and validates evidence references
- * against original snapshot text, and returns a grounded WebsiteAnalysis.
+ * Analyzes WebsiteSnapshot and optional SupportingPagesBundle (including Privacy Policy, Terms of Service, Refund Policy)
+ * using Groq API as primary AI provider with fallback to Gemini AI Provider.
+ * Verifies structured output, cleans and validates evidence references against original snapshot and legal pages text.
  */
 export async function analyzeWebsite(
   snapshot: WebsiteSnapshot,
+  supportingPagesBundle?: SupportingPagesBundle,
   options: AnalyzeWebsiteOptions = {}
 ): Promise<WebsiteAnalysis> {
   let rawAnalysis: WebsiteAnalysis | null = null;
@@ -27,7 +27,7 @@ export async function analyzeWebsite(
   if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) {
     try {
       const geminiProvider = new GeminiAIProvider();
-      rawAnalysis = await geminiProvider.analyzeWebsite(snapshot);
+      rawAnalysis = await geminiProvider.analyzeWebsite(snapshot, supportingPagesBundle);
     } catch (err: unknown) {
       providerError = err instanceof Error ? err : new Error(String(err));
     }
@@ -37,7 +37,7 @@ export async function analyzeWebsite(
   if (!rawAnalysis && process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim()) {
     try {
       const groqProvider = new GroqAIProvider(options.apiKey);
-      rawAnalysis = await groqProvider.analyzeWebsite(snapshot);
+      rawAnalysis = await groqProvider.analyzeWebsite(snapshot, supportingPagesBundle);
     } catch (err: unknown) {
       const groqErr = err instanceof Error ? err : new Error(String(err));
       if (!providerError) providerError = groqErr;
@@ -52,9 +52,8 @@ export async function analyzeWebsite(
     throw err;
   }
 
-  // 4. Validate and Clean Evidence References against original WebsiteSnapshot
-  const groundedAnalysis = validateAndCleanEvidence(rawAnalysis, snapshot);
+  // 4. Validate and Clean Evidence References against original WebsiteSnapshot and supporting/legal pages
+  const groundedAnalysis = validateAndCleanEvidence(rawAnalysis, snapshot, supportingPagesBundle);
 
   return groundedAnalysis;
 }
-

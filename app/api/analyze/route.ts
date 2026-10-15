@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeWebsite } from "@/services/ai/analyzeWebsite";
 import { extractWebsiteSnapshot } from "@/lib/content-extractor";
+import { discoverAndFetchSupportingPages } from "@/lib/supporting-page-fetcher";
 import { validateAndScoreAnalysis } from "@/services/validation/analysisValidator";
 import { fetchWebsiteHomepage } from "@/lib/website-fetcher";
 import { validateUrl, checkSsrf } from "@/lib/url-validator";
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch and analyze
+    // Fetch homepage and discover/fetch supporting legal pages (Privacy Policy, Terms of Service, Refund Policy)
     const fetchResult = await fetchWebsiteHomepage(url, validation.normalizedUrl);
     if (!fetchResult.success) {
       return NextResponse.json(
@@ -92,7 +93,13 @@ export async function POST(req: NextRequest) {
       baseUrl: fetchResult.finalUrl,
     });
 
-    const aiAnalysis = await analyzeWebsite(snapshot);
+    const supportingPagesBundle = await discoverAndFetchSupportingPages(
+      fetchResult.html,
+      fetchResult.finalUrl,
+      { maxPages: 3 }
+    );
+
+    const aiAnalysis = await analyzeWebsite(snapshot, supportingPagesBundle);
     const validated = validateAndScoreAnalysis(aiAnalysis, snapshot);
 
     const stored = saveServerReport({

@@ -1,4 +1,5 @@
 import { WebsiteSnapshot } from "@/lib/content-extractor";
+import { SupportingPagesBundle } from "@/lib/supporting-page-fetcher";
 import { EvidenceRef, WebsiteAnalysis } from "./analysisSchema";
 
 /**
@@ -131,14 +132,22 @@ export function isEvidenceGrounded(textToVerify: string, searchableTexts: string
 }
 
 /**
- * Validates and cleans evidence_refs across the entire WebsiteAnalysis object against the WebsiteSnapshot.
+ * Validates and cleans evidence_refs across the entire WebsiteAnalysis object against the WebsiteSnapshot and supporting/legal pages.
  * Filters out hallucinated or ungrounded quotes.
  */
 export function validateAndCleanEvidence(
   analysis: WebsiteAnalysis,
-  snapshot: WebsiteSnapshot
+  snapshot: WebsiteSnapshot,
+  supportingPagesBundle?: SupportingPagesBundle
 ): WebsiteAnalysis {
   const searchableTexts = extractSearchableTextsFromSnapshot(snapshot);
+  if (supportingPagesBundle?.pages) {
+    for (const page of supportingPagesBundle.pages) {
+      if (page.snapshot) {
+        searchableTexts.push(...extractSearchableTextsFromSnapshot(page.snapshot));
+      }
+    }
+  }
 
   const cleanRefs = (refs: EvidenceRef[] | undefined): EvidenceRef[] => {
     if (!Array.isArray(refs)) return [];
