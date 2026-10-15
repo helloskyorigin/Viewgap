@@ -7,6 +7,7 @@ export interface ScanFlowState {
   currentView: "landing" | "scan" | "results";
   isVerifying: boolean;
   isPending: boolean;
+  isPreparingResults: boolean;
   errorMessage: string | null;
   backendError: string | null;
   analysisData: any;
@@ -14,6 +15,7 @@ export interface ScanFlowState {
 
 export interface ScanFlowControllerOptions {
   fetchImpl?: typeof fetch;
+  deferResultsNavigation?: boolean;
   onStateChange?: (state: ScanFlowState) => void;
   onValidationError?: (message: string) => void;
 }
@@ -27,6 +29,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
     currentView: "landing",
     isVerifying: false,
     isPending: false,
+    isPreparingResults: false,
     errorMessage: null,
     backendError: null,
     analysisData: null,
@@ -69,6 +72,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
       currentView: "results",
       isVerifying: false,
       isPending: false,
+      isPreparingResults: false,
       errorMessage: null,
       backendError: null,
       analysisData,
@@ -83,6 +87,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
       currentView: "landing",
       isVerifying: false,
       isPending: false,
+      isPreparingResults: false,
       errorMessage: null,
       backendError: null,
       analysisData: null,
@@ -95,6 +100,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
       currentView: "landing",
       isVerifying: false,
       isPending: false,
+      isPreparingResults: false,
       backendError: null,
     });
   }
@@ -106,6 +112,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
         currentView: "results",
         isVerifying: false,
         isPending: false,
+        isPreparingResults: false,
         backendError: null,
       });
     }
@@ -118,6 +125,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
       currentView: "landing",
       isVerifying: false,
       isPending: false,
+      isPreparingResults: false,
       backendError: null,
     });
   }
@@ -132,6 +140,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
     ) {
       emit({
         currentView: "results",
+        isPreparingResults: false,
       });
     }
   }
@@ -264,9 +273,10 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
       emit({
         isVerifying: false,
         isPending: false,
+        isPreparingResults: true,
         backendError: null,
         analysisData: resolvedAnalysisData,
-        currentView: "results",
+        currentView: options.deferResultsNavigation ? "scan" : "results",
       });
     } catch (err: any) {
       if (currentReqId !== activeRequestId) return;

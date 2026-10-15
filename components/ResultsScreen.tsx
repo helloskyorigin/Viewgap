@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo } from "react";
-import { Link2, Clock, MoreVertical, RefreshCw, Share2, Download, AlertCircle, Check, Zap, Info, X, Lock, Mail, ArrowRight, Sparkles, Shield, Users, Eye, ChevronDown } from "lucide-react";
+import { Link2, Clock, Share2, Download, AlertCircle, Check, Zap, Info, X, Lock, Mail, ArrowRight, Sparkles, Shield, Users, Eye, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { adaptReport, SIGNAL_ID_TO_KEY } from "@/lib/report-adapter";
 
@@ -89,12 +89,52 @@ export default function ResultsScreen({
 }: any) {
   const [activeExplorerSignalId, setActiveExplorerSignalId] = useState("first-impression");
   const [isScoreModalOpen, setIsScoreModalOpen] = useState(false);
-  const [topOverflowMenuOpen, setTopOverflowMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isReportUnlocked = Boolean(isUnlocked);
 
   // Canonical report normalized from authoritative analysis data
   const report = useMemo(() => adaptReport(data), [data]);
+
+  // Semantic color mapping matching status semantics:
+  // Clear / Understandable: Green
+  // Partly clear / Needs work / Needs improvement: Amber
+  // Unclear / Poor: Rose
+  const getStatusTheme = (status: string, badgeType?: string) => {
+    const s = (status || "").toLowerCase().trim();
+    if (s === "clear" || s === "understandable" || s === "excellent" || s === "good") {
+      return {
+        text: "text-emerald-400",
+        bg: "bg-emerald-500",
+        dot: "bg-emerald-400",
+      };
+    }
+    if (s === "partly clear" || s === "needs work" || s === "needs improvement" || s === "partly") {
+      return {
+        text: "text-amber-400",
+        bg: "bg-amber-500",
+        dot: "bg-amber-400",
+      };
+    }
+    if (s === "unclear" || s === "poor" || s === "bad") {
+      return {
+        text: "text-rose-400",
+        bg: "bg-rose-500",
+        dot: "bg-rose-400",
+      };
+    }
+    if (badgeType === "clear") return { text: "text-emerald-400", bg: "bg-emerald-500", dot: "bg-emerald-400" };
+    if (badgeType === "amber") return { text: "text-amber-400", bg: "bg-amber-500", dot: "bg-amber-400" };
+    if (badgeType === "coral") return { text: "text-rose-400", bg: "bg-rose-500", dot: "bg-rose-400" };
+    return { text: "text-[#94A3B8]", bg: "bg-[#263044]", dot: "bg-[#94A3B8]" };
+  };
+
+  const formatStatusText = (str: string): string => {
+    if (!str) return "";
+    const lower = str.toLowerCase().trim();
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  };
+
+  const overallTheme = getStatusTheme(report.overallStatus);
 
   const explorerTabs = [
     { id: "first-impression", label: "First Impression" },
@@ -115,15 +155,15 @@ export default function ResultsScreen({
       {isScoreModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
           <div className="bg-[#121824] border border-[#263044] rounded-2xl p-6 w-full max-w-lg">
-            <h3 className="text-xl font-bold text-white mb-4">How is this calculated?</h3>
+            <h3 className="text-xl font-bold text-white mb-4">How scoring works</h3>
             <p className="text-[#94A3B8] text-sm mb-6">Your overall clarity score is a weighted average of your five signal scores: First Impression (25%), Audience (20%), Value (25%), Trust (15%), and Action (15%).</p>
-            <button onClick={() => setIsScoreModalOpen(false)} className="w-full bg-[#171F2D] hover:bg-[#263044] text-white font-bold py-3 rounded-lg text-sm">Close</button>
+            <button onClick={() => setIsScoreModalOpen(false)} className="w-full bg-[#171F2D] hover:bg-[#263044] text-white font-bold py-3 rounded-lg text-sm cursor-pointer">Close</button>
           </div>
         </div>
       )}
 
       {/* HEADER */}
-      <header className="w-full bg-[#090D15]/95 backdrop-blur-md border-b border-[#263044] sticky top-0 z-30">
+      <header className="w-full bg-[#090D15]/95 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1000px] mx-auto px-4 h-16 flex items-center justify-between">
           <button
             type="button"
@@ -137,7 +177,7 @@ export default function ResultsScreen({
           </button>
           <button
             type="button"
-            onClick={onRunNewCheck}
+            onClick={onRunNewCheck || onBackToLanding}
             className="rounded-full bg-[#171F2D] hover:bg-[#263044] text-white font-semibold px-4 py-2 transition text-sm cursor-pointer"
           >
             New Check
@@ -145,108 +185,89 @@ export default function ResultsScreen({
         </div>
         <div className="max-w-[1000px] mx-auto px-4 py-2 flex items-center justify-between text-sm text-[#94A3B8]">
           <span className="font-medium text-[#F1F5F9]">{report.domain}</span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onRecheck}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#171F2D] hover:bg-[#263044] text-white text-xs font-medium transition cursor-pointer"
-              title="Recheck Website"
-            >
-              <RefreshCw className="w-3 h-3 text-[#246BFD]" />
-              <span>Recheck Website</span>
-            </button>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setTopOverflowMenuOpen(!topOverflowMenuOpen)}
-                className="p-2 hover:text-[#F1F5F9] cursor-pointer"
-                aria-label="More options"
-              >
-                ⋮
-              </button>
-              {topOverflowMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-44 bg-[#121824] border border-[#263044] rounded-xl shadow-xl py-1 z-50 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTopOverflowMenuOpen(false);
-                      onRecheck?.();
-                    }}
-                    className="w-full text-left px-4 py-2 hover:bg-[#1C2638] text-white flex items-center gap-2 cursor-pointer"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5 text-[#246BFD]" />
-                    <span>Recheck Website</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTopOverflowMenuOpen(false);
-                      onRunNewCheck?.();
-                    }}
-                    className="w-full text-left px-4 py-2 hover:bg-[#1C2638] text-[#94A3B8] hover:text-white flex items-center gap-2 cursor-pointer"
-                  >
-                    <span>New Check</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 w-full max-w-[1000px] mx-auto px-4 py-10 space-y-12">
+      <main className="flex-1 w-full max-w-[1000px] mx-auto px-4 py-6 sm:py-10 space-y-8 sm:space-y-12">
         {/* OVERALL CLARITY SCORE */}
-        <section className="bg-[#121824] border border-[#263044] rounded-2xl p-6">
-          <h2 className="text-sm font-bold text-[#94A3B8] uppercase tracking-wider mb-4">Your Website Clarity</h2>
-          <div className="flex items-end justify-between">
-             <div>
-               <div className="text-5xl font-bold text-white">{report.overallScoreDisplay}</div>
-               <div className="text-emerald-400 font-semibold mt-1">{report.overallStatus}</div>
-             </div>
-             <button onClick={() => setIsScoreModalOpen(true)} className="text-sm text-blue-400 hover:text-blue-300 font-medium underline">How is this calculated?</button>
+        <section className="bg-[#121824] border border-[#263044] rounded-2xl p-5 sm:p-6 shadow-xs">
+          <h2 className="text-xs sm:text-sm font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
+            Website Clarity Score
+          </h2>
+          <div className="space-y-1.5">
+            <div className="text-4xl sm:text-5xl font-bold text-white tracking-tight">
+              {report.overallScoreDisplay}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${overallTheme.dot}`} aria-hidden="true" />
+              <span className={`text-sm sm:text-base font-medium ${overallTheme.text}`}>
+                {formatStatusText(report.overallStatus)}
+              </span>
+            </div>
+          </div>
+          <div className="mt-4 pt-3.5 border-t border-[#263044]/70">
+            <button
+              type="button"
+              onClick={() => setIsScoreModalOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-blue-400 hover:text-blue-300 font-medium transition cursor-pointer"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>How scoring works</span>
+            </button>
           </div>
         </section>
 
         {/* 1. FREE: FIVE CLARITY SIGNALS */}
         <section>
-          <h2 className="text-xl font-bold mb-6 text-[#F1F5F9]">Your Clarity Results</h2>
-          <div className="bg-[#121824] border border-[#263044] rounded-xl overflow-hidden">
-            {report.signalsList.map((signal, index) => (
-              <div key={signal.id} className={`flex items-center justify-between p-4 ${index !== report.signalsList.length - 1 ? 'border-b border-[#263044]' : ''}`}>
-                <span className="font-medium text-[#F1F5F9]">{signal.title}</span>
-                <div className="flex items-center gap-4">
-                   <div className="text-right">
-                      <div className="font-bold text-white text-sm">{signal.scoreDisplay}</div>
-                      <div className={`text-[10px] uppercase font-semibold tracking-wider ${
-                        signal.badgeType === "clear"
-                          ? "text-emerald-400"
-                          : signal.badgeType === "amber"
-                          ? "text-amber-400"
-                          : signal.badgeType === "coral"
-                          ? "text-rose-400"
-                          : "text-[#94A3B8]"
-                      }`}>
-                        {signal.status}
-                      </div>
-                   </div>
-                   <div className="w-16 h-1 bg-[#263044] rounded-full overflow-hidden">
+          <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-[#F1F5F9]">Your Clarity Signals</h2>
+          <div className="bg-[#121824] border border-[#263044] rounded-xl overflow-hidden divide-y divide-[#263044]/70">
+            {report.signalsList.map((signal) => {
+              const theme = getStatusTheme(signal.status, signal.badgeType);
+              return (
+                <div key={signal.id} className="p-4 sm:p-4.5 transition-colors">
+                  {/* Mobile Layout (< sm) */}
+                  <div className="sm:hidden space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm text-[#F1F5F9]">{signal.title}</span>
+                      <span className="font-semibold text-sm text-white">{signal.scoreDisplay}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${theme.dot}`} aria-hidden="true" />
+                      <span className={`text-xs font-normal ${theme.text}`}>
+                        {formatStatusText(signal.status)}
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-[#171F2D] border border-[#263044]/40 rounded-full overflow-hidden mt-1.5">
                       <div
-                        className={`h-full ${
-                          signal.badgeType === "clear"
-                            ? "bg-emerald-500"
-                            : signal.badgeType === "amber"
-                            ? "bg-amber-500"
-                            : signal.badgeType === "coral"
-                            ? "bg-rose-500"
-                            : "bg-[#263044]"
-                        }`}
-                        style={{ width: `${signal.score ?? 0}%` }}
+                        className={`h-full rounded-full transition-all duration-300 ${theme.bg}`}
+                        style={{ width: `${Math.min(100, Math.max(0, signal.score ?? 0))}%` }}
                       />
-                   </div>
+                    </div>
+                  </div>
+
+                  {/* Desktop Layout (>= sm) */}
+                  <div className="hidden sm:flex items-center justify-between">
+                    <span className="font-medium text-[#F1F5F9]">{signal.title}</span>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="font-semibold text-white text-sm">{signal.scoreDisplay}</div>
+                        <div className={`text-xs font-medium flex items-center justify-end gap-1.5 ${theme.text}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${theme.dot}`} aria-hidden="true" />
+                          <span>{formatStatusText(signal.status)}</span>
+                        </div>
+                      </div>
+                      <div className="w-20 h-1.5 bg-[#171F2D] border border-[#263044]/40 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${theme.bg}`}
+                          style={{ width: `${Math.min(100, Math.max(0, signal.score ?? 0))}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -254,62 +275,57 @@ export default function ResultsScreen({
         {!isReportUnlocked && (
           <section className="bg-[#121824] border border-[#263044] rounded-2xl p-6 text-center shadow-lg">
             <h2 className="text-xl font-bold mb-2 text-white">Unlock Full Analysis</h2>
-            <p className="text-[#94A3B8] text-sm mb-6 max-w-sm mx-auto">Understand why each signal scored this way and discover what to improve.</p>
+            <p className="text-[#94A3B8] text-sm mb-6 max-w-sm mx-auto">Get detailed signal diagnostics, actionable improvement steps, and visitor comprehension analysis.</p>
             <div className="space-y-2 mb-6 text-sm text-[#F1F5F9] font-medium">
-              <div className="flex items-center justify-center gap-2">✓ Detailed signal explanations</div>
-              <div className="flex items-center justify-center gap-2">✓ Actionable improvements</div>
+              <div className="flex items-center justify-center gap-2">✓ Understand every score</div>
+              <div className="flex items-center justify-center gap-2">✓ See what to improve</div>
             </div>
-            <div className="text-2xl font-bold mb-6 text-white">$5 <span className="text-sm text-[#94A3B8] font-normal">· One-time</span></div>
-            <button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg text-sm transition">Unlock Full Analysis — $5</button>
-            <p className="text-xs text-[#94A3B8] mt-4">No subscription. Terms · Privacy · Refund Policy · Support</p>
+            <div className="text-2xl font-bold mb-6 text-white">$5 <span className="text-sm text-[#94A3B8] font-normal">· One-time payment</span></div>
+            <button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg text-sm transition cursor-pointer">Unlock Full Analysis — $5</button>
+            <p className="text-xs text-[#94A3B8] mt-4">One-time payment · No subscription · Terms · Privacy · Refund Policy · Support</p>
           </section>
         )}
 
         {/* PREMIUM: INTERACTIVE ANALYSIS */}
         <section>
-          <h2 className="text-xl font-bold mb-6 text-white">Your Complete Clarity Analysis</h2>
+          <h2 className="text-xl font-bold mb-6 text-white">Signal Diagnostics</h2>
           
           <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-2 px-2 scrollbar-hide">
             {explorerTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveExplorerSignalId(tab.id)}
-                className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition ${activeExplorerSignalId === tab.id ? "bg-blue-600 text-white" : "bg-[#121824] border border-[#263044] text-[#94A3B8]"}`}
+                className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition cursor-pointer ${activeExplorerSignalId === tab.id ? "bg-blue-600 text-white" : "bg-[#121824] border border-[#263044] text-[#94A3B8]"}`}
               >
                 {tab.label}
               </button>
             ))}
           </div>
 
-          <div className="bg-[#121824] border border-[#263044] rounded-xl p-6">
+          <div className="bg-[#121824] border border-[#263044] rounded-xl p-5 sm:p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-lg font-bold text-white">{activeSignal.title}</h3>
-                <span className={`text-[11px] font-semibold uppercase tracking-wider ${
-                  activeSignal.badgeType === "clear"
-                    ? "text-emerald-400"
-                    : activeSignal.badgeType === "amber"
-                    ? "text-amber-400"
-                    : activeSignal.badgeType === "coral"
-                    ? "text-rose-400"
-                    : "text-[#94A3B8]"
-                }`}>
-                  {activeSignal.status}
-                </span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${getStatusTheme(activeSignal.status, activeSignal.badgeType).dot}`} aria-hidden="true" />
+                  <span className={`text-xs font-medium ${getStatusTheme(activeSignal.status, activeSignal.badgeType).text}`}>
+                    {formatStatusText(activeSignal.status)}
+                  </span>
+                </div>
               </div>
-              <div className="text-sm font-bold text-white">{activeSignal.scoreDisplay}</div>
+              <div className="text-sm font-semibold text-white">{activeSignal.scoreDisplay}</div>
             </div>
             
             <div className="space-y-6">
               <div>
-                <h4 className="text-[10px] font-bold text-blue-400 mb-2 tracking-widest uppercase">Why This Score?</h4>
+                <h4 className="text-[10px] font-bold text-blue-400 mb-2 tracking-widest uppercase">Why This Score</h4>
                 <p className="text-[#94A3B8] text-sm">
-                  {activeSignal.explanation || "Diagnostic explanation not available for this signal."}
+                  {activeSignal.explanation || "Diagnostic analysis not available for this signal."}
                 </p>
               </div>
               <div className="border-t border-[#263044]"></div>
               <div>
-                <h4 className="text-[10px] font-bold text-emerald-400 mb-2 tracking-widest uppercase">What&apos;s Working?</h4>
+                <h4 className="text-[10px] font-bold text-emerald-400 mb-2 tracking-widest uppercase">What&apos;s Working</h4>
                 {activeSignal.positiveFindings.length > 0 ? (
                   <ul className="text-[#94A3B8] text-sm space-y-1.5">
                     {activeSignal.positiveFindings.map((finding, i) => (
@@ -317,12 +333,12 @@ export default function ResultsScreen({
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-[#94A3B8] text-sm">No positive evidence detected for this signal in the accessible content.</p>
+                  <p className="text-[#94A3B8] text-sm">No clear positive signals detected in the initial content.</p>
                 )}
               </div>
               <div className="border-t border-[#263044]"></div>
               <div>
-                <h4 className="text-[10px] font-bold text-amber-400 mb-2 tracking-widest uppercase">What&apos;s Unclear?</h4>
+                <h4 className="text-[10px] font-bold text-amber-400 mb-2 tracking-widest uppercase">What&apos;s Unclear</h4>
                 {activeSignal.concerns.length > 0 ? (
                   <ul className="text-[#94A3B8] text-sm space-y-1.5">
                     {activeSignal.concerns.map((concern, i) => (
@@ -330,12 +346,12 @@ export default function ResultsScreen({
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-[#94A3B8] text-sm">No significant communication barriers or ambiguities were identified for this signal.</p>
+                  <p className="text-[#94A3B8] text-sm">No significant ambiguities identified for this signal.</p>
                 )}
               </div>
               <div className="border-t border-[#263044]"></div>
               <div>
-                <h4 className="text-[10px] font-bold text-rose-400 mb-2 tracking-widest uppercase">How to Improve?</h4>
+                <h4 className="text-[10px] font-bold text-rose-400 mb-2 tracking-widest uppercase">How to Improve</h4>
                 {activeSignal.recommendations.length > 0 ? (
                   <ul className="text-[#94A3B8] text-sm space-y-1.5">
                     {activeSignal.recommendations.map((rec, i) => (
@@ -343,7 +359,7 @@ export default function ResultsScreen({
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-[#94A3B8] text-sm">Maintain the current clarity in this area; avoid adding unnecessary complexity.</p>
+                  <p className="text-[#94A3B8] text-sm">Maintain current messaging clarity in this area.</p>
                 )}
               </div>
             </div>
@@ -353,10 +369,10 @@ export default function ResultsScreen({
         {/* FIRST 5 SECONDS */}
         <section>
           <h2 className="text-xl font-bold mb-2 text-white">First 5 Seconds</h2>
-          <p className="text-[#94A3B8] text-sm mb-6">What might a new visitor understand immediately?</p>
+          <p className="text-[#94A3B8] text-sm mb-6">What a first-time visitor grasps in the first 5 seconds.</p>
           <div className="grid gap-6">
             <div className="bg-[#121824] border border-[#263044] rounded-xl p-5">
-              <h3 className="font-bold text-emerald-400 text-xs mb-3 tracking-widest uppercase">WHAT A VISITOR MAY UNDERSTAND</h3>
+              <h3 className="font-bold text-emerald-400 text-xs mb-3 tracking-widest uppercase">WHAT VISITORS UNDERSTAND</h3>
               {report.firstSeconds.understandItems.length > 0 ? (
                 <div className="space-y-3">
                   {report.firstSeconds.understandItems.map((item, i) => (
@@ -367,11 +383,11 @@ export default function ResultsScreen({
                   ))}
                 </div>
               ) : (
-                <p className="text-[#94A3B8] text-sm">No initial elements detected as immediately clear in the accessible homepage content.</p>
+                <p className="text-[#94A3B8] text-sm">No elements detected as immediately clear on initial load.</p>
               )}
             </div>
             <div className="bg-[#121824] border border-[#263044] rounded-xl p-5">
-              <h3 className="font-bold text-amber-400 text-xs mb-3 tracking-widest uppercase">WHAT A VISITOR MAY MISS</h3>
+              <h3 className="font-bold text-amber-400 text-xs mb-3 tracking-widest uppercase">WHAT VISITORS MISS</h3>
               {report.firstSeconds.missItems.length > 0 ? (
                 <div className="space-y-3">
                   {report.firstSeconds.missItems.map((item, i) => (
@@ -382,7 +398,7 @@ export default function ResultsScreen({
                   ))}
                 </div>
               ) : (
-                <p className="text-[#94A3B8] text-sm">No major initial comprehension blockers identified.</p>
+                <p className="text-[#94A3B8] text-sm">No immediate comprehension blockers identified.</p>
               )}
             </div>
           </div>
@@ -405,7 +421,7 @@ export default function ResultsScreen({
             }}
             className="flex-1 bg-[#171F2D] hover:bg-[#263044] text-white font-semibold py-3 rounded-lg text-sm transition"
           >
-            Share Result
+            Export Summary
           </button>
           <button 
             onClick={() => {
@@ -440,10 +456,31 @@ export default function ResultsScreen({
             }}
             className="flex-1 bg-[#171F2D] hover:bg-[#263044] text-white font-semibold py-3 rounded-lg text-sm transition"
           >
-            Download Result
+            Download PDF
           </button>
         </div>
       </main>
     </div>
   );
+}
+
+export function buildReportSummaryForExport(data: any, isUnlocked: boolean): string {
+  if (!isUnlocked) {
+    return `STRANGERLENS FREE PREVIEW SUMMARY
+URL: ${data?.url || data?.domain || ""}
+FIVE SIGNAL OVERVIEW:
+${data?.signals?.map((s: any) => `- ${s.name}: ${s.score}/100`).join("\n") || ""}
+BIGGEST ISSUE + EVIDENCE:
+${data?.biggestIssue?.title || ""} - ${data?.biggestIssue?.description || ""}
+YOUR #1 PRIORITY FIX:
+${data?.priorityFix?.action || ""}`;
+  }
+  return `STRANGERLENS FULL FIRST-IMPRESSION REPORT
+URL: ${data?.url || data?.domain || ""}
+FIRST-TIME VISITOR IMPRESSION:
+${data?.visitorThought || ""}
+FIVE DETAILED SIGNAL BREAKDOWN:
+${data?.signals?.map((s: any) => `- ${s.name}: ${s.score}/100 (${s.explanation || ""})`).join("\n") || ""}
+COMMUNICATION RISKS:
+${data?.risks?.map((r: any) => `- ${r}`).join("\n") || ""}`;
 }

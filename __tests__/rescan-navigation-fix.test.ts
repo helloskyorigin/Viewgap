@@ -206,4 +206,63 @@ describe("StrangerLens Rescan & Navigation Fix Test Suite", () => {
     expect(fetchCount).toBe(2);
     expect(controller.getState().currentView).toBe("results");
   });
+
+  test("Flow 8: Defer results navigation -> Enters real Preparing results state with committed report -> Transitions to Results", async () => {
+    const mockFetch = async (url: string | URL | Request): Promise<Response> => {
+      const urlStr = url.toString();
+      if (urlStr.includes("/verify")) {
+        return new Response(JSON.stringify({ ok: true, success: true, normalizedUrl: "https://example.com" }), { status: 200 });
+      }
+      return new Response(JSON.stringify(sampleReportData), { status: 200 });
+    };
+
+    const controller = createScanFlowController({
+      fetchImpl: mockFetch as any,
+      deferResultsNavigation: true,
+    });
+
+    await controller.startScan("https://example.com");
+
+    // Must be in the real "Preparing results" state while remaining on scan view for UI render
+    expect(controller.getState().currentView).toBe("scan");
+    expect(controller.getState().isPreparingResults).toBe(true);
+    expect(controller.getState().isPending).toBe(false);
+    expect(controller.getState().isVerifying).toBe(false);
+    expect(controller.getState().analysisData).toBeDefined();
+    expect(controller.getState().analysisData.score).toBe(82);
+
+    // Frontend completes transition
+    controller.completeScanToResults();
+    expect(controller.getState().currentView).toBe("results");
+    expect(controller.getState().isPreparingResults).toBe(false);
+  });
+
+  test("Flow 9: Scan Cancel -> Aborts active request and resets to landing with zero navigation to results", async () => {
+    let checkCalled = false;
+    const mockFetch = async (url: string | URL | Request): Promise<Response> => {
+      const urlStr = url.toString();
+      if (urlStr.includes("/verify")) {
+        return new Response(JSON.stringify({ ok: true, success: true, normalizedUrl: "https://example.com" }), { status: 200 });
+      }
+      checkCalled = true;
+      return new Response(JSON.stringify(sampleReportData), { status: 200 });
+    };
+
+    const controller = createScanFlowController({
+      fetchImpl: mockFetch as any,
+      deferResultsNavigation: true,
+    });
+
+    // Start scan and immediately cancel
+    const scanPromise = controller.startScan("https://example.com");
+    controller.cancelScan();
+    await scanPromise;
+
+    expect(controller.getState().currentView).toBe("landing");
+    expect(controller.getState().isPreparingResults).toBe(false);
+
+    // completeScanToResults must NOT move to results after cancel
+    controller.completeScanToResults();
+    expect(controller.getState().currentView).toBe("landing");
+  });
 });

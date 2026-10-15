@@ -173,6 +173,7 @@ export default function LandingPage() {
 
   const [scanController] = useState(() =>
     createScanFlowController({
+      deferResultsNavigation: true,
       onStateChange: (nextState) => {
         setUrl(nextState.url);
         setSubmittedUrl(nextState.submittedUrl);
@@ -395,7 +396,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 font-sans antialiased selection:bg-blue-100 selection:text-blue-900 flex flex-col overflow-x-hidden">
+    <div className="min-h-screen bg-[#090D15] text-[#F1F5F9] font-sans antialiased selection:bg-[#3B82F6]/30 selection:text-white flex flex-col overflow-x-hidden">
       <AnimatePresence mode="wait">
         {currentView === "landing" ? (
           <motion.div
@@ -1210,7 +1211,7 @@ export default function LandingPage() {
                 </div>
 
                 <Reveal y={16} delay={0.1}>
-                  <div className="divide-y divide-[#263044] border-t border-b border-[#263044]">
+                  <div className="divide-y divide-[#263044] border-t border-[#263044]">
                     {FAQ_ITEMS.map((item, idx) => {
                       const isOpen = openFaqIndex === idx;
                       const answerId = `faq-answer-${idx}`;
@@ -1315,7 +1316,7 @@ export default function LandingPage() {
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-[#263044] flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] sm:text-xs text-[#94A3B8]">
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] sm:text-xs text-[#94A3B8]">
                       <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-5 gap-y-2">
                         {LEGAL_CONFIG.links.map((item) => (
                           <Link
@@ -1349,7 +1350,7 @@ export default function LandingPage() {
             animate={{ opacity: 1 }}
             exit={shouldReduceMotion ? {} : { opacity: 0 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="w-full min-h-screen"
+            className="w-full min-h-screen bg-[#090D15]"
           >
             <ScanScreen
               rawUrl={submittedUrl}
@@ -1389,7 +1390,7 @@ export default function LandingPage() {
             animate={{ opacity: 1 }}
             exit={shouldReduceMotion ? {} : { opacity: 0 }}
             transition={{ duration: 0.35, ease: "easeInOut" }}
-            className="w-full min-h-screen"
+            className="w-full min-h-screen bg-[#090D15]"
           >
             <ResultsScreen
               rawUrl={submittedUrl}

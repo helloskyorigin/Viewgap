@@ -23,7 +23,13 @@ export const LEGAL_CONFIG = {
       price: "$5 USD",
       billingType: "One-time payment · No subscription",
       summary:
-        "Complete action breakdown. Includes detailed analysis for all five signals (Why This Score?, What's Working?, What's Unclear?, How to Improve?), plus First 5 Seconds breakdown (What a Visitor May Understand and What a Visitor May Miss).",
+        "Complete action breakdown. Includes prioritized 1-2-3 fix plan, detailed analysis for all five signals (Why This Score?, What's Working?, What's Unclear?, How to Improve?), plus First 5 Seconds breakdown (What a Visitor May Understand and What a Visitor May Miss).",
+    },
+    threeReportPack: {
+      name: "3-Report Pack",
+      price: "$12 USD",
+      billingType: "One-time payment · No subscription",
+      summary: "3 complete Full Reports for comparing iterations or multiple websites.",
     },
   },
   refundPolicySummary:

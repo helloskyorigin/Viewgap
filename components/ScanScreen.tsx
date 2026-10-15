@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, RotateCcw, ArrowLeft, Aperture } from "lucide-react";
+import { AlertCircle, RotateCcw, ArrowLeft, Aperture, Check } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 
 interface ScanScreenProps {
@@ -26,7 +26,12 @@ export const SCAN_FOCUS_MESSAGES = [
   "Connecting findings to page evidence",
 ] as const;
 
-const FOCUS_ROTATION_INTERVAL_MS = 3400;
+export const SCAN_STAGES = [
+  { id: "connect", label: "Website connected" },
+  { id: "read", label: "Website content read" },
+  { id: "evaluate", label: "Evaluating clarity" },
+  { id: "prepare", label: "Preparing results" },
+] as const;
 
 /**
  * Ensures error messages shown to the user remain concise, understandable,
@@ -36,7 +41,6 @@ function formatSafeErrorMessage(rawError: string | null | undefined): string {
   if (!rawError || typeof rawError !== "string") {
     return "We couldn’t complete the analysis for this website. Please verify the URL and try again.";
   }
-
   const trimmed = rawError.trim();
   if (!trimmed) {
     return "We couldn’t complete the analysis for this website. Please verify the URL and try again.";
@@ -55,7 +59,6 @@ function formatSafeErrorMessage(rawError: string | null | undefined): string {
   if (hasInternalLeak) {
     return "Analysis is temporarily unavailable or the website could not be read. Please try again in a moment.";
   }
-
   return trimmed;
 }
 
@@ -70,11 +73,23 @@ export default function ScanScreen({
 }: ScanScreenProps) {
   const shouldReduceMotion = useReducedMotion();
   const hasTransitionedRef = useRef(false);
-  const [focusIndex, setFocusIndex] = useState(0);
+
+  // Smooth stage tracking without cascading render effects
+  const [timerStage, setTimerStage] = useState(0);
+  const [prevRawUrl, setPrevRawUrl] = useState(rawUrl);
+
+  if (rawUrl !== prevRawUrl) {
+    setPrevRawUrl(rawUrl);
+    setTimerStage(0);
+  }
 
   const hasError = Boolean(backendError);
   const isActivelyScanning = !hasError && !isBackendReady;
+  const isPreparing = isBackendReady && !hasError;
   const handleCancel = onCancel || onBackToLanding;
+
+  // The active visual stage index (0 to 3)
+  const stageIndex = isPreparing ? 3 : timerStage;
 
   // Extract clean hostname dynamically from the actual analysis input
   const cleanDomain = useMemo(() => {
@@ -97,27 +112,26 @@ export default function ScanScreen({
     }
   }, [rawUrl]);
 
-  // Reset transition guard when a new URL scan starts
+  // Sequential progression through stages 0 -> 1 -> 2 while waiting for real async response
   useEffect(() => {
-    hasTransitionedRef.current = false;
-  }, [rawUrl, isBackendReady, backendError]);
+    if (hasError || isBackendReady) return;
 
-  // Rotate explanatory focus messages every 3.4s while actively scanning; clear on unmount, error, or completion
-  useEffect(() => {
-    if (!isActivelyScanning || shouldReduceMotion) {
-      return;
-    }
+    const timer1 = setTimeout(() => {
+      setTimerStage((prev) => Math.max(prev, 1));
+    }, 1000);
 
-    const intervalId = window.setInterval(() => {
-      setFocusIndex((prev) => (prev + 1) % SCAN_FOCUS_MESSAGES.length);
-    }, FOCUS_ROTATION_INTERVAL_MS);
+    const timer2 = setTimeout(() => {
+      setTimerStage((prev) => Math.max(prev, 2));
+    }, 2400);
 
     return () => {
-      window.clearInterval(intervalId);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
     };
-  }, [isActivelyScanning, shouldReduceMotion, rawUrl]);
+  }, [hasError, isBackendReady, rawUrl]);
 
-  // Show Results immediately after valid response (no artificial delays)
+  // When backend is ready, visibly paint the "Preparing results" active stage,
+  // then navigate to Results screen after a brief, honest visual transition.
   useEffect(() => {
     if (
       isBackendReady &&
@@ -125,8 +139,16 @@ export default function ScanScreen({
       onGoToResults &&
       !hasTransitionedRef.current
     ) {
-      hasTransitionedRef.current = true;
-      onGoToResults();
+      const transitionTimer = setTimeout(() => {
+        if (!hasTransitionedRef.current) {
+          hasTransitionedRef.current = true;
+          onGoToResults();
+        }
+      }, 550);
+
+      return () => {
+        clearTimeout(transitionTimer);
+      };
     }
   }, [isBackendReady, backendError, onGoToResults]);
 
@@ -136,7 +158,8 @@ export default function ScanScreen({
   );
 
   const handleRetryAction = () => {
-    setFocusIndex(0);
+    setTimerStage(0);
+    hasTransitionedRef.current = false;
     if (onRetry) {
       onRetry();
     } else {
@@ -145,152 +168,191 @@ export default function ScanScreen({
   };
 
   return (
-    <div className="min-h-dvh bg-[#FAFAFA] text-slate-900 font-sans antialiased selection:bg-blue-100 selection:text-blue-900 flex flex-col justify-between overflow-x-hidden">
-      {/* HEADER: StrangerLens (left) & Cancel (right) */}
-      <header className="w-full border-b border-slate-200/70 bg-white/90 backdrop-blur-md shrink-0">
-        <div className="max-w-[1180px] mx-auto px-4 sm:px-6 md:px-8 h-[60px] sm:h-[68px] flex items-center justify-between gap-3">
+    <div className="min-h-dvh bg-[#090D15] text-[#F1F5F9] font-sans antialiased selection:bg-[#3B82F6]/30 selection:text-white flex flex-col justify-between overflow-x-hidden">
+      {/* 1. HEADER: StrangerLens (left) & Cancel (right) */}
+      <header className="w-full bg-[#090D15]/90 backdrop-blur-md shrink-0 sticky top-0 z-20">
+        <div className="max-w-[1120px] mx-auto px-4 sm:px-6 md:px-8 h-[60px] sm:h-[68px] flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={onBackToLanding}
-            className="flex items-center gap-2 sm:gap-2.5 group cursor-pointer bg-transparent border-0 p-0 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] rounded-lg"
+            onClick={() => {
+              hasTransitionedRef.current = true;
+              onBackToLanding();
+            }}
+            className="flex items-center gap-2.5 group cursor-pointer bg-transparent border-0 p-0 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] rounded-lg"
             aria-label="Return to StrangerLens home"
           >
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-950 text-white flex items-center justify-center font-bold text-xs sm:text-sm tracking-tighter shadow-xs shrink-0 transition-transform duration-200 group-hover:scale-[1.03]">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#121824] border border-[#263044] text-[#F1F5F9] flex items-center justify-center font-bold text-xs sm:text-sm tracking-tighter shadow-xs shrink-0 group-hover:border-[#3B82F6]/60 transition-colors">
               S
             </div>
-            <span className="text-base sm:text-xl font-bold tracking-tight text-slate-950 truncate">
+            <span className="text-base sm:text-lg font-bold tracking-tight text-[#F1F5F9] truncate">
               StrangerLens
             </span>
           </button>
 
           <button
             type="button"
-            onClick={handleCancel}
-            className="text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-950 px-3.5 py-1.5 rounded-full hover:bg-slate-100 active:scale-[0.98] transition-all cursor-pointer shrink-0 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
+            onClick={() => {
+              hasTransitionedRef.current = true;
+              handleCancel();
+            }}
+            className="text-xs sm:text-sm font-medium text-[#94A3B8] hover:text-[#F1F5F9] px-3.5 py-1.5 rounded-full hover:bg-[#121824] border border-transparent hover:border-[#263044] active:scale-[0.98] transition-all cursor-pointer shrink-0 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]"
           >
             Cancel
           </button>
         </div>
       </header>
 
-      {/* CENTERED MINIMAL SCANNING LAYOUT (max-width 520px on desktop, compact on mobile) */}
-      <main className="flex-1 w-full max-w-[520px] mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col items-center justify-center text-center min-w-0">
-        {/* 1. ANIMATED AI LENS (~100px mobile, ~116px desktop) */}
+      {/* 2. CENTER: Clean, minimal and professionally balanced scanning container */}
+      <main className="flex-1 w-full max-w-[480px] mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col items-center justify-center text-center min-w-0">
+        {/* PREMIUM FOCUS REVEAL ANIMATION: Camera-inspired focus cycle (Soft Focus -> Focusing -> Clarity -> Reset) */}
         <motion.div
-          initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.94 }}
+          initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
-          className="relative w-[100px] h-[100px] sm:w-[116px] sm:h-[116px] flex items-center justify-center mb-7 sm:mb-8 shrink-0"
+          transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
+          className="relative w-[150px] h-[150px] sm:w-[180px] sm:h-[180px] flex items-center justify-center mb-6 sm:mb-8 shrink-0 select-none"
           aria-hidden="true"
         >
-          {/* Very subtle soft blue ambient glow */}
-          <div
-            className={`absolute inset-2 rounded-full blur-xl transition-opacity duration-500 ${
-              hasError
-                ? "bg-rose-500/[0.08]"
-                : "bg-[#246BFD]/[0.11]"
-            }`}
-          />
-
-          {/* Concentric Ring 1 (Outer ring with gentle breathing pulse) */}
+          {/* Phase A/C/D: Subtle ambient blue halo bloom */}
           <motion.div
-            className={`absolute inset-0 rounded-full border ${
-              hasError
-                ? "border-rose-200/80 bg-rose-50/20"
-                : "border-[#246BFD]/18 bg-[#246BFD]/[0.02]"
+            className={`absolute inset-4 rounded-full blur-2xl pointer-events-none ${
+              hasError ? "bg-rose-500/15" : "bg-[#3B82F6]/20"
             }`}
             animate={
               isActivelyScanning && !shouldReduceMotion
-                ? { scale: [1, 1.06, 1], opacity: [0.75, 0.35, 0.75] }
-                : { scale: 1, opacity: 0.75 }
+                ? {
+                    scale: [1.18, 1.08, 0.95, 0.96, 1.18],
+                    opacity: [0.3, 0.45, 0.75, 0.7, 0.3],
+                  }
+                : { scale: 1, opacity: hasError ? 0.3 : 0.45 }
             }
             transition={
               isActivelyScanning && !shouldReduceMotion
-                ? { duration: 3.2, repeat: Infinity, ease: "easeInOut" }
+                ? {
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    times: [0, 0.25, 0.5, 0.75, 1],
+                  }
                 : undefined
             }
           />
 
-          {/* Concentric Ring 2 (Middle structural optical ring) */}
+          {/* Faint static optical guide frame (lens barrel reference) */}
           <div
-            className={`absolute inset-[13px] sm:inset-[15px] rounded-full border ${
-              hasError
-                ? "border-rose-200/90 bg-white/80"
-                : "border-[#246BFD]/22 bg-white/75 shadow-[0_4px_24px_-4px_rgba(36,107,253,0.14)]"
+            className={`absolute inset-[16px] sm:inset-[20px] rounded-full border pointer-events-none transition-colors duration-500 ${
+              hasError ? "border-rose-500/20" : "border-[#263044]/50"
             }`}
           />
 
-          {/* Smoothly moving blue scanning arc */}
-          {isActivelyScanning && !shouldReduceMotion && (
-            <motion.div
-              className="absolute inset-[6px] sm:inset-[7px] rounded-full border-[2px] border-transparent border-t-[#246BFD] border-r-[#246BFD]/40"
-              animate={{ rotate: 360 }}
-              transition={{
-                duration: 2.6,
-                repeat: Infinity,
-                ease: "linear",
-              }}
-            />
-          )}
-
-          {/* Central Optical Lens Core */}
+          {/* Precision Focus Ring: Smoothly contracts toward center (Phase B), locks in clarity (Phase C), expands out (Phase D) */}
           <motion.div
+            className={`absolute w-[92px] h-[92px] sm:w-[108px] sm:h-[108px] rounded-full border pointer-events-none transition-colors ${
+              hasError
+                ? "border-rose-500/35"
+                : "border-[#3B82F6]/60"
+            }`}
             animate={
               isActivelyScanning && !shouldReduceMotion
-                ? { scale: [1, 1.03, 1] }
-                : { scale: 1 }
+                ? {
+                    scale: [1.22, 1.1, 1.01, 1.01, 1.22],
+                    opacity: [0.35, 0.65, 0.95, 0.9, 0.35],
+                    boxShadow: [
+                      "0 0 0px rgba(59, 130, 246, 0)",
+                      "0 0 8px rgba(59, 130, 246, 0.2)",
+                      "0 0 16px rgba(59, 130, 246, 0.45)",
+                      "0 0 12px rgba(59, 130, 246, 0.35)",
+                      "0 0 0px rgba(59, 130, 246, 0)",
+                    ],
+                  }
+                : { scale: 1, opacity: hasError ? 0.3 : 0.85, boxShadow: "none" }
             }
             transition={
               isActivelyScanning && !shouldReduceMotion
-                ? { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
+                ? {
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    times: [0, 0.25, 0.5, 0.75, 1],
+                  }
                 : undefined
             }
-            className={`relative w-[52px] h-[52px] sm:w-[60px] sm:h-[60px] rounded-full flex items-center justify-center border shadow-xs ${
+          >
+            {/* 4 subtle precision focus reticle ticks */}
+            {!hasError && (
+              <>
+                <span className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-1 h-1 bg-[#60A5FA] rounded-full opacity-80" />
+                <span className="absolute -bottom-[3px] left-1/2 -translate-x-1/2 w-1 h-1 bg-[#60A5FA] rounded-full opacity-80" />
+                <span className="absolute top-1/2 -left-[3px] -translate-y-1/2 w-1 h-1 bg-[#60A5FA] rounded-full opacity-80" />
+                <span className="absolute top-1/2 -right-[3px] -translate-y-1/2 w-1 h-1 bg-[#60A5FA] rounded-full opacity-80" />
+              </>
+            )}
+          </motion.div>
+
+          {/* Central Lens Core: Gradually clarifies and sharpens into full focus (Phase C) */}
+          <motion.div
+            animate={
+              isActivelyScanning && !shouldReduceMotion
+                ? {
+                    scale: [0.97, 0.98, 1.0, 1.0, 0.97],
+                    opacity: [0.82, 0.92, 1, 1, 0.82],
+                    filter: [
+                      "blur(0.8px)",
+                      "blur(0.3px)",
+                      "blur(0px)",
+                      "blur(0px)",
+                      "blur(0.8px)",
+                    ],
+                  }
+                : { scale: 1, opacity: 1, filter: "blur(0px)" }
+            }
+            transition={
+              isActivelyScanning && !shouldReduceMotion
+                ? {
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    times: [0, 0.25, 0.5, 0.75, 1],
+                  }
+                : undefined
+            }
+            className={`relative w-[68px] h-[68px] sm:w-[80px] sm:h-[80px] rounded-full flex items-center justify-center border shadow-md ${
               hasError
-                ? "bg-rose-50 border-rose-200 text-rose-600"
-                : "bg-gradient-to-b from-white via-[#F5F9FF] to-[#EBF3FF] border-[#246BFD]/30 text-[#246BFD] shadow-[0_0_20px_-4px_rgba(36,107,253,0.28)]"
+                ? "bg-[#121824] border-rose-500/40 text-rose-400"
+                : "bg-[#121824] border-[#3B82F6]/35 text-[#3B82F6] shadow-[0_0_24px_-4px_rgba(59,130,246,0.35)]"
             }`}
           >
             {hasError ? (
               <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2]" />
             ) : (
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#246BFD]/[0.09] border border-[#246BFD]/25 flex items-center justify-center">
-                <Aperture className="w-5 h-5 sm:w-[22px] sm:h-[22px] text-[#246BFD] stroke-[1.9]" />
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#3B82F6]/10 border border-[#3B82F6]/25 flex items-center justify-center">
+                <Aperture className="w-6 h-6 sm:w-[26px] sm:h-[26px] text-[#3B82F6] stroke-[1.9]" />
               </div>
             )}
           </motion.div>
         </motion.div>
 
-        {/* HEADING */}
+        {/* TITLE: Looking at your website with fresh eyes. */}
         <motion.h1
-          initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
-          className="text-2xl sm:text-3xl font-extrabold text-[#101828] tracking-tight leading-[1.2] max-w-full"
-        >
-          Analyzing your website
-        </motion.h1>
-
-        {/* DESCRIPTION */}
-        <motion.p
           initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.04, ease: EASE_OUT_EXPO }}
-          className="mt-2.5 sm:mt-3 text-sm sm:text-base text-[#526078] font-normal leading-relaxed max-w-[440px]"
+          transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
+          className="text-2xl sm:text-3xl font-extrabold text-[#F1F5F9] tracking-tight leading-[1.25] max-w-full"
         >
-          Checking how clearly your website communicates its purpose, value, and next steps.
-        </motion.p>
+          Looking at your
+          <br />
+          website with fresh eyes.
+        </motion.h1>
 
-        {/* DOMAIN: Show the actual submitted website domain */}
+        {/* SUBTITLE / DOMAIN PILL: Clean target URL */}
         {cleanDomain && (
           <motion.div
-            initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.08, ease: EASE_OUT_EXPO }}
-            className="mt-4 sm:mt-5 max-w-full px-3.5 py-1 rounded-full bg-white border border-slate-200/90 shadow-2xs"
+            transition={{ duration: 0.35, delay: 0.05, ease: EASE_OUT_EXPO }}
+            className="mt-3.5 max-w-full px-3.5 py-1 rounded-full bg-[#121824] border border-[#263044]"
           >
             <p
-              className="text-xs sm:text-sm font-semibold text-slate-700 truncate max-w-[250px] min-[375px]:max-w-[300px] sm:max-w-[420px]"
+              className="text-xs sm:text-sm font-medium text-[#94A3B8] truncate max-w-[260px] sm:max-w-[380px]"
               title={cleanDomain}
             >
               {cleanDomain}
@@ -298,27 +360,27 @@ export default function ScanScreen({
           </motion.div>
         )}
 
-        {/* 3. PROGRESS BAR: Thin blue progress bar with smooth continuous light trail */}
+        {/* SUBTLE ANIMATED PROGRESS INDICATOR */}
         <motion.div
           initial={shouldReduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, delay: 0.1, ease: EASE_OUT_EXPO }}
-          className="w-full max-w-[260px] sm:max-w-[320px] h-[3px] bg-slate-200/80 relative overflow-hidden mt-6 sm:mt-7 rounded-full"
+          transition={{ duration: 0.35, delay: 0.08, ease: EASE_OUT_EXPO }}
+          className="w-full max-w-[260px] sm:max-w-[300px] h-[3px] bg-[#263044] relative overflow-hidden mt-6 mb-7 rounded-full"
           role="progressbar"
           aria-label="Analysis in progress"
           aria-busy={isActivelyScanning}
         >
           {hasError ? (
             <div className="w-full h-full bg-rose-500/80 rounded-full" />
-          ) : shouldReduceMotion || isBackendReady ? (
-            <div className="w-full h-full bg-[#246BFD] rounded-full" />
+          ) : isBackendReady ? (
+            <div className="w-full h-full bg-[#3B82F6] rounded-full" />
           ) : (
             <motion.div
-              className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-transparent via-[#60A5FA]/70 to-[#246BFD] rounded-full shadow-[0_0_8px_rgba(36,107,253,0.45)]"
+              className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-transparent via-[#60A5FA] to-[#3B82F6] rounded-full shadow-[0_0_8px_rgba(59,130,246,0.4)]"
               initial={{ x: "-100%" }}
               animate={{ x: "220%" }}
               transition={{
-                duration: 1.75,
+                duration: 1.8,
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
@@ -326,53 +388,62 @@ export default function ScanScreen({
           )}
         </motion.div>
 
-        {/* 2. DYNAMIC CHANGING FOCUS TEXT + FIXED LOADING INDICATOR */}
-        {/* Single polite screen-reader status to avoid repeated announcements on decorative text rotation */}
+        {/* Single polite screen-reader status */}
         <span className="sr-only" role="status" aria-live="polite">
-          {hasError ? "Check failed" : "Analysis in progress"}
+          {hasError
+            ? "Check failed"
+            : `Analysis in progress: ${SCAN_STAGES[stageIndex]?.label || "Evaluating clarity"}`}
         </span>
 
-        <div
-          className="mt-3.5 min-h-[28px] sm:min-h-[30px] w-full flex items-center justify-center px-2"
-          aria-hidden="true"
-        >
-          {hasError ? (
-            <p className="text-xs sm:text-sm font-semibold tracking-wide text-rose-700 uppercase">
-              CHECK FAILED
-            </p>
-          ) : (
-            <div className="inline-flex items-center justify-center gap-2 max-w-full">
-              {/* Small fixed loading indicator so users know analysis is actively running */}
-              <span className="relative flex h-2 w-2 shrink-0">
-                {!shouldReduceMotion && isActivelyScanning && (
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#246BFD] opacity-45" />
-                )}
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#246BFD]" />
-              </span>
+        {/* FOUR SCANNING STAGES CHECKLIST */}
+        {!hasError ? (
+          <div className="w-full max-w-[280px] sm:max-w-[300px] flex flex-col space-y-3.5 text-left mb-2">
+            {SCAN_STAGES.map((stage, idx) => {
+              const isCompleted = isPreparing ? idx < 3 : idx < stageIndex;
+              const isActive = isPreparing ? idx === 3 : idx === stageIndex;
 
-              <div className="relative flex items-center justify-center min-w-0">
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.p
-                    key={focusIndex}
-                    initial={
-                      shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 5 }
-                    }
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={
-                      shouldReduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: -5 }
-                    }
-                    transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
-                    className="text-xs sm:text-sm font-semibold text-[#246BFD] tracking-wide leading-snug"
+              return (
+                <div
+                  key={stage.id}
+                  className="flex items-center gap-3 transition-colors duration-200"
+                >
+                  {/* Status Indicator */}
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    {isCompleted ? (
+                      <div className="w-4 h-4 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
+                        <Check className="w-2.5 h-2.5 stroke-[2.8]" />
+                      </div>
+                    ) : isActive ? (
+                      <div className="w-4 h-4 rounded-full bg-[#3B82F6]/15 border border-[#3B82F6]/40 flex items-center justify-center relative">
+                        {!shouldReduceMotion && (
+                          <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-[#3B82F6] opacity-40" />
+                        )}
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#3B82F6]" />
+                      </div>
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border border-[#263044] bg-transparent" />
+                    )}
+                  </div>
+
+                  {/* Stage Label */}
+                  <span
+                    className={`text-xs sm:text-sm tracking-wide transition-colors duration-200 ${
+                      isCompleted
+                        ? "text-[#94A3B8] font-medium"
+                        : isActive
+                        ? "text-[#F1F5F9] font-semibold"
+                        : "text-slate-500 font-normal"
+                    }`}
                   >
-                    {SCAN_FOCUS_MESSAGES[focusIndex]}
-                  </motion.p>
-                </AnimatePresence>
-              </div>
-            </div>
-          )}
-        </div>
+                    {stage.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
 
-        {/* Existing error & retry behavior preserved when backendError occurs */}
+        {/* ERROR STATE: Matches dark theme and clean button controls */}
         <AnimatePresence>
           {hasError && (
             <motion.div
@@ -380,19 +451,21 @@ export default function ScanScreen({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 4 }}
               transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
-              className="w-full mt-5 pt-4 border-t border-rose-100"
+              className="w-full mt-2"
             >
-              <div className="p-3 bg-rose-50/70 border border-rose-200/80 rounded-xl mb-3.5 text-left">
-                <p className="text-xs text-rose-700 leading-relaxed font-medium">
+              <div className="p-4 bg-[#121824] border border-rose-900/50 rounded-xl mb-4 text-left shadow-lg">
+                <p className="text-xs font-semibold tracking-wider text-rose-400 uppercase mb-1">
+                  CHECK FAILED
+                </p>
+                <p className="text-xs text-rose-200/90 leading-relaxed font-normal">
                   {safeErrorMessage}
                 </p>
               </div>
-
-              <div className="flex flex-wrap items-center justify-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2.5">
                 <button
                   type="button"
                   onClick={handleRetryAction}
-                  className="flex-1 min-w-[120px] rounded-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white font-semibold text-xs py-2.5 px-4 transition-all inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
+                  className="flex-1 min-w-[120px] rounded-full bg-[#3B82F6] hover:bg-blue-600 active:scale-[0.98] text-white font-semibold text-xs py-2.5 px-4 transition-all inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]"
                 >
                   <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                   <span>Try again</span>
@@ -400,7 +473,7 @@ export default function ScanScreen({
                 <button
                   type="button"
                   onClick={onBackToLanding}
-                  className="rounded-full bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium text-xs py-2.5 px-4 transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  className="rounded-full bg-[#121824] hover:bg-[#1A2333] border border-[#263044] text-[#F1F5F9] font-medium text-xs py-2.5 px-4 transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                 >
                   <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
                   <span>Change URL</span>
@@ -411,10 +484,12 @@ export default function ScanScreen({
         </AnimatePresence>
       </main>
 
-      {/* Balanced bottom spacer to maintain optical vertical centering across mobile & desktop */}
-      <div className="h-6 sm:h-10 shrink-0" aria-hidden="true" />
+      {/* 3. BOTTOM: The 5 clarity pillars */}
+      <footer className="w-full py-6 px-4 text-center shrink-0">
+        <p className="text-xs sm:text-[13px] text-[#94A3B8]/80 font-normal tracking-wide">
+          First Impression · Audience · Value · Trust · Action
+        </p>
+      </footer>
     </div>
   );
 }
-
-

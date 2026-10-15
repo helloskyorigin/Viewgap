@@ -1070,7 +1070,7 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     assert.ok(landingHtml.includes('aria-controls="faq-answer-0"'));
   });
 
-  test("TEST 20: Phase 1 Scanning Screen Implementation — Minimal centered UI structure, actual domain display, Cancel header action, and no fake stages or percentages", () => {
+  test("TEST 20: Final Premium Dark Scanning Screen Implementation — Minimal centered UI, 3-ring animated lens, actual domain display, 4 real stages, and 5 clarity pillars", () => {
     const scanHtml = renderToStaticMarkup(
       React.createElement(ScanScreen, {
         rawUrl: "https://www.areyourare.ai.studio/pricing?ref=test",
@@ -1085,28 +1085,37 @@ describe("Accuracy & Reliability — Phase 1 & Phase 2 Regression Suite", () => 
     assert.ok(scanHtml.includes("StrangerLens"));
     assert.ok(scanHtml.includes("Cancel"));
 
-    // Heading, Description, Domain, Progress line, and rotating Focus Message
-    assert.ok(scanHtml.includes("Analyzing your website"));
-    assert.ok(
-      scanHtml.includes(
-        "Checking how clearly your website communicates its purpose, value, and next steps."
-      )
-    );
+    // Title: Looking at your website with fresh eyes.
+    assert.ok(scanHtml.includes("Looking at your"));
+    assert.ok(scanHtml.includes("website with fresh eyes."));
+
+    // Actual domain displayed
     assert.ok(scanHtml.includes("areyourare.ai.studio"));
+
+    // Animated lens & progress bar
     assert.ok(scanHtml.includes('role="progressbar"'));
     assert.ok(scanHtml.includes("Analysis in progress"));
-    assert.ok(scanHtml.includes("Understanding your website&#x27;s message"));
-    assert.ok(scanHtml.includes("w-[100px] h-[100px] sm:w-[116px] sm:h-[116px]"));
-    assert.deepEqual(SCAN_FOCUS_MESSAGES, [
-      "Understanding your website's message",
-      "Evaluating clarity and value",
-      "Reviewing trust and next steps",
-      "Connecting findings to page evidence",
-    ]);
+    assert.ok(scanHtml.includes("w-[150px] h-[150px] sm:w-[180px] sm:h-[180px]"));
 
-    // Desktop max-width 520px centered container & no old simulated step cards or percentages
+    // 4 Real Scanning stages
+    assert.ok(scanHtml.includes("Website connected"));
+    assert.ok(scanHtml.includes("Website content read"));
+    assert.ok(scanHtml.includes("Evaluating clarity"));
+    assert.ok(scanHtml.includes("Preparing results"));
+
+    // Bottom 5 Clarity Pillars
+    assert.ok(scanHtml.includes("First Impression · Audience · Value · Trust · Action"));
+
+    // Dark theme classes
+    assert.ok(scanHtml.includes("#090D15"));
+    assert.ok(scanHtml.includes("#121824"));
+    assert.ok(scanHtml.includes("#263044"));
+    assert.ok(scanHtml.includes("#F1F5F9"));
+    assert.ok(scanHtml.includes("#94A3B8"));
+    assert.ok(scanHtml.includes("#3B82F6"));
+
+    // No old simulated percentages or fake terminal logs
     const visibleText = scanHtml.replace(/<[^>]+>/g, " ");
-    assert.ok(scanHtml.includes("max-w-[520px]"));
     assert.ok(!visibleText.includes("LIVE ACTIVITY"));
     assert.ok(!visibleText.includes("1/3"));
     assert.ok(!visibleText.includes("2/3"));
