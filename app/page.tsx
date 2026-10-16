@@ -17,6 +17,7 @@ import {
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import ScanScreen from "@/components/ScanScreen";
 import ResultsScreen from "@/components/ResultsScreen";
+import { useReportPayments } from "@/hooks/useReportPayments";
 import { validateClientUrl } from "@/lib/url-client-validator";
 import { createScanFlowController } from "@/lib/scan-flow-controller";
 import {
@@ -29,9 +30,6 @@ import {
 import { LEGAL_CONFIG } from "@/lib/legal-config";
 
 const BRAND_NAME = "StrangerLens";
-
-// Controlled by actual payment availability; remains false until verified Paddle checkout is live
-const IS_CHECKOUT_ENABLED = process.env.NEXT_PUBLIC_ENABLE_CHECKOUT === "true";
 
 interface PricingPlan {
   id: string;
@@ -73,8 +71,8 @@ const PRICING_PLANS: PricingPlan[] = [
     id: "complete",
     name: "Unlock Your Full Analysis",
     price: 5,
-    paymentLabel: IS_CHECKOUT_ENABLED ? "ONE-TIME · TEST MODE" : "ONE-TIME · COMING SOON",
-    badge: IS_CHECKOUT_ENABLED ? null : "EARLY ACCESS",
+    paymentLabel: "ONE-TIME",
+    badge: "FULL ANALYSIS",
     positioning: "Actionable clarity & diagnostics.",
     description: "Go beyond your clarity scores. Discover what's working, what's unclear, and how to improve your website.",
     features: [
@@ -83,8 +81,8 @@ const PRICING_PLANS: PricingPlan[] = [
       "Actionable Improvements",
       "First 5 Seconds (Understand vs Miss)",
     ],
-    cta: IS_CHECKOUT_ENABLED ? "Unlock Full Analysis — $5" : "Join Early Access",
-    disabledCta: IS_CHECKOUT_ENABLED ? "Unlock Full Analysis — $5" : "Join Early Access",
+    cta: "Check Your Website First",
+    disabledCta: "Check Your Website First",
     popular: true,
     isPaid: true,
   },
@@ -118,9 +116,9 @@ const FAQ_ITEMS = [
       "The Free Preview ($0) gives you your Overall Website Clarity Score, five Clarity Signal Scores (First Impression, Audience, Value, Trust, Action), and five Signal Statuses with zero signup or credit card required.",
   },
   {
-    question: "What will Full Analysis cost?",
+    question: "What does Full Analysis cost?",
     answer:
-      "Full Analysis will be a simple $5 one-time payment when it launches (Coming Soon — no subscriptions or recurring fees). It will unlock detailed analysis for all five signals, What's Working & What's Unclear, Actionable Improvements, and the First 5 Seconds breakdown. You can join Early Access today to be notified the moment it launches.",
+      "Full Analysis costs $5 per report, paid once with no subscription. Run a free preview first, then unlock detailed signal diagnostics, actionable improvements, and the First 5 Seconds breakdown. Checkout availability is shown on your report.",
   },
   {
     question: "Do I need to create an account?",
@@ -186,6 +184,8 @@ export default function LandingPage() {
     })
   );
 
+  const payments = useReportPayments(analysisData, scanController);
+
   function scrollToInput() {
     if (activeInfoModal) setActiveInfoModal(null);
     if (mobileMenuOpen) setMobileMenuOpen(false);
@@ -204,65 +204,6 @@ export default function LandingPage() {
       }
     }, wasNotOnLanding ? 180 : 60);
   }
-
-  // Early Access Waitlist States for Landing Page
-  const [earlyEmail, setEarlyEmail] = useState("");
-  const [earlyStatus, setEarlyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [earlyErrorMessage, setEarlyErrorMessage] = useState<string | null>(null);
-  const [isEarlySuccessModalOpen, setIsEarlySuccessModalOpen] = useState(false);
-  const earlyGotItButtonRef = useRef<HTMLButtonElement>(null);
-  const earlyCloseButtonRef = useRef<HTMLButtonElement>(null);
-  const earlyModalCardRef = useRef<HTMLDivElement>(null);
-  const earlyPreviousActiveElement = useRef<HTMLElement | null>(null);
-
-  function scrollToEarlyAccess() {
-    if (activeInfoModal) setActiveInfoModal(null);
-    if (mobileMenuOpen) setMobileMenuOpen(false);
-    setTimeout(() => {
-      const el = document.getElementById("early-access");
-      if (el) {
-        el.scrollIntoView({
-          behavior: shouldReduceMotion ? "auto" : "smooth",
-          block: "center",
-        });
-        const inputEl = document.getElementById("early-access-landing-email") as HTMLInputElement | null;
-        if (inputEl) {
-          inputEl.focus();
-        }
-      }
-    }, 100);
-  }
-
-  const handleEarlyAccessSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (earlyStatus === "loading") return;
-    const trimmed = earlyEmail.trim();
-    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setEarlyErrorMessage("Please enter a valid email address.");
-      setEarlyStatus("error");
-      return;
-    }
-    setEarlyStatus("loading");
-    setEarlyErrorMessage(null);
-    try {
-      const res = await fetch("/api/early-access", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.success) {
-        setEarlyStatus("success");
-        setIsEarlySuccessModalOpen(true);
-      } else {
-        setEarlyStatus("error");
-        setEarlyErrorMessage(data?.message || "Failed to submit. Please try again.");
-      }
-    } catch {
-      setEarlyStatus("error");
-      setEarlyErrorMessage("Network error. Please check your connection and try again.");
-    }
-  };
 
   // Handle Browser Back / Forward and popstate events without unintended rescanning
   useEffect(() => {
@@ -398,58 +339,15 @@ export default function LandingPage() {
     }
   };
 
-  // Escape key handling for mobile menu, info modals, and Early Access modal
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (isEarlySuccessModalOpen) {
-          setIsEarlySuccessModalOpen(false);
-          return;
-        }
-        if (mobileMenuOpen) {
-          setMobileMenuOpen(false);
-          hamburgerButtonRef.current?.focus();
-        }
-        if (activeInfoModal) {
-          setActiveInfoModal(null);
-        }
-      } else if (e.key === "Tab" && isEarlySuccessModalOpen) {
-        const focusable = earlyModalCardRef.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
-        if (!focusable || focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (activeInfoModal) setActiveInfoModal(null);
+      else if (mobileMenuOpen) { setMobileMenuOpen(false); hamburgerButtonRef.current?.focus(); }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mobileMenuOpen, activeInfoModal, isEarlySuccessModalOpen]);
-
-  // Focus management for Early Access modal
-  useEffect(() => {
-    if (isEarlySuccessModalOpen) {
-      earlyPreviousActiveElement.current = document.activeElement as HTMLElement;
-      const timer = setTimeout(() => {
-        earlyGotItButtonRef.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
-    } else if (earlyPreviousActiveElement.current) {
-      earlyPreviousActiveElement.current.focus?.();
-      earlyPreviousActiveElement.current = null;
-    }
-  }, [isEarlySuccessModalOpen]);
+  }, [mobileMenuOpen, activeInfoModal]);
 
   // Close mobile overlay automatically on desktop resize
   useEffect(() => {
@@ -464,17 +362,18 @@ export default function LandingPage() {
 
   // Prevent background scrolling when mobile menu or modal is open
   useEffect(() => {
-    if (mobileMenuOpen || activeInfoModal || isEarlySuccessModalOpen) {
+    if (mobileMenuOpen || activeInfoModal) {
       const originalOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
       return () => {
         document.body.style.overflow = originalOverflow;
       };
     }
-  }, [mobileMenuOpen, activeInfoModal, isEarlySuccessModalOpen]);
+  }, [mobileMenuOpen, activeInfoModal]);
 
   const handleAnalyze = async (e?: React.FormEvent, overrideUrl?: string) => {
     if (e) e.preventDefault();
+    payments.cancelPaymentFlow();
     if (typeof window !== "undefined") {
       window.history.pushState({ strangerLens: true, view: "scan" }, "");
     }
@@ -489,6 +388,10 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#090D15] text-[#F1F5F9] font-sans antialiased selection:bg-[#3B82F6]/30 selection:text-white flex flex-col overflow-x-hidden">
+      {currentView !== "results" && payments.paymentMessage && <div role="status" className="mx-auto my-4 w-full max-w-3xl rounded-xl border border-[#263044] bg-[#121824] p-4 text-sm">
+        <p>{payments.paymentMessage}</p>
+        {["pending", "error"].includes(payments.paymentState) && <button className="mt-2 text-blue-400 underline" onClick={() => payments.verifyPayment(new URLSearchParams(window.location.search).get("reportId") || undefined, new URLSearchParams(window.location.search).get("orderId") || undefined)}>Check payment status</button>}
+      </div>}
       <AnimatePresence mode="wait">
         {currentView === "landing" ? (
           <motion.div
@@ -957,7 +860,7 @@ export default function LandingPage() {
                     <div className="rounded-2xl bg-[#171F2D] border border-[#263044] p-3 sm:p-3.5 space-y-2 text-xs">
                       <div className="flex items-center justify-between font-semibold border-b border-[#263044] pb-2 text-[11px] sm:text-xs">
                         <span className="text-[#94A3B8]">Full Analysis Sections</span>
-                        <span className="text-[#3B82F6] font-bold">Coming Soon · $5 One-Time</span>
+                        <span className="text-[#3B82F6] font-bold">$5 One-Time</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 pt-0.5 text-[11px] sm:text-xs text-[#F1F5F9]">
                         <div className="bg-[#121824] border border-[#263044] rounded-lg p-2 sm:p-2.5">
@@ -1051,7 +954,7 @@ export default function LandingPage() {
                           Explore the details
                         </h3>
                         <p className="text-sm text-[#94A3B8] leading-relaxed">
-                          Unlock deep signal analyses, improvements, and First 5 Seconds when Full Analysis launches ($5 one-time · Coming Soon).
+                          Unlock deep signal analyses, improvements, and First 5 Seconds with Full Analysis ($5 one-time).
                         </p>
                       </div>
                     </div>
@@ -1153,7 +1056,7 @@ export default function LandingPage() {
                   </Reveal>
                   <Reveal y={14} delay={0.12}>
                     <p className="text-[15px] sm:text-lg text-[#94A3B8] max-w-2xl mx-auto leading-relaxed font-normal">
-                      Start with a free clarity preview today. Full Analysis launches soon with a $5 one-time payment — no subscriptions.
+                      Start with a free clarity preview today. Full Analysis is a $5 one-time payment — no subscriptions.
                     </p>
                   </Reveal>
                 </div>
@@ -1214,160 +1117,20 @@ export default function LandingPage() {
                     </div>
                   </StaggerItem>
 
-                  {/* CARD 2: EARLY ACCESS / FULL ANALYSIS */}
-                  {/* CARD 2: EARLY ACCESS / FULL ANALYSIS */}
                   <StaggerItem y={20} className="h-full">
-                    <div
-                      id="early-access"
-                      className={`h-full rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 relative bg-[#121824] border-2 ${
-                        IS_CHECKOUT_ENABLED ? "border-amber-500/50" : "border-[#3B82F6]"
-                      } shadow-[0_0_40px_rgba(36,107,253,0.18)] md:-translate-y-1.5 md:hover:-translate-y-2`}
-                    >
-                      {IS_CHECKOUT_ENABLED ? (
-                        <div className="flex flex-col h-full justify-between text-center">
-                          <div className="absolute -top-3.5 left-6 right-6 flex items-center justify-between gap-2 pointer-events-none">
-                            <span className="text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm whitespace-nowrap bg-amber-500 text-black">
-                              TEST MODE
-                            </span>
-                          </div>
-                          <div>
-                            <h3 className="font-extrabold text-white text-xl tracking-tight mb-2">
-                              Unlock Your Full Analysis
-                            </h3>
-                            <div className="flex items-baseline justify-center gap-2 mb-2 pb-3 border-b border-[#263044] tabular-nums">
-                              <span className="text-4xl sm:text-[42px] font-extrabold text-white tracking-tight leading-none">
-                                $5
-                              </span>
-                              <span className="text-xs sm:text-sm font-semibold text-[#94A3B8]">
-                                one-time payment
-                              </span>
-                            </div>
-                            <p className="text-xs sm:text-[13px] text-[#94A3B8] leading-relaxed mb-4">
-                              Unlock actionable clarity & diagnostics in test mode.
-                            </p>
-                          </div>
-                          <div className="space-y-3">
-                            <button
-                              onClick={() => {
-                                scanController.navigateToLanding();
-                                scrollToInput();
-                              }}
-                              className="w-full min-h-[44px] py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md shadow-emerald-500/20"
-                            >
-                              Check Your Website First →
-                            </button>
-                            <p className="text-[10px] text-rose-400 font-medium">
-                              Test Mode — No real money charged.
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="absolute -top-3.5 left-6 right-6 flex items-center justify-between gap-2 pointer-events-none">
-                            <span className="text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm whitespace-nowrap bg-[#246BFD] text-white">
-                              EARLY ACCESS
-                            </span>
-                          </div>
-
-                          <div>
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <h3 className="font-extrabold text-white text-xl tracking-tight">
-                                Unlock Your Full Analysis
-                              </h3>
-                            </div>
-
-                            <div className="flex items-baseline gap-2 mb-2 pb-3 border-b border-[#263044] tabular-nums">
-                              <span className="text-4xl sm:text-[42px] font-extrabold text-white tracking-tight leading-none">
-                                $5
-                              </span>
-                              <span className="text-xs sm:text-sm font-semibold text-[#94A3B8]">
-                                one-time · Coming Soon
-                              </span>
-                            </div>
-
-                            <p className="text-xs sm:text-[13px] text-[#94A3B8] leading-relaxed mb-4">
-                              Go beyond your clarity scores. Discover what&apos;s working, what&apos;s unclear, and how to improve your website.
-                            </p>
-
-                            <div className="mb-5">
-                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#64748B] block mb-2.5">
-                                Coming with Full Analysis:
-                              </span>
-                              <ul className="space-y-2 text-xs sm:text-sm text-[#F1F5F9]">
-                                {[
-                                  "Detailed Signal Diagnostics",
-                                  "What's Working & What's Unclear",
-                                  "Actionable Improvements",
-                                  "First 5 Seconds (Understand vs Miss)",
-                                ].map((feat, i) => (
-                                  <li key={i} className="flex items-start gap-2.5">
-                                    <Check className="w-4 h-4 shrink-0 mt-0.5 text-[#3B82F6]" />
-                                    <span className="leading-snug">{feat}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-
-                          <div>
-                            {earlyStatus === "success" ? (
-                              <div className="bg-[#171F2D] border border-emerald-500/30 rounded-2xl p-4 text-center space-y-1.5 my-2">
-                                <div className="w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto mb-1 font-bold text-sm">
-                                  ✓
-                                </div>
-                                <h4 className="text-sm font-bold text-white">You&apos;re on the list! 🎉</h4>
-                                <p className="text-xs text-[#94A3B8]">
-                                  We&apos;ll email you when Full Analysis becomes available.
-                                </p>
-                              </div>
-                            ) : (
-                              <form onSubmit={handleEarlyAccessSubmit} className="space-y-2.5">
-                                <div>
-                                  <label htmlFor="early-access-landing-email" className="sr-only">
-                                    Enter your email address
-                                  </label>
-                                  <input
-                                    id="early-access-landing-email"
-                                    type="email"
-                                    value={earlyEmail}
-                                    onChange={(e) => {
-                                      setEarlyEmail(e.target.value);
-                                      if (earlyStatus === "error") setEarlyStatus("idle");
-                                    }}
-                                    placeholder="Enter your email address"
-                                    required
-                                    className="w-full bg-[#171F2D] border border-[#263044] focus:border-[#3B82F6] text-white placeholder:text-[#64748B] text-xs sm:text-sm rounded-xl px-3.5 py-2.5 outline-none transition-all shadow-xs"
-                                  />
-                                </div>
-                                {earlyStatus === "error" && earlyErrorMessage && (
-                                  <p className="text-xs text-rose-400 text-left font-medium px-1">
-                                    {earlyErrorMessage}
-                                  </p>
-                                )}
-                                <button
-                                  type="submit"
-                                  disabled={earlyStatus === "loading"}
-                                  className="w-full min-h-[44px] py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60 text-white shadow-md shadow-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
-                                >
-                                  <span>{earlyStatus === "loading" ? "Joining..." : "Join Early Access"} →</span>
-                                </button>
-                              </form>
-                            )}
-
-                            <p className="text-[11px] sm:text-xs text-[#94A3B8] mt-3 leading-relaxed text-left sm:text-center">
-                              No payment required today. We&apos;ll notify you when Full Analysis launches.
-                              <br />
-                              <span className="block mt-1 text-[11px] text-slate-500">
-                                Submitted email addresses are stored securely and used solely to notify you when StrangerLens Full Analysis launches. Waitlist emails are received and retained in the operator&apos;s Gmail inbox. To request removal, contact hello.skyorigin@gmail.com. Review our{" "}
-                                <Link href="/privacy" className="text-[#3B82F6] hover:underline font-medium">
-                                  Privacy Policy
-                                </Link>
-                                .
-                              </span>
-                            </p>
-                          </div>
-                        </>
-                      )}
+                    <div className="h-full rounded-3xl p-6 sm:p-7 flex flex-col justify-between bg-[#121824] border-2 border-[#3B82F6] shadow-lg">
+                      <div>
+                        <h3 className="font-extrabold text-white text-xl mb-2">Full Analysis</h3>
+                        <p className="text-4xl font-extrabold text-white mb-2">$5 <span className="text-sm font-normal text-[#94A3B8]">one-time</span></p>
+                        <p className="text-sm text-[#94A3B8] mb-5">Know what to change, why it matters, and how to make your website clearer.</p>
+                        <ul className="space-y-3 text-sm text-[#F1F5F9] mb-6">
+                          {PRICING_PLANS[1].features.map(feature => <li key={feature} className="flex gap-2"><Check className="w-4 h-4 shrink-0 text-blue-400" />{feature}</li>)}
+                        </ul>
+                      </div>
+                      <div>
+                        <button type="button" onClick={scrollToInput} className="w-full rounded-full bg-[#246BFD] hover:bg-blue-600 text-white font-semibold py-3 px-4">Check Your Website First →</button>
+                        <p className="mt-3 text-xs text-[#94A3B8]">Start with a free preview. Unlock that report when you are ready.</p>
+                      </div>
                     </div>
                   </StaggerItem>
                 </StaggerContainer>
@@ -1613,6 +1376,13 @@ export default function LandingPage() {
             <ResultsScreen
               rawUrl={submittedUrl}
               analysisData={analysisData || undefined}
+              isUnlocked={Boolean(analysisData?.reportId && payments.unlockedReportId === analysisData.reportId)}
+              checkoutEnabled={payments.checkoutEnabled}
+              paymentEnvironment={payments.environment}
+              paymentState={payments.paymentReportId === analysisData?.reportId ? payments.paymentState : "idle"}
+              paymentMessage={payments.paymentReportId === analysisData?.reportId ? payments.paymentMessage : null}
+              onVerifyPayment={() => payments.verifyPayment()}
+              onRefreshPaidReport={payments.refreshPaidReport}
               onBackToLanding={() => {
                 // Logo/Home navigation: return to landing page without scanning
                 scanController.navigateToLanding();
@@ -1625,6 +1395,7 @@ export default function LandingPage() {
                 });
               }}
               onRunNewCheck={() => {
+                payments.cancelPaymentFlow();
                 // New Check: navigate to clean URL input screen, NEVER start scanning
                 clearPersistedReportSession();
                 scanController.resetToLanding(true);
@@ -1769,7 +1540,7 @@ export default function LandingPage() {
                     Simple, Transparent Pricing
                   </h3>
                   <p className="text-xs sm:text-sm text-[#94A3B8] mt-0.5">
-                    Start with a free first-impression preview today. Full Analysis launches soon for $5 one-time.
+                    Start with a free first-impression preview today. Full Analysis costs $5 per report, paid once.
                   </p>
                 </div>
                 <button
@@ -1834,7 +1605,7 @@ export default function LandingPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={plan.id === "complete" ? scrollToEarlyAccess : scrollToInput}
+                        onClick={scrollToInput}
                         className={`group w-full py-2.5 px-4 rounded-full text-xs font-semibold transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer ${
                           plan.popular || !plan.isPaid
                             ? "bg-[#246BFD] hover:bg-blue-600 text-white shadow-md shadow-blue-500/20"
@@ -1842,7 +1613,7 @@ export default function LandingPage() {
                         }`}
                       >
                         <span>
-                          {plan.id === "complete" ? "Join Early Access →" : `${plan.cta} →`}
+                          {`${plan.cta} →`}
                         </span>
                       </button>
                     </div>
@@ -1877,127 +1648,6 @@ export default function LandingPage() {
         )}
       </AnimatePresence>
 
-      {/* EARLY ACCESS THANK YOU MODAL */}
-      <AnimatePresence>
-        {isEarlySuccessModalOpen && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="landing-early-access-success-title"
-            aria-describedby="landing-early-access-success-desc"
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
-          >
-            {/* Dark Blurred Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: shouldReduceMotion ? 0.05 : 0.2 }}
-              onClick={() => setIsEarlySuccessModalOpen(false)}
-              className="fixed inset-0 bg-black/80 backdrop-blur-md"
-            />
-
-            {/* Modal Card Surface with Subtle Blue Glow */}
-            <motion.div
-              ref={earlyModalCardRef}
-              initial={
-                shouldReduceMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, scale: 0.95, y: 8 }
-              }
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={
-                shouldReduceMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, scale: 0.96, y: 6 }
-              }
-              transition={{
-                duration: shouldReduceMotion ? 0.05 : 0.25,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative z-10 w-full max-w-md bg-[#121824] border border-[#263044] rounded-3xl p-6 sm:p-8 text-center shadow-[0_0_50px_-10px_rgba(36,107,253,0.3)] overflow-hidden"
-            >
-              {/* Subtle ambient blue glow */}
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-48 bg-[#246BFD]/12 rounded-full blur-3xl pointer-events-none" />
-
-              {/* Close (×) Button */}
-              <button
-                ref={earlyCloseButtonRef}
-                type="button"
-                onClick={() => setIsEarlySuccessModalOpen(false)}
-                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#171F2D] hover:bg-[#1E293B] border border-[#263044] text-[#94A3B8] hover:text-white flex items-center justify-center transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD]"
-                aria-label="Close dialog"
-              >
-                <X className="w-4 h-4" />
-              </button>
-
-              {/* Animated Success Checkmark */}
-              <motion.div
-                initial={shouldReduceMotion ? false : { scale: 0.6, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 380,
-                  damping: 22,
-                  delay: 0.08,
-                }}
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/10"
-              >
-                <svg
-                  className="w-7 h-7 sm:w-8 sm:h-8"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.8}
-                >
-                  <motion.path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M5 13l4 4L19 7"
-                    initial={shouldReduceMotion ? false : { pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{
-                      duration: shouldReduceMotion ? 0.05 : 0.35,
-                      delay: 0.15,
-                      ease: "easeOut",
-                    }}
-                  />
-                </svg>
-              </motion.div>
-
-              {/* Heading */}
-              <h3
-                id="landing-early-access-success-title"
-                className="text-xl sm:text-2xl font-extrabold text-white mb-2 tracking-tight"
-              >
-                You&apos;re on the list! 🎉
-              </h3>
-
-              {/* Description */}
-              <div
-                id="landing-early-access-success-desc"
-                className="space-y-1 mb-6 text-sm sm:text-base text-[#94A3B8] leading-relaxed"
-              >
-                <p>Thanks for joining StrangerLens Early Access.</p>
-                <p className="text-xs sm:text-sm text-[#64748B]">
-                  We&apos;ll email you when Full Analysis becomes available.
-                </p>
-              </div>
-
-              {/* Primary Action Button */}
-              <button
-                ref={earlyGotItButtonRef}
-                type="button"
-                onClick={() => setIsEarlySuccessModalOpen(false)}
-                className="w-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] text-white font-semibold py-3 px-6 rounded-full text-sm transition-all shadow-md shadow-blue-500/25 cursor-pointer inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2 focus-visible:ring-offset-[#121824]"
-              >
-                <span>Got it →</span>
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
