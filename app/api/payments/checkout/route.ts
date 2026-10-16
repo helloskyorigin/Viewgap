@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         product_id: process.env.DODO_PRODUCT_ID,
+        environment: process.env.DODO_ENVIRONMENT || "test_mode",
         quantity: 1,
         metadata: {
           reportId,

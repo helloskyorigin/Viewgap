@@ -31,7 +31,7 @@ import { LEGAL_CONFIG } from "@/lib/legal-config";
 const BRAND_NAME = "StrangerLens";
 
 // Controlled by actual payment availability; remains false until verified Paddle checkout is live
-const IS_CHECKOUT_ENABLED = false;
+const IS_CHECKOUT_ENABLED = process.env.NEXT_PUBLIC_ENABLE_CHECKOUT === "true";
 
 interface PricingPlan {
   id: string;
@@ -73,8 +73,8 @@ const PRICING_PLANS: PricingPlan[] = [
     id: "complete",
     name: "Unlock Your Full Analysis",
     price: 5,
-    paymentLabel: "ONE-TIME · COMING SOON",
-    badge: "EARLY ACCESS",
+    paymentLabel: IS_CHECKOUT_ENABLED ? "ONE-TIME · TEST MODE" : "ONE-TIME · COMING SOON",
+    badge: IS_CHECKOUT_ENABLED ? null : "EARLY ACCESS",
     positioning: "Actionable clarity & diagnostics.",
     description: "Go beyond your clarity scores. Discover what's working, what's unclear, and how to improve your website.",
     features: [
@@ -83,8 +83,8 @@ const PRICING_PLANS: PricingPlan[] = [
       "Actionable Improvements",
       "First 5 Seconds (Understand vs Miss)",
     ],
-    cta: "Join Early Access",
-    disabledCta: "Join Early Access",
+    cta: IS_CHECKOUT_ENABLED ? "Unlock Full Analysis — $5" : "Join Early Access",
+    disabledCta: IS_CHECKOUT_ENABLED ? "Unlock Full Analysis — $5" : "Join Early Access",
     popular: true,
     isPaid: true,
   },
@@ -1215,114 +1215,164 @@ export default function LandingPage() {
                   </StaggerItem>
 
                   {/* CARD 2: EARLY ACCESS / FULL ANALYSIS */}
+                  {/* CARD 2: EARLY ACCESS / FULL ANALYSIS */}
                   <StaggerItem y={20} className="h-full">
                     <div
                       id="early-access"
-                      className="h-full rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 relative bg-[#121824] border-2 border-[#3B82F6] shadow-[0_0_40px_rgba(36,107,253,0.18)] md:-translate-y-1.5 md:hover:-translate-y-2"
+                      className={`h-full rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 relative bg-[#121824] border-2 ${
+                        IS_CHECKOUT_ENABLED ? "border-amber-500/50" : "border-[#3B82F6]"
+                      } shadow-[0_0_40px_rgba(36,107,253,0.18)] md:-translate-y-1.5 md:hover:-translate-y-2`}
                     >
-                      <div className="absolute -top-3.5 left-6 right-6 flex items-center justify-between gap-2 pointer-events-none">
-                        <span className="text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm whitespace-nowrap bg-[#246BFD] text-white">
-                          EARLY ACCESS
-                        </span>
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <h3 className="font-extrabold text-white text-xl tracking-tight">
-                            Unlock Your Full Analysis
-                          </h3>
-                        </div>
-
-                        <div className="flex items-baseline gap-2 mb-2 pb-3 border-b border-[#263044] tabular-nums">
-                          <span className="text-4xl sm:text-[42px] font-extrabold text-white tracking-tight leading-none">
-                            $5
-                          </span>
-                          <span className="text-xs sm:text-sm font-semibold text-[#94A3B8]">
-                            one-time · Coming Soon
-                          </span>
-                        </div>
-
-                        <p className="text-xs sm:text-[13px] text-[#94A3B8] leading-relaxed mb-4">
-                          Go beyond your clarity scores. Discover what&apos;s working, what&apos;s unclear, and how to improve your website.
-                        </p>
-
-                        <div className="mb-5">
-                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#64748B] block mb-2.5">
-                            Coming with Full Analysis:
-                          </span>
-                          <ul className="space-y-2 text-xs sm:text-sm text-[#F1F5F9]">
-                            {[
-                              "Detailed Signal Diagnostics",
-                              "What's Working & What's Unclear",
-                              "Actionable Improvements",
-                              "First 5 Seconds (Understand vs Miss)",
-                            ].map((feat, i) => (
-                              <li key={i} className="flex items-start gap-2.5">
-                                <Check className="w-4 h-4 shrink-0 mt-0.5 text-[#3B82F6]" />
-                                <span className="leading-snug">{feat}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-
-                      <div>
-                        {earlyStatus === "success" ? (
-                          <div className="bg-[#171F2D] border border-emerald-500/30 rounded-2xl p-4 text-center space-y-1.5 my-2">
-                            <div className="w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto mb-1 font-bold text-sm">
-                              ✓
+                      {IS_CHECKOUT_ENABLED ? (
+                        <div className="flex flex-col h-full justify-between text-center">
+                          <div className="absolute -top-3.5 left-6 right-6 flex items-center justify-between gap-2 pointer-events-none">
+                            <span className="text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm whitespace-nowrap bg-amber-500 text-black">
+                              TEST MODE
+                            </span>
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-white text-xl tracking-tight mb-2">
+                              Unlock Your Full Analysis
+                            </h3>
+                            <div className="flex items-baseline justify-center gap-2 mb-2 pb-3 border-b border-[#263044] tabular-nums">
+                              <span className="text-4xl sm:text-[42px] font-extrabold text-white tracking-tight leading-none">
+                                $5
+                              </span>
+                              <span className="text-xs sm:text-sm font-semibold text-[#94A3B8]">
+                                one-time payment
+                              </span>
                             </div>
-                            <h4 className="text-sm font-bold text-white">You&apos;re on the list! 🎉</h4>
-                            <p className="text-xs text-[#94A3B8]">
-                              We&apos;ll email you when Full Analysis becomes available.
+                            <p className="text-xs sm:text-[13px] text-[#94A3B8] leading-relaxed mb-4">
+                              Unlock actionable clarity & diagnostics in test mode.
                             </p>
                           </div>
-                        ) : (
-                          <form onSubmit={handleEarlyAccessSubmit} className="space-y-2.5">
-                            <div>
-                              <label htmlFor="early-access-landing-email" className="sr-only">
-                                Enter your email address
-                              </label>
-                              <input
-                                id="early-access-landing-email"
-                                type="email"
-                                value={earlyEmail}
-                                onChange={(e) => {
-                                  setEarlyEmail(e.target.value);
-                                  if (earlyStatus === "error") setEarlyStatus("idle");
-                                }}
-                                placeholder="Enter your email address"
-                                required
-                                className="w-full bg-[#171F2D] border border-[#263044] focus:border-[#3B82F6] text-white placeholder:text-[#64748B] text-xs sm:text-sm rounded-xl px-3.5 py-2.5 outline-none transition-all shadow-xs"
-                              />
-                            </div>
-                            {earlyStatus === "error" && earlyErrorMessage && (
-                              <p className="text-xs text-rose-400 text-left font-medium px-1">
-                                {earlyErrorMessage}
-                              </p>
-                            )}
+                          <div className="space-y-3">
                             <button
-                              type="submit"
-                              disabled={earlyStatus === "loading"}
-                              className="w-full min-h-[44px] py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60 text-white shadow-md shadow-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
+                              onClick={async () => {
+                                const res = await fetch("/api/payments/checkout", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ reportId: "test-report-id" }),
+                                });
+                                const { checkoutUrl } = await res.json();
+                                window.location.href = checkoutUrl;
+                              }}
+                              className="w-full min-h-[44px] py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md shadow-emerald-500/20"
                             >
-                              <span>{earlyStatus === "loading" ? "Joining..." : "Join Early Access"} →</span>
+                              Unlock Full Analysis — $5
                             </button>
-                          </form>
-                        )}
+                            <p className="text-[10px] text-rose-400 font-medium">
+                              Test Mode — No real money charged.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="absolute -top-3.5 left-6 right-6 flex items-center justify-between gap-2 pointer-events-none">
+                            <span className="text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm whitespace-nowrap bg-[#246BFD] text-white">
+                              EARLY ACCESS
+                            </span>
+                          </div>
 
-                        <p className="text-[11px] sm:text-xs text-[#94A3B8] mt-3 leading-relaxed text-left sm:text-center">
-                          No payment required today. We&apos;ll notify you when Full Analysis launches.
-                          <br />
-                          <span className="block mt-1 text-[11px] text-slate-500">
-                            Submitted email addresses are stored securely and used solely to notify you when StrangerLens Full Analysis launches. Waitlist emails are received and retained in the operator&apos;s Gmail inbox. To request removal, contact hello.skyorigin@gmail.com. Review our{" "}
-                            <Link href="/privacy" className="text-[#3B82F6] hover:underline font-medium">
-                              Privacy Policy
-                            </Link>
-                            .
-                          </span>
-                        </p>
-                      </div>
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <h3 className="font-extrabold text-white text-xl tracking-tight">
+                                Unlock Your Full Analysis
+                              </h3>
+                            </div>
+
+                            <div className="flex items-baseline gap-2 mb-2 pb-3 border-b border-[#263044] tabular-nums">
+                              <span className="text-4xl sm:text-[42px] font-extrabold text-white tracking-tight leading-none">
+                                $5
+                              </span>
+                              <span className="text-xs sm:text-sm font-semibold text-[#94A3B8]">
+                                one-time · Coming Soon
+                              </span>
+                            </div>
+
+                            <p className="text-xs sm:text-[13px] text-[#94A3B8] leading-relaxed mb-4">
+                              Go beyond your clarity scores. Discover what&apos;s working, what&apos;s unclear, and how to improve your website.
+                            </p>
+
+                            <div className="mb-5">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#64748B] block mb-2.5">
+                                Coming with Full Analysis:
+                              </span>
+                              <ul className="space-y-2 text-xs sm:text-sm text-[#F1F5F9]">
+                                {[
+                                  "Detailed Signal Diagnostics",
+                                  "What's Working & What's Unclear",
+                                  "Actionable Improvements",
+                                  "First 5 Seconds (Understand vs Miss)",
+                                ].map((feat, i) => (
+                                  <li key={i} className="flex items-start gap-2.5">
+                                    <Check className="w-4 h-4 shrink-0 mt-0.5 text-[#3B82F6]" />
+                                    <span className="leading-snug">{feat}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+
+                          <div>
+                            {earlyStatus === "success" ? (
+                              <div className="bg-[#171F2D] border border-emerald-500/30 rounded-2xl p-4 text-center space-y-1.5 my-2">
+                                <div className="w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto mb-1 font-bold text-sm">
+                                  ✓
+                                </div>
+                                <h4 className="text-sm font-bold text-white">You&apos;re on the list! 🎉</h4>
+                                <p className="text-xs text-[#94A3B8]">
+                                  We&apos;ll email you when Full Analysis becomes available.
+                                </p>
+                              </div>
+                            ) : (
+                              <form onSubmit={handleEarlyAccessSubmit} className="space-y-2.5">
+                                <div>
+                                  <label htmlFor="early-access-landing-email" className="sr-only">
+                                    Enter your email address
+                                  </label>
+                                  <input
+                                    id="early-access-landing-email"
+                                    type="email"
+                                    value={earlyEmail}
+                                    onChange={(e) => {
+                                      setEarlyEmail(e.target.value);
+                                      if (earlyStatus === "error") setEarlyStatus("idle");
+                                    }}
+                                    placeholder="Enter your email address"
+                                    required
+                                    className="w-full bg-[#171F2D] border border-[#263044] focus:border-[#3B82F6] text-white placeholder:text-[#64748B] text-xs sm:text-sm rounded-xl px-3.5 py-2.5 outline-none transition-all shadow-xs"
+                                  />
+                                </div>
+                                {earlyStatus === "error" && earlyErrorMessage && (
+                                  <p className="text-xs text-rose-400 text-left font-medium px-1">
+                                    {earlyErrorMessage}
+                                  </p>
+                                )}
+                                <button
+                                  type="submit"
+                                  disabled={earlyStatus === "loading"}
+                                  className="w-full min-h-[44px] py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 inline-flex items-center justify-center gap-1.5 cursor-pointer bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60 text-white shadow-md shadow-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#246BFD] focus-visible:ring-offset-2"
+                                >
+                                  <span>{earlyStatus === "loading" ? "Joining..." : "Join Early Access"} →</span>
+                                </button>
+                              </form>
+                            )}
+
+                            <p className="text-[11px] sm:text-xs text-[#94A3B8] mt-3 leading-relaxed text-left sm:text-center">
+                              No payment required today. We&apos;ll notify you when Full Analysis launches.
+                              <br />
+                              <span className="block mt-1 text-[11px] text-slate-500">
+                                Submitted email addresses are stored securely and used solely to notify you when StrangerLens Full Analysis launches. Waitlist emails are received and retained in the operator&apos;s Gmail inbox. To request removal, contact hello.skyorigin@gmail.com. Review our{" "}
+                                <Link href="/privacy" className="text-[#3B82F6] hover:underline font-medium">
+                                  Privacy Policy
+                                </Link>
+                                .
+                              </span>
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </StaggerItem>
                 </StaggerContainer>
