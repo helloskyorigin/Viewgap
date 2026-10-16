@@ -1248,18 +1248,13 @@ export default function LandingPage() {
                           </div>
                           <div className="space-y-3">
                             <button
-                              onClick={async () => {
-                                const res = await fetch("/api/payments/checkout", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ reportId: "test-report-id" }),
-                                });
-                                const { checkoutUrl } = await res.json();
-                                window.location.href = checkoutUrl;
+                              onClick={() => {
+                                scanController.navigateToLanding();
+                                scrollToInput();
                               }}
                               className="w-full min-h-[44px] py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md shadow-emerald-500/20"
                             >
-                              Unlock Full Analysis — $5
+                              Check Your Website First →
                             </button>
                             <p className="text-[10px] text-rose-400 font-medium">
                               Test Mode — No real money charged.

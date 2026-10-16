@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Link2, Clock, Share2, Download, AlertCircle, Check, Zap, Info, X, Lock, Mail, ArrowRight, Sparkles, Shield, Users, Eye, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import Link from "next/link";
+import { requestCheckoutUrl } from "@/lib/payment-checkout";
 import { adaptReport, SIGNAL_ID_TO_KEY } from "@/lib/report-adapter";
 
 export interface AnalysisData {
@@ -96,6 +97,7 @@ export default function ResultsScreen({
   const [earlyStatus, setEarlyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [earlyErrorMessage, setEarlyErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const isReportUnlocked = Boolean(isUnlocked);
 
   const shouldReduceMotion = useReducedMotion();
@@ -653,21 +655,15 @@ export default function ResultsScreen({
 
             <button
               onClick={async () => {
+                if (loading) return;
                 setLoading(true);
+                setCheckoutError(null);
                 try {
-                  const res = await fetch("/api/payments/checkout", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ reportId: report.rawReport?.reportId || report.domain }),
-                  });
-                  const data = await res.json();
-                  if (data.checkoutUrl) {
-                    window.location.href = data.checkoutUrl;
-                  } else {
-                    alert("Checkout session creation failed. Please try again.");
-                  }
+                  const reportId = report.rawReport?.reportId;
+                  if (!reportId) throw new Error("Report session is missing. Please run a new check before paying.");
+                  window.location.assign(await requestCheckoutUrl(reportId));
                 } catch (err) {
-                  alert("Checkout session creation failed. Please try again.");
+                  setCheckoutError(err instanceof Error ? err.message : "Could not start checkout. Please try again.");
                 } finally {
                   setLoading(false);
                 }
@@ -675,8 +671,9 @@ export default function ResultsScreen({
               disabled={loading}
               className="mt-6 w-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60 text-white font-semibold py-3 px-6 rounded-full text-sm transition-all shadow-md shadow-blue-500/25 cursor-pointer inline-flex items-center justify-center gap-2"
             >
-              {loading ? "Loading..." : "Unlock Full Analysis →"}
+              {loading ? "Opening checkout..." : "Unlock Full Analysis →"}
             </button>
+            {checkoutError && <p role="alert" className="mt-3 text-sm text-rose-400">{checkoutError}</p>}
           </section>
         ) : (
           <>

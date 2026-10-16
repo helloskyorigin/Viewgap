@@ -246,6 +246,7 @@ export function createScanFlowController(options: ScanFlowControllerOptions = {}
           );
           resolvedAnalysisData = {
             ...mapped,
+            reportId: checkJson.reportId,
             isFreeTierOnly: !checkJson?.entitlement?.unlocked,
             ...(checkJson.lockedPreviewCounts
               ? { lockedPreviewCounts: checkJson.lockedPreviewCounts }
