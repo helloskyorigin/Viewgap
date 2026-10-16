@@ -19,9 +19,40 @@ export function clearPendingCheckout(reportId: string) {
 }
 
 export async function paymentJson(url: string, init?: RequestInit) {
-  const response = await fetch(url, { ...init, cache: "no-store", signal: init?.signal || AbortSignal.timeout(20000) });
+  let response: Response;
+  try {
+    response = await fetch(url, { ...init, cache: "no-store", signal: init?.signal || AbortSignal.timeout(20000) });
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      // Preserve user-initiated cancellation; don't turn it into a payment failure.
+      if (init?.signal?.aborted) throw error;
+      throw new Error("Payment server took too long to respond. Please retry; no charge has been confirmed.");
+    }
+    throw new Error("Unable to reach the payment server. Check your connection and retry.");
+  }
+
+  // Older deployments or an upstream 500/404 can return HTML, not JSON.
+  // Keep the actual HTTP failure visible instead of showing a misleading generic message.
   const data = await response.json().catch(() => null);
-  if (!response.ok || !data) throw new Error(data?.error || data?.message || "Could not complete the payment request. Please try again.");
+  if (!response.ok) {
+    const providerMessage =
+      typeof data?.error === "string" && data.error.trim()
+        ? data.error.trim()
+        : typeof data?.message === "string" && data.message.trim()
+          ? data.message.trim()
+          : null;
+    if (providerMessage) throw new Error(providerMessage);
+    if (response.status === 404) {
+      throw new Error("Payment API is missing on this deployment (HTTP 404). Deploy the latest StrangerLens backend.");
+    }
+    if (response.status === 502 || response.status === 504) {
+      throw new Error(`Payment provider is not responding (HTTP ${response.status}). Please retry shortly.`);
+    }
+    throw new Error(`Payment server returned HTTP ${response.status}. Check the deployment's payment configuration and server logs.`);
+  }
+  if (!data || typeof data !== "object") {
+    throw new Error("Payment server returned an invalid response. Make sure the latest StrangerLens payment backend is deployed.");
+  }
   return data;
 }
 
