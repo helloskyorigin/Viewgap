@@ -60,7 +60,7 @@ export default function PrivacyPolicyPage() {
               C. Payment &amp; Billing Information
             </h3>
             <p className="text-xs sm:text-sm text-[#94A3B8] leading-relaxed">
-              Commercial checkout is planned to be processed via our payment partner, <strong>{LEGAL_CONFIG.paymentProvider.plannedProvider}</strong>, once live transactions are enabled. Live payment processing is not operational during the current preview period. When live checkout launches, we do not collect, process, or store raw credit card numbers or payment credentials on StrangerLens servers.
+              Available checkout is processed by our payment partner, <strong>{LEGAL_CONFIG.paymentProvider.plannedProvider}</strong>. We do not collect or store raw card numbers or card credentials on StrangerLens servers. Test checkout is labeled and does not charge real money.
             </p>
           </div>
 
@@ -95,7 +95,7 @@ export default function PrivacyPolicyPage() {
           4. Local Browser Storage &amp; Cookies
         </h2>
         <p>
-          {LEGAL_CONFIG.productName} uses your browser&apos;s local storage (<code>localStorage</code>) on your own device to store your active report session and clarity analysis locally. This ensures your completed report is preserved when navigating or refreshing, without triggering automatic rescans.
+          {LEGAL_CONFIG.productName} uses your browser&apos;s local storage (<code>localStorage</code>) on your own device to store your active report session and clarity analysis locally. Report access tokens and pending checkout references are also saved in local storage in this browser so you can return from checkout and reopen your report without rescanning. Clearing browser storage or changing browsers can remove this access; contact support with your receipt if needed.
         </p>
         <p className="text-xs sm:text-sm text-[#94A3B8]">
           You can clear this cached report session at any time by clearing your browser&apos;s site data for {LEGAL_CONFIG.productName}. We do not use third-party tracking or advertising cookies.
@@ -112,7 +112,7 @@ export default function PrivacyPolicyPage() {
         </p>
         <ul className="list-disc pl-5 space-y-1.5 text-[#94A3B8]">
           <li>
-            <strong>Planned Payment Provider ({LEGAL_CONFIG.paymentProvider.plannedProvider}):</strong> Planned to process checkout payments, invoicing, and payment receipts once live transactions are launched.
+            <strong>Payment Provider ({LEGAL_CONFIG.paymentProvider.plannedProvider}):</strong> Processes checkout payments, invoicing, and payment receipts when checkout is available.
           </li>
           <li>
             <strong>AI Inference Providers:</strong> Processes extracted public website text to return structured first-impression evaluations.
@@ -129,7 +129,7 @@ export default function PrivacyPolicyPage() {
           6. Data Retention &amp; Your Privacy Rights
         </h2>
         <p>
-          Rate-limiting logs are kept transiently in memory to prevent abuse. Order records associated with paid report purchases will be retained as required by applicable tax and accounting laws once checkout is operational. Depending on your jurisdiction (including GDPR, UK GDPR, and CCPA), you have the right to request access to, correction of, or deletion of personal data associated with your email address.
+          Rate-limiting counters are kept briefly to prevent abuse. Unpaid reports and checkout orders are retained for up to 30 days in configured shared storage. Paid reports and order references have no automatic expiry and are retained to provide report access and meet applicable recordkeeping requirements. Without shared storage, only temporary free previews are available and checkout is disabled. Depending on your jurisdiction (including GDPR, UK GDPR, and CCPA), you have the right to request access to, correction of, or deletion of personal data associated with your email address.
         </p>
         <p>
           To exercise any privacy right or ask a question about data handling, email us at{" "}

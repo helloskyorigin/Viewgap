@@ -27,7 +27,7 @@ export default function RefundPolicyPage() {
           Policy Summary
         </h2>
         <p className="text-xs sm:text-sm text-[#94A3B8] leading-relaxed">
-          Digital report purchases are generated on-demand and delivered digitally. {LEGAL_CONFIG.productName} does not offer an unconditional voluntary money-back guarantee, but statutory consumer protection rights under applicable law are fully respected. Commercial checkout is planned to be processed via Dodo Payments once live.
+          Digital report purchases are generated on-demand and delivered digitally. {LEGAL_CONFIG.productName} does not offer an unconditional voluntary money-back guarantee, but statutory consumer protection rights under applicable law are fully respected. Available checkout is processed through Dodo Payments.
         </p>
       </section>
 
@@ -114,7 +114,7 @@ export default function RefundPolicyPage() {
           {LEGAL_CONFIG.paymentProvider.disclosure}
         </p>
         <p className="text-[#94A3B8]">
-          When live checkout is enabled, payments and eligible billing adjustments will be processed in coordination with our payment partner, <strong>{LEGAL_CONFIG.paymentProvider.plannedProvider}</strong>. For any billing, receipt, or payment support inquiries, reach out directly to our support team at{" "}
+          Available payments and eligible billing adjustments are processed in coordination with our payment partner, <strong>{LEGAL_CONFIG.paymentProvider.plannedProvider}</strong>. For any billing, receipt, or payment support inquiries, reach out directly to our support team at{" "}
           <a
             href={`mailto:${LEGAL_CONFIG.supportEmail}`}
             className="font-semibold text-[#3B82F6] hover:underline"

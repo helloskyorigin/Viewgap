@@ -1,17 +1,21 @@
 import crypto from "node:crypto";
-import { FinalValidatedAnalysis } from "@/types/validatedAnalysis";
-import { SupportingContext } from "@/types/supportingContext";
-import { WebsiteSnapshot } from "@/lib/content-extractor";
-import { AnalysisData } from "@/components/ResultsScreen";
+import type { FinalValidatedAnalysis } from "@/types/validatedAnalysis";
+import type { SupportingContext } from "@/types/supportingContext";
+import type { WebsiteSnapshot } from "@/lib/content-extractor";
+import type { AnalysisData } from "@/components/ResultsScreen";
+import { isDurableStorageConfigured, paymentStore, reportKey, UNPAID_RETENTION_SECONDS } from "@/server/storage/paymentStore";
+import { getDodoConfig } from "@/server/payments/dodo";
 
 export interface StoredServerReport {
   reportId: string;
   normalizedUrl: string;
   domain: string;
   createdAt: number;
+  tokenHash: string;
   snapshot: WebsiteSnapshot;
   fullAnalysis: FinalValidatedAnalysis;
   supportingContext?: SupportingContext;
+  payment?: { paymentId: string; environment: string; orderId: string; active: boolean; verifiedAt: number };
 }
 
 export interface LockedPreviewCounts {
@@ -29,171 +33,83 @@ export interface EntitlementCheckResult {
   reason?: string;
 }
 
-const REPORT_TTL_MS = 60 * 60 * 1000; // 1 hour server-side retention
-const MAX_STORED_REPORTS = 500;
+// Free previews remain usable before database setup. This fallback can NEVER
+// accept checkout or grant paid access. Purchases always use shared Redis.
+const previewStore = new Map<string, StoredServerReport>();
+export const PAYMENT_INFRASTRUCTURE_BLOCKER = "Checkout is temporarily unavailable. Please try again later.";
 
-const serverReportStore = new Map<string, StoredServerReport>();
-const verifiedEntitlementStore = new Map<
-  string,
-  { reportId: string; tokenHash: string; grantedAt: number; plan: "single" | "pack" }
->();
-
-export const PAYMENT_INFRASTRUCTURE_BLOCKER =
-  "Live Paddle webhook verification (PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET) and persistent database entitlement storage are not configured in this environment. Paid report unlock fails closed.";
-
-/**
- * Checks whether production payment verification infrastructure is configured.
- * Fails closed (returns false) unless verified server-side credentials are present.
- */
 export function isPaymentInfrastructureConfigured(): boolean {
-  if (typeof process === "undefined" || !process.env) return false;
-  const hasPaddleKey = Boolean(process.env.PADDLE_API_KEY?.trim());
-  const hasWebhookSecret = Boolean(process.env.PADDLE_WEBHOOK_SECRET?.trim());
-  return hasPaddleKey && hasWebhookSecret;
+  try {
+    getDodoConfig();
+    return isDurableStorageConfigured();
+  } catch { return false; }
 }
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function pruneExpiredReports(): void {
-  const now = Date.now();
-  for (const [id, entry] of serverReportStore.entries()) {
-    if (now - entry.createdAt > REPORT_TTL_MS) {
-      serverReportStore.delete(id);
-    }
-  }
-  if (serverReportStore.size > MAX_STORED_REPORTS) {
-    const oldestKey = serverReportStore.keys().next().value;
-    if (oldestKey) serverReportStore.delete(oldestKey);
-  }
+export function hasReportAccess(report: StoredServerReport, token: unknown): boolean {
+  if (typeof token !== "string" || !/^sl_ent_[a-f0-9]{48}$/.test(token)) return false;
+  const expected = Buffer.from(report.tokenHash, "hex");
+  const actual = Buffer.from(hashToken(token), "hex");
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
-/**
- * Saves the complete validated report server-side so free API responses never need
- * to transmit premium report sections to the client browser.
- */
-export function saveServerReport(params: {
+export async function saveServerReport(params: {
   normalizedUrl: string;
   domain: string;
   snapshot: WebsiteSnapshot;
   fullAnalysis: FinalValidatedAnalysis;
   supportingContext?: SupportingContext;
-}): StoredServerReport {
-  pruneExpiredReports();
-  const reportId = crypto.randomUUID();
+}): Promise<StoredServerReport & { reportToken: string }> {
+  const reportToken = `sl_ent_${crypto.randomBytes(24).toString("hex")}`;
   const record: StoredServerReport = {
-    reportId,
-    normalizedUrl: params.normalizedUrl,
-    domain: params.domain,
-    createdAt: Date.now(),
-    snapshot: params.snapshot,
-    fullAnalysis: params.fullAnalysis,
-    ...(params.supportingContext ? { supportingContext: params.supportingContext } : {}),
+    ...params, reportId: crypto.randomUUID(), createdAt: Date.now(), tokenHash: hashToken(reportToken),
   };
-  serverReportStore.set(reportId, record);
-  return record;
-}
-
-export function getServerReport(reportId: string): StoredServerReport | null {
-  if (!reportId || typeof reportId !== "string") return null;
-  pruneExpiredReports();
-  return serverReportStore.get(reportId) || null;
-}
-
-/**
- * Issues a cryptographically random server-side entitlement token for a specific reportId.
- * Used only after verified server-side payment confirmation (or in isolated authorization tests).
- */
-export function grantVerifiedServerEntitlement(
-  reportId: string,
-  plan: "single" | "pack" = "single"
-): string {
-  const rawToken = `sl_ent_${crypto.randomBytes(24).toString("hex")}`;
-  verifiedEntitlementStore.set(reportId, {
-    reportId,
-    tokenHash: hashToken(rawToken),
-    grantedAt: Date.now(),
-    plan,
-  });
-  return rawToken;
-}
-
-export function extractEntitlementTokenFromHeaders(
-  headers?: Headers | Record<string, string | undefined> | null
-): string | null {
-  if (!headers) return null;
-  if (typeof (headers as Headers).get === "function") {
-    const h = headers as Headers;
-    const auth = h.get("authorization") || h.get("Authorization");
-    if (auth && /^Bearer\s+(.+)$/i.test(auth.trim())) {
-      return auth.trim().replace(/^Bearer\s+/i, "").trim();
+  if (isDurableStorageConfigured()) {
+    // Storage outages must fail visibly, never downgrade a durable report to memory.
+    await paymentStore().set(reportKey(record.reportId), record, { ex: UNPAID_RETENTION_SECONDS });
+  } else {
+    for (const [id, report] of previewStore) {
+      if (Date.now() - report.createdAt > 3600000) previewStore.delete(id);
     }
-    const custom = h.get("x-entitlement-token");
-    return custom ? custom.trim() : null;
+    if (previewStore.size >= 500) previewStore.delete(previewStore.keys().next().value!);
+    previewStore.set(record.reportId, record);
   }
-  const rec = headers as Record<string, string | undefined>;
-  const auth = rec.authorization || rec.Authorization;
-  if (auth && /^Bearer\s+(.+)$/i.test(auth.trim())) {
-    return auth.trim().replace(/^Bearer\s+/i, "").trim();
-  }
-  return rec["x-entitlement-token"]?.trim() || null;
+  return { ...record, reportToken };
 }
 
-/**
- * Verifies whether a request is authorized to access the Full Report for `reportId`.
- * Fails closed: client-side booleans or unverified tokens are strictly rejected.
- */
-export function verifyServerEntitlement(
-  reportId: string | undefined | null,
-  token: string | undefined | null
-): EntitlementCheckResult {
+export async function getServerReport(reportId: string): Promise<StoredServerReport | null> {
+  if (!/^[a-f0-9-]{36}$/.test(reportId)) return null;
+  if (isDurableStorageConfigured()) return paymentStore().get<StoredServerReport>(reportKey(reportId));
+  const report = previewStore.get(reportId);
+  if (!report || Date.now() - report.createdAt > 3600000) return null;
+  return report;
+}
+
+export function extractEntitlementTokenFromHeaders(headers?: Headers | Record<string, string | undefined> | null): string | null {
+  if (!headers) return null;
+  const get = (key: string) => typeof (headers as Headers).get === "function"
+    ? (headers as Headers).get(key) : (headers as Record<string, string | undefined>)[key];
+  const auth = get("authorization") || get("Authorization");
+  return auth?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || get("x-entitlement-token")?.trim() || null;
+}
+
+export async function verifyServerEntitlement(reportId: string | null | undefined, token: string | null | undefined): Promise<EntitlementCheckResult> {
   const checkoutEnabled = isPaymentInfrastructureConfigured();
-
-  if (!reportId || !token || typeof token !== "string" || !token.startsWith("sl_ent_")) {
-    return {
-      authorized: false,
-      tier: "free",
-      checkoutEnabled,
-      blocker: checkoutEnabled ? null : PAYMENT_INFRASTRUCTURE_BLOCKER,
-      reason: "MISSING_OR_INVALID_ENTITLEMENT_TOKEN",
-    };
-  }
-
-  const record = verifiedEntitlementStore.get(reportId);
-  if (!record) {
-    return {
-      authorized: false,
-      tier: "free",
-      checkoutEnabled,
-      blocker: checkoutEnabled ? null : PAYMENT_INFRASTRUCTURE_BLOCKER,
-      reason: "NO_VERIFIED_ENTITLEMENT_FOR_REPORT",
-    };
-  }
-
-  const candidateHash = hashToken(token.trim());
-  const expectedBuf = Buffer.from(record.tokenHash, "hex");
-  const candidateBuf = Buffer.from(candidateHash, "hex");
-
-  if (
-    expectedBuf.length !== candidateBuf.length ||
-    !crypto.timingSafeEqual(expectedBuf, candidateBuf)
-  ) {
-    return {
-      authorized: false,
-      tier: "free",
-      checkoutEnabled,
-      blocker: checkoutEnabled ? null : PAYMENT_INFRASTRUCTURE_BLOCKER,
-      reason: "ENTITLEMENT_SIGNATURE_MISMATCH",
-    };
-  }
-
-  return {
-    authorized: true,
-    tier: "paid",
-    checkoutEnabled: true,
-    blocker: null,
+  const locked: EntitlementCheckResult = {
+    authorized: false, tier: "free", checkoutEnabled,
+    blocker: checkoutEnabled ? null : PAYMENT_INFRASTRUCTURE_BLOCKER,
   };
+  if (!reportId || !token) return { ...locked, reason: "MISSING_REPORT_ACCESS" };
+  const report = await getServerReport(reportId);
+  if (!report || !hasReportAccess(report, token)) return { ...locked, reason: "INVALID_REPORT_ACCESS" };
+  const environment = process.env.DODO_ENVIRONMENT?.trim() || "test_mode";
+  if (!isDurableStorageConfigured() || !report.payment?.active || report.payment.environment !== environment) {
+    return { ...locked, reason: "PAYMENT_REQUIRED" };
+  }
+  return { authorized: true, tier: "paid", checkoutEnabled, blocker: null };
 }
 
 export function computeLockedPreviewCounts(
@@ -275,7 +191,13 @@ export function redactAnalysisForFreeTier(
       confidence: "low",
     },
     website_message: analysis.website_message,
-    signals: analysis.signals,
+    signals: {
+      first_impression: { ...analysis.signals.first_impression, explanation: "", evidence_available: false, evidence: [] },
+      audience: { ...analysis.signals.audience, explanation: "", evidence_available: false, evidence: [] },
+      value: { ...analysis.signals.value, explanation: "", evidence_available: false, evidence: [] },
+      trust: { ...analysis.signals.trust, explanation: "", evidence_available: false, evidence: [] },
+      action: { ...analysis.signals.action, explanation: "", evidence_available: false, evidence: [] },
+    },
     // Section 02 Biggest Issue uses only the #1 primary risk; secondary risks (Section 06) are redacted
     risks: Array.isArray(analysis.risks) ? analysis.risks.slice(0, 1) : [],
     // Section 03 Your #1 Priority Fix is included in Free Preview
@@ -319,9 +241,4 @@ export function redactFrontendDataForFreeTier(
       totalRisks: data.risks?.length || 1,
     },
   };
-}
-
-export function _clearReportStoreForTesting(): void {
-  serverReportStore.clear();
-  verifiedEntitlementStore.clear();
 }

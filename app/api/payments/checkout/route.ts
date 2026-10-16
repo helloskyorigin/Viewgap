@@ -1,55 +1,47 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getDodoConfig } from "@/server/payments/dodo";
+import { dodoRequest, getDodoConfig, PaymentError } from "@/server/payments/dodo";
+import { getServerReport, hasReportAccess, extractEntitlementTokenFromHeaders, isPaymentInfrastructureConfigured, verifyServerEntitlement } from "@/server/security/reportAccess";
+import { type CheckoutOrder, withCheckoutLock, getRecentOrder, saveOrder, indexOrder, limitPaymentRequests } from "@/server/payments/orders";
+import { paymentFailure } from "@/server/payments/http";
 
+export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
-  const reportId = body?.reportId;
-  if (typeof reportId !== "string" || !reportId.trim()) {
-    return NextResponse.json({ error: "Report ID is required" }, { status: 400 });
-  }
-
   try {
-    const { apiKey, productId, baseUrl } = getDodoConfig();
-    // Results live at / and are restored from sessionStorage, not /results/[id].
-    // Redirect parameters are never proof of payment.
-    const returnUrl = new URL("/", process.env.NEXT_PUBLIC_APP_URL?.trim() || req.nextUrl.origin);
-    returnUrl.searchParams.set("reportId", reportId.trim());
-    const response = await fetch(`${baseUrl}/checkouts`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        product_cart: [{ product_id: productId, quantity: 1 }],
-        metadata: {
-          reportId,
-        },
-        return_url: returnUrl.toString(),
-      }),
-      signal: AbortSignal.timeout(15000),
-      cache: "no-store",
-    });
+    const body = await req.json().catch(() => null);
+    if (typeof body?.reportId !== "string" || !/^[a-f0-9-]{36}$/.test(body.reportId)) throw new PaymentError(400, "Run a website check before opening checkout.");
+    if (!isPaymentInfrastructureConfigured()) throw new PaymentError(503, "Checkout is temporarily unavailable. Please try again later.");
+    const config = getDodoConfig();
+    const report = await getServerReport(body.reportId);
+    const token = extractEntitlementTokenFromHeaders(req.headers);
+    if (!report || !hasReportAccess(report, token)) throw new PaymentError(403, "This report session is unavailable. Please run a new check.");
+    await limitPaymentRequests(report.reportId, "checkout", 10);
+    if ((await verifyServerEntitlement(report.reportId, token)).authorized) return NextResponse.json({ alreadyPaid: true });
 
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      console.error("Dodo checkout failed", { status: response.status });
-      const error = response.status === 401 || response.status === 403
-        ? "Payment provider authentication failed. Check the Dodo API key and test/live mode."
-        : response.status === 400 || response.status === 404 || response.status === 422
-          ? "Payment provider rejected checkout. Check the product ID and its test/live mode."
-          : "Payment provider is temporarily unavailable. Please try again.";
-      return NextResponse.json({ error }, { status: 502 });
-    }
-    if (typeof data?.checkout_url !== "string" || !data.checkout_url.startsWith("https://")) {
-      return NextResponse.json({ error: "Payment provider did not return a valid checkout URL." }, { status: 502 });
-    }
-    return NextResponse.json({ checkoutUrl: data.checkout_url });
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Payment configuration:")) {
-      return NextResponse.json({ error: error.message }, { status: 503 });
-    }
-    console.error("Checkout request failed");
-    return NextResponse.json({ error: "Could not connect to the payment provider. Please try again." }, { status: 502 });
-  }
+    return await withCheckoutLock(config.environment, report.reportId, async () => {
+      const recent = await getRecentOrder(config.environment, report.reportId);
+      if (recent?.checkoutUrl && recent.sessionId && recent.productId === config.productId &&
+          Date.now() - recent.createdAt < 30 * 60 * 1000 && !["succeeded", "failed", "cancelled", "refunded", "revoked"].includes(recent.status || "")) {
+        return NextResponse.json({ checkoutUrl: recent.checkoutUrl, sessionId: recent.sessionId, orderId: recent.orderId, reportId: report.reportId, environment: config.environment });
+      }
+      const order: CheckoutOrder = { orderId: randomUUID(), reportId: report.reportId, environment: config.environment, productId: config.productId, createdAt: Date.now() };
+      await saveOrder(order); // Must persist the binding BEFORE creating a payable session.
+      const returnUrl = new URL("/", process.env.NEXT_PUBLIC_APP_URL?.trim() || req.nextUrl.origin);
+      if (!["http:", "https:"].includes(returnUrl.protocol)) throw new PaymentError(503, "Checkout return address is not configured correctly.");
+      returnUrl.searchParams.set("checkout", "return");
+      returnUrl.searchParams.set("reportId", report.reportId);
+      returnUrl.searchParams.set("orderId", order.orderId);
+      const data = await dodoRequest<{ checkout_url: string | null; session_id: string }>("/checkouts", {
+        method: "POST",
+        body: JSON.stringify({ product_cart: [{ product_id: config.productId, quantity: 1 }], metadata: { reportId: report.reportId, orderId: order.orderId }, return_url: returnUrl.toString() }),
+      });
+      let checkoutUrl: URL;
+      try { checkoutUrl = new URL(data.checkout_url || ""); } catch { throw new PaymentError(502, "Payment provider did not return a valid checkout URL."); }
+      const expectedHost = config.environment === "test_mode" ? "test.checkout.dodopayments.com" : "checkout.dodopayments.com";
+      if (checkoutUrl.protocol !== "https:" || checkoutUrl.hostname !== expectedHost || !/^cks_[a-zA-Z0-9_-]+$/.test(data.session_id)) throw new PaymentError(502, "Payment provider returned an invalid checkout session.");
+      await saveOrder({ ...order, sessionId: data.session_id, checkoutUrl: checkoutUrl.toString() });
+      await indexOrder(order);
+      return NextResponse.json({ checkoutUrl: checkoutUrl.toString(), sessionId: data.session_id, orderId: order.orderId, reportId: report.reportId, environment: config.environment });
+    });
+  } catch (error) { return paymentFailure(error); }
 }

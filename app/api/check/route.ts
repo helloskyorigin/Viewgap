@@ -16,8 +16,6 @@ import {
   saveServerReport,
   redactAnalysisForFreeTier,
   computeLockedPreviewCounts,
-  extractEntitlementTokenFromHeaders,
-  verifyServerEntitlement,
   isPaymentInfrastructureConfigured,
   PAYMENT_INFRASTRUCTURE_BLOCKER,
 } from "@/server/security/reportAccess";
@@ -223,7 +221,7 @@ export async function POST(req: NextRequest) {
       // memory pressure, and sensitive DOM leakage over the wire
       const { html: _omittedHtml, ...safeFetchMetadata } = fetchResult;
 
-      const storedReport = saveServerReport({
+      const storedReport = await saveServerReport({
         normalizedUrl: fetchResult.finalUrl,
         domain: fetchResult.domain,
         snapshot,
@@ -232,73 +230,32 @@ export async function POST(req: NextRequest) {
       });
 
       const lockedPreviewCounts = computeLockedPreviewCounts(finalValidatedAnalysis);
-      const requestedReportId =
-        typeof (body as any).reportId === "string"
-          ? (body as any).reportId
-          : storedReport.reportId;
-      const token = extractEntitlementTokenFromHeaders(req.headers);
-      const entitlement = verifyServerEntitlement(requestedReportId, token);
-
-      if (!entitlement.authorized) {
-        return NextResponse.json(
-          {
-            ...safeFetchMetadata,
-            reportId: storedReport.reportId,
-            entitlement: {
-              unlocked: false,
-              tier: "free",
-              checkoutEnabled: isPaymentInfrastructureConfigured(),
-              blocker: isPaymentInfrastructureConfigured()
-                ? null
-                : PAYMENT_INFRASTRUCTURE_BLOCKER,
-            },
-            lockedPreviewCounts,
-            snapshot,
-            analysis: redactAnalysisForFreeTier(finalValidatedAnalysis),
-          },
-          {
-            status: 200,
-            headers: {
-              "Server-Timing": serverTimingHeader,
-            },
-          }
-        );
-      }
-
-      const analysisPayload = optionalSupportingResult.supportingContext
-        ? {
-            ...finalValidatedAnalysis,
-            supportingContext: optionalSupportingResult.supportingContext,
-          }
-        : finalValidatedAnalysis;
-
       return NextResponse.json(
         {
           ...safeFetchMetadata,
           reportId: storedReport.reportId,
+          reportToken: storedReport.reportToken,
           entitlement: {
-            unlocked: true,
-            tier: "paid",
-            checkoutEnabled: true,
-            blocker: null,
+            unlocked: false,
+            tier: "free",
+            checkoutEnabled: isPaymentInfrastructureConfigured(),
+            blocker: isPaymentInfrastructureConfigured()
+              ? null
+              : PAYMENT_INFRASTRUCTURE_BLOCKER,
           },
           lockedPreviewCounts,
           snapshot,
-          analysis: analysisPayload,
-          ...(optionalSupportingResult.supportingContext
-            ? { supportingContext: optionalSupportingResult.supportingContext }
-            : {}),
-          ...(optionalSupportingResult.supportingPagesBundle
-            ? { supportingPages: optionalSupportingResult.supportingPagesBundle.pages }
-            : {}),
+          analysis: redactAnalysisForFreeTier(finalValidatedAnalysis),
         },
         {
           status: 200,
           headers: {
             "Server-Timing": serverTimingHeader,
+            "Cache-Control": "private, no-store",
           },
         }
       );
+
     } finally {
       clearTimeout(pipelineTimer);
     }

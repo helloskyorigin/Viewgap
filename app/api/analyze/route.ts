@@ -14,8 +14,6 @@ import { SERVER_LIMITS } from "@/server/config/limits";
 import {
   saveServerReport,
   redactAnalysisForFreeTier,
-  extractEntitlementTokenFromHeaders,
-  verifyServerEntitlement,
   isPaymentInfrastructureConfigured,
   PAYMENT_INFRASTRUCTURE_BLOCKER,
 } from "@/server/security/reportAccess";
@@ -102,30 +100,24 @@ export async function POST(req: NextRequest) {
     const aiAnalysis = await analyzeWebsite(snapshot, supportingPagesBundle);
     const validated = validateAndScoreAnalysis(aiAnalysis, snapshot);
 
-    const stored = saveServerReport({
+    const stored = await saveServerReport({
       normalizedUrl: fetchResult.finalUrl,
       domain: fetchResult.domain,
       snapshot,
       fullAnalysis: validated,
     });
 
-    const token = extractEntitlementTokenFromHeaders(req.headers);
-    const entitlement = verifyServerEntitlement(stored.reportId, token);
-
-    if (!entitlement.authorized) {
-      return NextResponse.json({
-        ...redactAnalysisForFreeTier(validated),
-        reportId: stored.reportId,
-        entitlement: {
-          unlocked: false,
-          tier: "free",
-          checkoutEnabled: isPaymentInfrastructureConfigured(),
-          blocker: isPaymentInfrastructureConfigured() ? null : PAYMENT_INFRASTRUCTURE_BLOCKER,
-        },
-      });
-    }
-
-    return NextResponse.json(validated);
+    return NextResponse.json({
+      ...redactAnalysisForFreeTier(validated),
+      reportId: stored.reportId,
+      reportToken: stored.reportToken,
+      entitlement: {
+        unlocked: false,
+        tier: "free",
+        checkoutEnabled: isPaymentInfrastructureConfigured(),
+        blocker: isPaymentInfrastructureConfigured() ? null : PAYMENT_INFRASTRUCTURE_BLOCKER,
+      },
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error: any) {
     console.error("Analysis error in /api/analyze:", error);
     if (
