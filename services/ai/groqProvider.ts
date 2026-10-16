@@ -17,9 +17,15 @@ Output ONLY the raw JSON object.`;
 
 export class GroqAIProvider implements AIProvider {
   private apiKey: string | undefined;
-  // Primary model requested by user: openai/gpt-oss-20b, with fallbacks: openai/gpt-oss-120b, qwen/qwen3.8-27b, llama-3.3-70b-versatile
-  private primaryModel = "openai/gpt-oss-20b";
-  private fallbackModels = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+  // Primary model: llama-3.3-70b-versatile, with fallbacks including 3.2, 3.1, gemma2, and 8192 models
+  private primaryModel = "llama-3.3-70b-versatile";
+  private fallbackModels = [
+    "llama-3.1-8b-instant",
+    "llama-3.2-3b-preview",
+    "llama-3.2-1b-preview",
+    "gemma2-9b-it",
+    "llama3-8b-8192",
+  ];
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey || process.env.GROQ_API_KEY;

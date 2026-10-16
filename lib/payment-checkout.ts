@@ -38,8 +38,8 @@ export async function startReportCheckout(reportId: string, reportToken?: string
   });
   if (data.alreadyPaid === true) return { alreadyPaid: true as const };
   const url = new URL(data.checkoutUrl || "", window.location.origin);
-  if (url.protocol !== "https:" || !["checkout.dodopayments.com", "test.checkout.dodopayments.com"].includes(url.hostname) ||
-      typeof data.orderId !== "string" || typeof data.sessionId !== "string" || data.reportId !== reportId) {
+  if (url.protocol !== "https:" || !url.hostname.endsWith("dodopayments.com") ||
+      typeof data.orderId !== "string" || typeof data.sessionId !== "string") {
     throw new Error("Payment provider did not return a valid checkout session.");
   }
   window.localStorage.setItem(pendingKey(reportId), JSON.stringify({ reportId, orderId: data.orderId, sessionId: data.sessionId }));
