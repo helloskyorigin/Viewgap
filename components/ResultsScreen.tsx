@@ -95,6 +95,7 @@ export default function ResultsScreen({
   const [earlyEmail, setEarlyEmail] = useState("");
   const [earlyStatus, setEarlyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [earlyErrorMessage, setEarlyErrorMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const isReportUnlocked = Boolean(isUnlocked);
 
   const shouldReduceMotion = useReducedMotion();
@@ -649,6 +650,33 @@ export default function ResultsScreen({
               <Lock className="w-3.5 h-3.5 text-slate-400" />
               <span>Available when Full Analysis launches.</span>
             </div>
+
+            <button
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const res = await fetch("/api/payments/checkout", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reportId: report.rawReport?.reportId || report.domain }),
+                  });
+                  const data = await res.json();
+                  if (data.checkoutUrl) {
+                    window.location.href = data.checkoutUrl;
+                  } else {
+                    alert("Checkout session creation failed. Please try again.");
+                  }
+                } catch (err) {
+                  alert("Checkout session creation failed. Please try again.");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              className="mt-6 w-full bg-[#246BFD] hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60 text-white font-semibold py-3 px-6 rounded-full text-sm transition-all shadow-md shadow-blue-500/25 cursor-pointer inline-flex items-center justify-center gap-2"
+            >
+              {loading ? "Loading..." : "Unlock Full Analysis →"}
+            </button>
           </section>
         ) : (
           <>
