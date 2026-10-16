@@ -13,8 +13,16 @@ export async function settleOrderPayment(order: CheckoutOrder, paymentId: string
   if (order.environment !== getDodoConfig().environment) throw new PaymentError(409, "This checkout belongs to a different payment mode.");
   if (!/^pay_[a-zA-Z0-9_-]+$/.test(paymentId)) throw new PaymentError(400, "Invalid payment reference.");
   const payment = await dodoRequest<PaymentDetails>(`/payments/${encodeURIComponent(paymentId)}`);
-  if (payment.payment_id !== paymentId || payment.metadata?.reportId !== order.reportId || payment.metadata?.orderId !== order.orderId ||
-      payment.product_cart?.length !== 1 || payment.product_cart[0].product_id !== order.productId || payment.product_cart[0].quantity !== 1) {
+  const actualPaymentId = payment.payment_id || (payment as any).id;
+  const cartItem = payment.product_cart?.find(
+    (item) => item.product_id === order.productId && Number(item.quantity) === 1
+  );
+  if (
+    actualPaymentId !== paymentId ||
+    payment.metadata?.reportId !== order.reportId ||
+    payment.metadata?.orderId !== order.orderId ||
+    !cartItem
+  ) {
     throw new PaymentError(409, "Payment does not match this report and product. Please contact support.");
   }
   let active = payment.status === "succeeded" && payment.refund_status !== "full";
@@ -27,12 +35,14 @@ export async function settleOrderPayment(order: CheckoutOrder, paymentId: string
 export async function verifyCheckoutOrder(order: CheckoutOrder) {
   if (order.environment !== getDodoConfig().environment) throw new PaymentError(409, "This checkout belongs to a different payment mode.");
   if (!order.sessionId) throw new PaymentError(409, "Checkout is still being prepared. Please try again.");
-  const session = await dodoRequest<{ id: string; payment_id: string | null; payment_status: string | null }>(`/checkouts/${encodeURIComponent(order.sessionId)}`);
-  if (session.id !== order.sessionId) throw new PaymentError(409, "Checkout session does not match this order.");
-  if (session.payment_status !== "succeeded" || !session.payment_id) {
+  const session = await dodoRequest<{ id?: string; session_id?: string; payment_id: string | null; payment_status: string | null; status?: string }>(`/checkouts/${encodeURIComponent(order.sessionId)}`);
+  const sessionId = session.id || session.session_id;
+  if (sessionId !== order.sessionId) throw new PaymentError(409, "Checkout session does not match this order.");
+  const paymentStatus = session.payment_status || session.status;
+  if (paymentStatus !== "succeeded" || !session.payment_id) {
     // Keep the pending order, so a customer can retry verification without paying again.
-    if (!order.paymentId) await saveOrder({ ...order, status: session.payment_status || "pending" });
-    return { verified: false, paymentStatus: session.payment_status || "pending" };
+    if (!order.paymentId) await saveOrder({ ...order, status: paymentStatus || "pending" });
+    return { verified: false, paymentStatus: paymentStatus || "pending" };
   }
   return settleOrderPayment(order, session.payment_id);
 }

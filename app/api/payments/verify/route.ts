@@ -1,21 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PaymentError } from "@/server/payments/dodo";
-import { getOrder, limitPaymentRequests } from "@/server/payments/orders";
+import {
+  getServerReport,
+  extractEntitlementTokenFromHeaders,
+  hasReportAccess,
+} from "@/server/security/reportAccess";
+import { getOrder } from "@/server/payments/orders";
 import { verifyCheckoutOrder } from "@/server/payments/fulfillment";
-import { getServerReport, hasReportAccess, extractEntitlementTokenFromHeaders, isPaymentInfrastructureConfigured } from "@/server/security/reportAccess";
 import { paymentFailure } from "@/server/payments/http";
 
-export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => null);
-    if (typeof body?.orderId !== "string" || typeof body?.reportId !== "string") throw new PaymentError(400, "Report and order references are required.");
-    if (!isPaymentInfrastructureConfigured()) throw new PaymentError(503, "Payment verification is temporarily unavailable. Please try again later.");
-    const [order, report] = await Promise.all([getOrder(body.orderId), getServerReport(body.reportId)]);
-    if (!report || !hasReportAccess(report, extractEntitlementTokenFromHeaders(req.headers))) throw new PaymentError(403, "This browser does not have access to that report.");
-    if (!order || order.reportId !== report.reportId) throw new PaymentError(404, "Checkout order not found for this report.");
-    await limitPaymentRequests(report.reportId, "verify", 30);
-    const result = await verifyCheckoutOrder(order);
-    return NextResponse.json({ success: true, ...result, reportId: report.reportId }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) { return paymentFailure(error); }
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const { reportId, orderId } = body || {};
+    if (
+      typeof reportId !== "string" ||
+      !/^[a-f0-9-]{36}$/.test(reportId) ||
+      typeof orderId !== "string" ||
+      !/^[a-f0-9-]{36}$/.test(orderId)
+    ) {
+      return NextResponse.json(
+        { error: "Valid reportId and orderId are required" },
+        { status: 400 }
+      );
+    }
+
+    const storedReport = await getServerReport(reportId);
+    if (!storedReport) {
+      return NextResponse.json({ error: "Report not found" }, { status: 404 });
+    }
+
+    const token = extractEntitlementTokenFromHeaders(req.headers);
+    if (!hasReportAccess(storedReport, token)) {
+      return NextResponse.json(
+        { error: "Unauthorized access to report" },
+        { status: 403 }
+      );
+    }
+
+    const order = await getOrder(orderId);
+    if (!order || order.reportId !== reportId) {
+      return NextResponse.json(
+        { error: "Order does not match report" },
+        { status: 404 }
+      );
+    }
+
+    if (storedReport.payment?.active) {
+      return NextResponse.json({
+        verified: true,
+        reportId,
+        alreadyPaid: true,
+        status: "succeeded",
+      });
+    }
+
+    const verificationResult = await verifyCheckoutOrder(order);
+
+    return NextResponse.json({
+      verified: verificationResult.verified,
+      status: verificationResult.paymentStatus,
+      reportId,
+    });
+  } catch (error) {
+    return paymentFailure(error);
+  }
 }

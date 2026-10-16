@@ -102,7 +102,11 @@ export function useReportPayments(analysisData: any, scanController: { restoreSe
     if (pending) { void verifyPayment(reportId, pending.orderId); return; }
     const controller = new AbortController();
     // Restored client booleans never unlock the UI; always ask the server again.
-    loadPaidReport(reportId, token, controller.signal).catch(() => {});
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) {
+        void loadPaidReport(reportId, token, controller.signal).catch(() => {});
+      }
+    });
     return () => controller.abort();
   }, [analysisData?.reportId, analysisData?.reportToken, loadPaidReport, verifyPayment]);
 

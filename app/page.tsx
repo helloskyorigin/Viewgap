@@ -142,6 +142,12 @@ export default function LandingPage() {
   const [activeInfoModal, setActiveInfoModal] = useState<"faq" | "pricing" | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsMounted(true);
+  }, []);
 
 
   // API Integration States
@@ -386,14 +392,17 @@ export default function LandingPage() {
     }
   };
 
+  const activeView = isMounted ? currentView : "landing";
+  const activePaymentMessage = isMounted ? payments.paymentMessage : null;
+
   return (
     <div className="min-h-screen bg-[#090D15] text-[#F1F5F9] font-sans antialiased selection:bg-[#3B82F6]/30 selection:text-white flex flex-col overflow-x-hidden">
-      {currentView !== "results" && payments.paymentMessage && <div role="status" className="mx-auto my-4 w-full max-w-3xl rounded-xl border border-[#263044] bg-[#121824] p-4 text-sm">
-        <p>{payments.paymentMessage}</p>
+      {activeView !== "results" && activePaymentMessage && <div role="status" className="mx-auto my-4 w-full max-w-3xl rounded-xl border border-[#263044] bg-[#121824] p-4 text-sm">
+        <p>{activePaymentMessage}</p>
         {["pending", "error"].includes(payments.paymentState) && <button className="mt-2 text-blue-400 underline" onClick={() => payments.verifyPayment(new URLSearchParams(window.location.search).get("reportId") || undefined, new URLSearchParams(window.location.search).get("orderId") || undefined)}>Check payment status</button>}
       </div>}
       <AnimatePresence mode="wait">
-        {currentView === "landing" ? (
+        {activeView === "landing" ? (
           <motion.div
             key="landing"
             initial={shouldReduceMotion ? {} : { opacity: 0 }}
@@ -1324,7 +1333,7 @@ export default function LandingPage() {
               </section>
             </main>
           </motion.div>
-        ) : currentView === "scan" ? (
+        ) : activeView === "scan" ? (
           <motion.div
             key="scan"
             initial={shouldReduceMotion ? {} : { opacity: 0 }}

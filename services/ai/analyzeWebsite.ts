@@ -11,9 +11,8 @@ export interface AnalyzeWebsiteOptions {
 
 /**
  * Main entry point for Phase 3 AI Analysis.
- * Analyzes WebsiteSnapshot and optional SupportingPagesBundle (including Privacy Policy, Terms of Service, Refund Policy)
- * using Groq API as primary AI provider with fallback to Gemini AI Provider.
- * Verifies structured output, cleans and validates evidence references against original snapshot and legal pages text.
+ * Analyzes WebsiteSnapshot and optional SupportingPagesBundle 
+ * using Groq API as primary provider, with Gemini as fallback.
  */
 export async function analyzeWebsite(
   snapshot: WebsiteSnapshot,
@@ -23,28 +22,30 @@ export async function analyzeWebsite(
   let rawAnalysis: WebsiteAnalysis | null = null;
   let providerError: Error | null = null;
 
-  // 1. Try Gemini AI Provider first (reliable and primary)
-  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) {
-    try {
-      const geminiProvider = new GeminiAIProvider();
-      rawAnalysis = await geminiProvider.analyzeWebsite(snapshot, supportingPagesBundle);
-    } catch (err: unknown) {
-      providerError = err instanceof Error ? err : new Error(String(err));
-    }
-  }
-
-  // 2. Fall back to Groq if Gemini was not configured or encountered an error
-  if (!rawAnalysis && process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim()) {
+  // 1. Try Groq AI Provider first (Primary as requested)
+  if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim()) {
     try {
       const groqProvider = new GroqAIProvider(options.apiKey);
       rawAnalysis = await groqProvider.analyzeWebsite(snapshot, supportingPagesBundle);
     } catch (err: unknown) {
-      const groqErr = err instanceof Error ? err : new Error(String(err));
-      if (!providerError) providerError = groqErr;
+      providerError = err instanceof Error ? err : new Error(String(err));
+      console.warn("[AI-WARN] Groq provider failed:", providerError.message);
     }
   }
 
-  // 3. If neither succeeded, throw the error or default error
+  // 2. Fall back to Gemini if Groq was not configured or encountered an error
+  if (!rawAnalysis && process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) {
+    try {
+      const geminiProvider = new GeminiAIProvider();
+      rawAnalysis = await geminiProvider.analyzeWebsite(snapshot, supportingPagesBundle);
+    } catch (err: unknown) {
+      const geminiErr = err instanceof Error ? err : new Error(String(err));
+      console.warn("[AI-WARN] Gemini provider failed:", geminiErr.message);
+      if (!providerError) providerError = geminiErr;
+    }
+  }
+
+  // 3. If neither succeeded, throw the error
   if (!rawAnalysis) {
     if (providerError) throw providerError;
     const err = new Error("Analysis is temporarily unavailable. Please try again later.");
@@ -52,8 +53,6 @@ export async function analyzeWebsite(
     throw err;
   }
 
-  // 4. Validate and Clean Evidence References against original WebsiteSnapshot and supporting/legal pages
-  const groundedAnalysis = validateAndCleanEvidence(rawAnalysis, snapshot, supportingPagesBundle);
-
-  return groundedAnalysis;
+  // 4. Validate and Clean Evidence References
+  return validateAndCleanEvidence(rawAnalysis, snapshot, supportingPagesBundle);
 }

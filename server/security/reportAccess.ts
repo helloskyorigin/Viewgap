@@ -3,7 +3,7 @@ import type { FinalValidatedAnalysis } from "@/types/validatedAnalysis";
 import type { SupportingContext } from "@/types/supportingContext";
 import type { WebsiteSnapshot } from "@/lib/content-extractor";
 import type { AnalysisData } from "@/components/ResultsScreen";
-import { isDurableStorageConfigured, paymentStore, reportKey, UNPAID_RETENTION_SECONDS } from "@/server/storage/paymentStore";
+import { isDurableStorageConfigured, paymentStore, reportKey, UNPAID_RETENTION_SECONDS, cleanEnvString } from "@/server/storage/paymentStore";
 import { getDodoConfig } from "@/server/payments/dodo";
 
 export interface StoredServerReport {
@@ -105,7 +105,7 @@ export async function verifyServerEntitlement(reportId: string | null | undefine
   if (!reportId || !token) return { ...locked, reason: "MISSING_REPORT_ACCESS" };
   const report = await getServerReport(reportId);
   if (!report || !hasReportAccess(report, token)) return { ...locked, reason: "INVALID_REPORT_ACCESS" };
-  const environment = process.env.DODO_ENVIRONMENT?.trim() || "test_mode";
+  const environment = cleanEnvString(process.env.DODO_ENVIRONMENT) || "test_mode";
   if (!isDurableStorageConfigured() || !report.payment?.active || report.payment.environment !== environment) {
     return { ...locked, reason: "PAYMENT_REQUIRED" };
   }
